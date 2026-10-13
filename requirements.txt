@@ -1,5 +1,7 @@
 # IANA time zones, including daylight saving on Windows.
 tzdata>=2024.1
+waitress>=3.0.2
+argon2-cffi>=25.1
 # Optional production integrations:
 openpyxl>=3.1.0
 mysql-connector-python>=9.0.0

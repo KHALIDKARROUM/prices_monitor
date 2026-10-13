@@ -3,7 +3,7 @@ import csv
 import http.client
 import io
 import threading
-from http.server import ThreadingHTTPServer
+from price_monitor.http_wsgi import WSGIServer
 from urllib.parse import urlencode
 
 import pytest
@@ -108,7 +108,7 @@ def test_download_exports_all_filtered_rows_above_ten_thousand(large_history, mo
     from price_monitor import app
     db, now = large_history
     monkeypatch.setattr(app, "database", db)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    server = WSGIServer(("127.0.0.1", 0), app.Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     client = http.client.HTTPConnection(*server.server_address, timeout=30)

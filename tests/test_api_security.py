@@ -3,7 +3,7 @@ from __future__ import annotations
 import http.client
 import json
 import threading
-from http.server import ThreadingHTTPServer
+from price_monitor.http_wsgi import WSGIServer
 
 import pytest
 
@@ -76,7 +76,7 @@ def api_server(monkeypatch):
     monkeypatch.setattr(app_module, "database", database)
     monkeypatch.setattr(app_module, "API_KEY", "test-api-key")
     monkeypatch.setattr(app_module, "RATE_LIMIT_ENABLED", False)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), app_module.Handler)
+    server = WSGIServer(("127.0.0.1", 0), app_module.Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -126,9 +126,11 @@ def test_connectivity_route_handles_startup_without_a_collection(api_server, mon
     assert json.loads(body)["collection"] is None
 
 
-def test_source_comparison_is_public_and_keeps_missing_data_unverified(api_server):
+def test_source_comparison_requires_authentication_and_keeps_missing_data_unverified(api_server):
     server, _ = api_server
     status, _, body = request(server, "GET", "/api/source-comparison")
+    assert status == 401
+    status, _, body = request(server, "GET", "/api/source-comparison", {"X-API-Key": "test-api-key"})
     assert status == 200
     assert json.loads(body) == {"status": "unverified", "sources": [], "pairs": [], "mismatch_count": 0}
 
@@ -138,7 +140,7 @@ def test_page_refreshes_and_status_polls_do_not_repeat_console_messages(api_serv
     with caplog.at_level("INFO"):
         for _ in range(3):
             for path in ("/", "/static/connectivity.js", "/api/connectivity", "/api/logs"):
-                status, _, _ = request(server, "GET", path)
+                status, _, _ = request(server, "GET", path, {"X-API-Key": "test-api-key"})
                 assert status == 200
     assert not [record for record in caplog.records if getattr(record, "event", None) == "http_request"]
 
@@ -149,7 +151,7 @@ def test_protected_routes_reject_missing_api_key(api_server):
     status, headers, _ = request(server, "GET", "/api/observations")
 
     assert status == 401
-    assert headers["WWW-Authenticate"] == 'Bearer realm="price-monitor"'
+    assert next(value for key, value in headers.items() if key.lower() == "www-authenticate") == 'Bearer realm="price-monitor"'
     assert database.observation_calls == 0
 
 
@@ -177,7 +179,7 @@ def test_protected_routes_accept_api_key_headers(api_server, monkeypatch):
 def test_forecast_route_returns_public_market_forecast(api_server):
     server, database = api_server
 
-    status, _, body = request(server, "GET", "/api/forecast?history_days=90")
+    status, _, body = request(server, "GET", "/api/forecast?history_days=90", {"X-API-Key": "test-api-key"})
 
     assert status == 200
     assert database.observation_calls == 3
@@ -193,20 +195,23 @@ def test_alert_page_reports_email_readiness(api_server, monkeypatch):
     monkeypatch.setattr(app_module, "ALERT_SMTP_USER", "person@example.com")
     monkeypatch.setattr(app_module, "ALERT_SMTP_PASSWORD", "")
 
-    status, _, body = request(server, "GET", "/api/alerts")
+    status, _, body = request(server, "GET", "/api/alerts", {"X-API-Key": "test-api-key"})
     assert status == 200
     assert json.loads(body)["channels"]["email"] is False
 
     monkeypatch.setattr(app_module, "ALERT_SMTP_PASSWORD", "test-secret")
-    status, _, body = request(server, "GET", "/api/alerts")
+    status, _, body = request(server, "GET", "/api/alerts", {"X-API-Key": "test-api-key"})
     assert status == 200
     assert json.loads(body)["channels"]["email"] is True
 
 
-def test_read_only_history_is_public_while_observation_writes_stay_protected(api_server):
+def test_history_requires_authentication_before_accessing_supplier_records(api_server):
     server, database = api_server
 
     status, _, body = request(server, "GET", "/api/history?page=1&page_size=50")
+    assert status == 401
+    assert database.history_calls == 0
+    status, _, body = request(server, "GET", "/api/history?page=1&page_size=50", {"X-API-Key": "test-api-key"})
 
     assert status == 200
     assert database.history_calls == 1
@@ -258,7 +263,7 @@ def test_missing_api_key_configuration_fails_closed(monkeypatch):
     monkeypatch.setattr(app_module, "API_KEY", "")
     monkeypatch.setattr(app_module, "ENVIRONMENT", "production")
     monkeypatch.setattr(app_module, "HOST", "127.0.0.1")
-    server = ThreadingHTTPServer(("127.0.0.1", 0), app_module.Handler)
+    server = WSGIServer(("127.0.0.1", 0), app_module.Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -268,7 +273,7 @@ def test_missing_api_key_configuration_fails_closed(monkeypatch):
         server.server_close()
         thread.join(timeout=2)
 
-    assert status == 503
+    assert status == 401
 
 
 def test_local_manual_collection_works_without_an_api_key(monkeypatch):
@@ -280,7 +285,7 @@ def test_local_manual_collection_works_without_an_api_key(monkeypatch):
         "run_collection",
         lambda _database: {"status": "success", "rows": 2, "message": "ok"},
     )
-    server = ThreadingHTTPServer(("127.0.0.1", 0), app_module.Handler)
+    server = WSGIServer(("127.0.0.1", 0), app_module.Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -300,7 +305,7 @@ def test_local_alert_rule_can_be_created_without_an_api_key(monkeypatch):
     monkeypatch.setattr(app_module, "HOST", "127.0.0.1")
     database = StubDatabase()
     monkeypatch.setattr(app_module, "database", database)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), app_module.Handler)
+    server = WSGIServer(("127.0.0.1", 0), app_module.Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     payload = json.dumps({"product": "brent", "direction": "stale", "threshold": 15, "channel": "email"})
@@ -357,10 +362,10 @@ def test_local_observation_api_reads_and_saves_valid_supplier_quotes(api_server,
     ("development", "127.0.0.1", "configured", {}, 401),
     ("development", "127.0.0.1", "configured", {"X-API-Key": "wrong"}, 401),
     ("production", "127.0.0.1", "configured", {}, 401),
-    ("production", "127.0.0.1", "", {}, 503),
-    ("development", "0.0.0.0", "", {}, 503),
+    ("production", "127.0.0.1", "", {}, 401),
+    ("development", "0.0.0.0", "", {}, 401),
     ("development", "0.0.0.0", "configured", {}, 401),
-    ("production", "0.0.0.0", "configured", {"X-API-Key": "configured"}, 200),
+    ("production", "0.0.0.0", "configured", {"X-API-Key": "configured"}, 401),
 ])
 @pytest.mark.parametrize("path", ["/api/procurements", "/api/observations"])
 def test_record_authentication_remains_required_outside_keyless_local_mode(api_server, monkeypatch, environment, host, key, headers, status, path):
@@ -401,7 +406,7 @@ def test_local_records_reject_requests_from_other_sites(api_server, monkeypatch,
     [
         ("production", "127.0.0.1", "", True),
         ("development", "0.0.0.0", "", True),
-        ("production", "127.0.0.1", "configured", False),
+        ("production", "127.0.0.1", "configured", True),
     ],
 )
 def test_security_configuration_requires_key_for_production_or_public_bind(

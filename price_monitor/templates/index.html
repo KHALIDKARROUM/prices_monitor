@@ -10,8 +10,18 @@
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
+  <section id="sign-in" class="sign-in" aria-labelledby="sign-in-title" hidden>
+    <form id="sign-in-form" class="panel">
+      <p class="eyebrow">PRICE MONITOR</p><h1 id="sign-in-title">Accéder à votre espace</h1>
+      <p>Les prix, devis et documents de votre équipe sont réservés aux personnes autorisées.</p>
+      <div id="sign-in-account-fields"><label>Identifiant<input name="username" autocomplete="username" maxlength="80" required></label><label>Mot de passe<input name="password" type="password" autocomplete="current-password" maxlength="128" required></label></div>
+      <div id="sign-in-key-fields" hidden><label>Clé d’accès locale<input name="api_key" type="password" autocomplete="off"></label></div>
+      <p id="sign-in-error" class="error-note" role="alert"></p><button type="submit" class="primary-btn full">Se connecter</button>
+      <button type="button" id="sign-in-cancel" class="text-btn" hidden>Revenir à mon espace local</button>
+    </form>
+  </section>
   <a class="skip-link" href="#main-content">Aller au contenu principal</a>
-  <div class="app-shell">
+  <div class="app-shell" hidden>
     <header class="sidebar" aria-label="Navigation principale">
       <a class="brand" href="#marches" aria-label="Price Monitor · Marchés"><span class="brand-mark">↗</span><span>Price <strong>Monitor</strong></span></a>
       <div class="side-caption">ESPACE DE TRAVAIL</div>
@@ -25,6 +35,7 @@
         <a class="nav-item" href="#fournisseurs"><span aria-hidden="true">⌖</span> Fournisseurs</a>
         <a class="nav-item" href="#budget"><span aria-hidden="true">▣</span> Budget</a>
         <a class="nav-item" href="#activite"><span aria-hidden="true">◎</span> Activité</a>
+        <a class="nav-item" href="#equipe"><span aria-hidden="true">◉</span> Mon compte / Équipe</a>
       </nav>
       <div class="sidebar-footer">
         <div class="secure-dot"></div>
@@ -35,7 +46,7 @@
     <main class="content" id="main-content" tabindex="-1">
       <header class="topbar">
         <div><p class="eyebrow">PRICE MONITOR / MARCHÉS INTERNATIONAUX</p><h1 id="page-title" tabindex="-1">Marchés</h1><p class="topbar-intro" id="page-description">L’essentiel des prix, en un regard.</p></div>
-        <div class="top-actions"><span class="live-pill warning" id="system-status" role="status"><i></i> Vérification de la connexion…</span><button class="icon-button" id="refresh-btn" title="Actualiser les données" aria-label="Actualiser les données">↻</button><div class="avatar" aria-label="Profil KK">KK</div></div>
+        <div class="top-actions"><span class="live-pill warning" id="system-status" role="status"><i></i> Vérification de la connexion…</span><button class="icon-button" id="refresh-btn" title="Actualiser les données" aria-label="Actualiser les données">↻</button><button type="button" class="avatar" id="profile-button" aria-label="Mon compte">PM</button></div>
       </header>
 
 
@@ -98,10 +109,10 @@
 
       <div class="page-view" id="veille" data-page="veille" aria-label="Veille">
       <section class="panel alerts-panel" id="alerts">
-        <div class="panel-heading"><div><p class="eyebrow">SURVEILLANCE</p><h2>Règles de surveillance</h2></div><button class="text-btn" type="button" id="alert-new">＋ Nouvelle règle</button></div>
+        <div class="panel-heading"><div><p class="eyebrow">SURVEILLANCE</p><h2>Règles de surveillance</h2></div><button class="text-btn" type="button" id="alert-new" data-permission="editor">＋ Nouvelle règle</button></div>
         <p class="chart-note" id="alert-channel-status">Chargement de la configuration des notifications…</p>
         <div class="alerts-layout">
-          <form id="alert-form" class="alert-form">
+          <form id="alert-form" data-permission="editor" class="alert-form">
             <div class="alert-form-heading"><strong id="alert-form-title">Créer une règle</strong><button class="text-btn" type="button" id="alert-cancel" hidden>Annuler</button></div>
             <label>Produit<select name="product"><option value="gasoil">Gasoil / diesel</option><option value="brent">Pétrole Brent</option><option value="bitume">Bitume</option></select></label>
             <label id="alert-instrument-field">Instrument suivi<select name="instrument"></select></label>
@@ -151,19 +162,19 @@
       </div>
 
       <div class="page-view" id="nouveau-prix" data-page="nouveau-prix" aria-label="Nouveau prix">
-        <article class="panel form-panel" id="manual"><div class="panel-heading"><div><p class="eyebrow">DONNÉE INTERNE</p><h2>Nouveau prix du bitume</h2></div><span class="form-icon">＋</span></div><p class="panel-intro">Enregistrez un prix pour enrichir l'historique. Pour gérer les conditions, justificatifs et corrections d’un devis, ouvrez <a href="#fournisseurs">Gérer les devis</a>.</p><form id="bitumen-form"><div class="form-grid"><label>Prix <div class="input-wrap"><input type="number" min="0.01" step="0.01" name="price" required placeholder="520.00"><span>USD/t</span></div></label><label>Date source<input type="date" name="source_date" required></label></div><label>Source / fournisseur<input type="text" name="source" required placeholder="Ex. Devis Fournisseur ABC · Q3 2026"></label><label>Remarque <textarea name="notes" rows="2" placeholder="Référence, incoterm, qualité…"></textarea></label><button class="primary-btn full" type="submit">Enregistrer le relevé <span>→</span></button></form></article>
+        <article class="panel form-panel" id="manual"><div class="panel-heading"><div><p class="eyebrow">DONNÉE INTERNE</p><h2>Nouveau prix du bitume</h2></div><span class="form-icon">＋</span></div><p class="panel-intro">Enregistrez un prix pour enrichir l'historique. Pour gérer les conditions, justificatifs et corrections d’un devis, ouvrez <a href="#fournisseurs">Gérer les devis</a>.</p><form id="bitumen-form" data-permission="editor"><div class="form-grid"><label>Prix <div class="input-wrap"><input type="number" min="0.01" step="0.01" name="price" required placeholder="520.00"><span>USD/t</span></div></label><label>Date source<input type="date" name="source_date" required></label></div><label>Source / fournisseur<input type="text" name="source" required placeholder="Ex. Devis Fournisseur ABC · Q3 2026"></label><label>Remarque <textarea name="notes" rows="2" placeholder="Référence, incoterm, qualité…"></textarea></label><button class="primary-btn full" type="submit">Enregistrer le relevé <span>→</span></button></form></article>
       </div>
 
       <div class="page-view" id="fournisseurs" data-page="fournisseurs" aria-label="Fournisseurs">
       <section class="panel quote-panel" id="quote-management" aria-labelledby="quote-title">
-        <div class="panel-heading"><div><p class="eyebrow">DOSSIERS FOURNISSEURS</p><h2 id="quote-title">Gérer les devis</h2></div><button type="button" class="primary-btn" id="quote-new">＋ Nouveau devis</button></div>
+        <div class="panel-heading"><div><p class="eyebrow">DOSSIERS FOURNISSEURS</p><h2 id="quote-title">Gérer les devis</h2></div><button type="button" class="primary-btn" id="quote-new" data-permission="editor">＋ Nouveau devis</button></div>
         <p class="panel-intro">Qualité, livraison, validité, justificatifs et corrections réunis dans un dossier. Comparez des offres portant sur les mêmes conditions.</p>
         <form id="quote-filters" class="quote-toolbar"><label>Produit<select name="product"><option value="">Tous</option><option value="gasoil">Gasoil / diesel</option><option value="brent">Brent</option><option value="bitume">Bitume</option></select></label><label>Fournisseur<input name="supplier" maxlength="150" placeholder="Rechercher un fournisseur"></label><button type="submit" class="text-btn">Filtrer</button></form>
         <p id="quote-list-status" role="status">Chargement des devis…</p>
         <div class="table-scroll"><table><thead><tr><th>Comparer</th><th>Devis / fournisseur</th><th>Produit / grade</th><th>Livraison</th><th>Validité</th><th>Coût rendu USD</th><th></th></tr></thead><tbody id="quote-list"></tbody></table></div>
         <div class="quote-toolbar"><button type="button" class="text-btn" id="quote-prev" disabled>← Précédents</button><span id="quote-page"></span><button type="button" class="text-btn" id="quote-next" disabled>Suivants →</button><label>Comparer à la date du<input type="date" id="quote-compare-date" required></label><button type="button" class="primary-btn" id="quote-compare" disabled>Comparer les devis sélectionnés</button><button type="button" class="text-btn" id="quote-clear-selection">Vider la sélection</button></div>
         <div id="quote-comparison" hidden aria-live="polite"></div>
-        <form id="quote-editor" hidden>
+        <form id="quote-editor" data-permission="editor" hidden>
           <div class="panel-heading"><h3 id="quote-editor-title">Nouveau devis</h3><button type="button" class="text-btn" id="quote-cancel">Fermer</button></div>
           <input type="hidden" name="expected_version">
           <fieldset><legend>Produit et qualité</legend><div class="form-grid">
@@ -189,7 +200,7 @@
           <div class="panel-heading"><h3 id="quote-detail-title"></h3><div class="export-actions"><button type="button" class="text-btn" id="quote-edit">Corriger</button><button type="button" class="primary-btn" id="quote-budget">Préparer le budget</button><button type="button" class="text-btn" id="quote-detail-close">Fermer</button></div></div>
           <div id="quote-detail-content"></div>
           <h3>Justificatifs</h3><div id="quote-documents"></div>
-          <form id="quote-document-form"><div class="form-grid"><label>Fichier<input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.xlsx" required></label><label>Type de document<select name="document_type" id="quote-document-type"></select></label><label>Auteur<input name="actor" maxlength="100" value="Équipe achats" required></label><label>Motif de l’ajout ou du retrait<input name="change_reason" maxlength="1000" required></label></div><p class="field-help">PDF, images, TXT, DOCX ou XLSX sans macros · 5 Mo par document. Les pièces retirées restent dans l’historique.</p><button type="submit" class="text-btn" id="quote-upload">Joindre le justificatif</button><p id="quote-document-message" class="error-note" role="status"></p></form>
+          <form id="quote-document-form" data-permission="editor"><div class="form-grid"><label>Fichier<input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.xlsx" required></label><label>Type de document<select name="document_type" id="quote-document-type"></select></label><label>Auteur<input name="actor" maxlength="100" value="Équipe achats" required></label><label>Motif de l’ajout ou du retrait<input name="change_reason" maxlength="1000" required></label></div><p class="field-help">PDF, images, TXT, DOCX ou XLSX sans macros · 5 Mo par document. Les pièces retirées restent dans l’historique.</p><button type="submit" class="text-btn" id="quote-upload">Joindre le justificatif</button><p id="quote-document-message" class="error-note" role="status"></p></form>
           <h3>Historique des corrections</h3><div id="quote-revisions"></div>
         </article>
       </section>
@@ -226,7 +237,7 @@
       <section class="panel procurement-panel" id="procurement">
         <div class="panel-heading"><div><p class="eyebrow">DÉCISION D'ACHAT</p><h2>Préparer un budget</h2></div><span class="form-icon">▣</span></div>
         <p class="panel-intro">Calculez le coût total, l'écart au budget et l'impact du prix par rapport au dernier relevé de marché.</p>
-        <p id="procurement-quote-link" hidden role="status"></p><button type="button" class="text-btn" id="procurement-unlink-quote" hidden>Passer à un budget libre</button><form id="procurement-form">
+        <p id="procurement-quote-link" hidden role="status"></p><button type="button" class="text-btn" id="procurement-unlink-quote" hidden>Passer à un budget libre</button><form id="procurement-form" data-permission="editor">
           <input type="hidden" name="quote_id"><input type="hidden" name="quote_version">
           <div class="form-grid">
             <label>Produit<select name="product" id="procurement-product"><option value="gasoil">Gasoil / diesel</option><option value="brent">Pétrole Brent</option><option value="bitume">Bitume</option></select></label>
@@ -266,12 +277,33 @@
 </div>
       </div>
 
+      <div class="page-view" id="equipe" data-page="equipe" aria-label="Mon compte et équipe">
+        <article class="panel"><div class="panel-heading"><div><p class="eyebrow">COMPTE INDIVIDUEL</p><h2 id="account-name">Connexion…</h2><p id="account-role"></p></div><div class="account-actions"><button id="account-login-button" class="text-btn" type="button">Utiliser un compte</button><button id="logout-button" class="text-btn" type="button" hidden>Se déconnecter</button></div></div>
+          <div id="personal-account-controls" hidden>
+            <form id="password-form" class="form-grid"><label>Mot de passe actuel<input type="password" name="current_password" autocomplete="current-password" required maxlength="128"></label><label>Nouveau mot de passe<input type="password" name="new_password" autocomplete="new-password" required minlength="12" maxlength="128"></label><button type="submit" class="primary-btn">Modifier mon mot de passe</button></form>
+            <hr><h3>Accès à mes outils</h3><p>Créez un jeton individuel pour vos scripts. Il utilise votre rôle et peut être révoqué à tout moment.</p>
+            <form id="token-form" class="form-grid"><label>Nom de l’outil<input name="label" maxlength="100" required></label><label>Validité (jours)<input type="number" name="days" min="1" max="365" value="30" required></label><button type="submit" class="text-btn">Créer un jeton</button></form>
+            <p id="new-token-message" role="status" hidden>Copiez ce jeton maintenant ; il ne sera plus affiché.</p><textarea id="new-token" readonly hidden aria-label="Nouveau jeton individuel"></textarea><div id="token-list"></div>
+          </div>
+          <p id="account-message" class="error-note" role="status"></p>
+        </article>
+        <div data-permission="admin" hidden>
+          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">ADMINISTRATION</p><h2>Équipe</h2></div><button id="team-refresh" class="text-btn" type="button">Actualiser</button></div>
+            <p>Lecteur : consultation et exports. Éditeur : saisie, devis, budgets, alertes et collectes. Administrateur : gestion de l’équipe et journal des actions.</p>
+            <form id="user-form" class="form-grid"><label>Identifiant<input name="username" minlength="3" maxlength="80" autocomplete="off" required></label><label>Nom<input name="full_name" maxlength="100" required></label><label>Mot de passe initial<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><label>Rôle<select name="role"><option value="viewer">Lecteur</option><option value="editor">Éditeur</option><option value="admin">Administrateur</option></select></label><button type="submit" class="primary-btn">Ajouter un compte</button></form>
+            <div id="team-users"></div><p id="team-message" class="error-note" role="status"></p>
+          </article>
+          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">TRAÇABILITÉ</p><h2>Journal des actions</h2></div></div><p>Identité vérifiée, action, résultat et date. Les mots de passe, jetons et documents ne figurent pas dans ce journal.</p><div class="table-wrap"><table><thead><tr><th>Date</th><th>Compte</th><th>Action</th><th>Objet</th><th>Résultat</th></tr></thead><tbody id="audit-body"></tbody></table></div><div class="history-pagination"><button id="audit-prev" type="button" class="text-btn">← Précédent</button><span id="audit-page"></span><button id="audit-next" type="button" class="text-btn">Suivant →</button></div></article>
+        </div>
+      </div>
       <footer><span>Price Monitor</span><span>Gasoil · Brent · Bitume</span></footer>
     </main>
   </div>
+  <script src="/static/auth.js"></script>
   <script src="/static/connectivity.js"></script>
   <script src="/static/app.js"></script>
   <script src="/static/quotes.js"></script>
   <script src="/static/schedules.js"></script>
+  <script src="/static/team.js"></script>
 </body>
 </html>

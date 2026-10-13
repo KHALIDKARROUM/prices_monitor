@@ -345,7 +345,7 @@ def test_bls_quota_does_not_prevent_collection_from_its_fred_mirror(empty_databa
 
 
 def test_http_dashboard_is_available_during_initial_collection(empty_database, monkeypatch):
-    from http.server import ThreadingHTTPServer
+    from price_monitor.http_wsgi import WSGIServer
     from urllib.request import urlopen
     from types import SimpleNamespace
     from price_monitor import app
@@ -361,7 +361,7 @@ def test_http_dashboard_is_available_during_initial_collection(empty_database, m
     actual_scheduler = CollectionScheduler(empty_database, coordinator)
     servers = []
     def server_factory(*args):
-        server = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        server = WSGIServer(("127.0.0.1", 0), app.Handler)
         servers.append(server)
         bound.set()
         return server
@@ -369,7 +369,7 @@ def test_http_dashboard_is_available_during_initial_collection(empty_database, m
     monkeypatch.setattr(app, "scheduler", actual_scheduler)
     monkeypatch.setattr(app, "connectivity", SimpleNamespace(start=lambda: None, stop=lambda: None))
     monkeypatch.setattr(app, "validate_security_configuration", lambda: None)
-    monkeypatch.setattr(app, "ThreadingHTTPServer", server_factory)
+    monkeypatch.setattr(app, "WSGIServer", server_factory)
     thread = threading.Thread(target=app.main, daemon=True)
     try:
         thread.start()

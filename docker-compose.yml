@@ -3,12 +3,16 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "${PRICE_MONITOR_PORT:-8080}:8080"
+      - "127.0.0.1:${PRICE_MONITOR_PORT:-8080}:8080"
     environment:
       PRICE_MONITOR_HOST: 0.0.0.0
       PRICE_MONITOR_PORT: 8080
       PRICE_MONITOR_ENV: production
-      PRICE_MONITOR_API_KEY: ${PRICE_MONITOR_API_KEY:?Set PRICE_MONITOR_API_KEY in the environment}
+      PRICE_MONITOR_TEAM_MODE: "true"
+      PRICE_MONITOR_PUBLIC_ORIGIN: ${PRICE_MONITOR_PUBLIC_ORIGIN:?Set the public HTTPS origin}
+      PRICE_MONITOR_URL_SCHEME: "https"
+      PRICE_MONITOR_SECURE_COOKIES: "true"
+      PRICE_MONITOR_TRUSTED_PROXY: ${PRICE_MONITOR_TRUSTED_PROXY:-}
       PRICE_MONITOR_DB_BACKEND: mysql
       PRICE_MONITOR_BACKUP_DIR: /app/backups
       MYSQL_HOST: mysql

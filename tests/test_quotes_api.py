@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
-from http.server import ThreadingHTTPServer
+from price_monitor.http_wsgi import WSGIServer
 
 import pytest
 
@@ -16,7 +16,7 @@ def quote_server(empty_database, monkeypatch):
     monkeypatch.setattr(app_module, "database", empty_database)
     monkeypatch.setattr(app_module, "API_KEY", "quote-test-key")
     monkeypatch.setattr(app_module, "RATE_LIMIT_ENABLED", False)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), app_module.Handler)
+    server = WSGIServer(("127.0.0.1", 0), app_module.Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

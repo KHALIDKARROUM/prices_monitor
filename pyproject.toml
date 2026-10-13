@@ -11,6 +11,8 @@ requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Price Monitor contributors" }]
 dependencies = [
+  "waitress>=3.0.2",
+  "argon2-cffi>=25.1",
   "tzdata>=2024.1",
   "openpyxl>=3.1.0",
   "mysql-connector-python>=9.0.0",
@@ -37,6 +39,7 @@ dev = ["pytest>=8.0.0", "build>=1.2.0"]
 price-monitor = "price_monitor.app:main"
 price-monitor-backup = "price_monitor.backup:main"
 price-monitor-migrate = "price_monitor.migrate:main"
+price-monitor-users = "price_monitor.accounts:main"
 
 [tool.setuptools.packages.find]
 include = ["price_monitor*"]

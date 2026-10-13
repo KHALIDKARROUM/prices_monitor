@@ -167,7 +167,7 @@ def test_http_instrument_selection_filters_charts_history_and_exports(empty_data
     import io
     import json
     import threading
-    from http.server import ThreadingHTTPServer
+    from price_monitor.http_wsgi import WSGIServer
     from price_monitor import app
 
     now = datetime.now(timezone.utc)
@@ -175,7 +175,7 @@ def test_http_instrument_selection_filters_charts_history_and_exports(empty_data
     empty_database.insert_observation(quote("brent_futures", 90, now, 1))
     monkeypatch.setattr(app, "database", empty_database)
     monkeypatch.setattr(app, "RATE_LIMIT_ENABLED", False)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    server = WSGIServer(("127.0.0.1", 0), app.Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     def get(path):

@@ -17,8 +17,9 @@ OPENAPI_SPEC = {
     ],
     "components": {
         "securitySchemes": {
-            "ApiKeyHeader": {"type": "apiKey", "in": "header", "name": "X-API-Key"},
-            "BearerAuth": {"type": "http", "scheme": "bearer"},
+            "ApiKeyHeader": {"type": "apiKey", "in": "header", "name": "X-API-Key", "description": "Jeton personnel. La clé partagée est admise seulement en développement personnel local."},
+            "BearerAuth": {"type": "http", "scheme": "bearer", "description": "Jeton personnel, expirant et révocable, avec le rôle actuel du compte."},
+            "CookieSession": {"type": "apiKey", "in": "cookie", "name": "pm_session", "description": "Session individuelle HttpOnly. Les écritures exigent aussi X-CSRF-Token et une origine autorisée."},
         },
         "schemas": {
             "ObservationInput": {
@@ -123,7 +124,7 @@ OPENAPI_SPEC = {
             ], "responses": {"200": {"description": "Historique filtré et paginé"}}}
         },
         "/api/history/compare": {
-            "get": {"tags": ["market"], "summary": "Comparer publiquement deux périodes", "responses": {"200": {"description": "Comparaison par produit"}, "400": {"description": "Périodes invalides"}}}
+            "get": {"tags": ["market"], "summary": "Comparer deux périodes authentifiées", "responses": {"200": {"description": "Comparaison par produit"}, "400": {"description": "Périodes invalides"}}}
         },
         "/api/collect": {
             "post": {"tags": ["market"], "summary": "Collecter les fournisseurs disponibles", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "responses": {"200": {"description": "status success, partial, error ou deferred ; rows, message, providers (résultats et prochaines échéances) et source_comparison entre dernières publications équivalentes. Une collecte manuelle peut avancer un fournisseur sain mais respecte quotas, délais d'échec, concurrence et fermetures. Les reports ne sont pas de nouvelles erreurs de source."}, "401": {"description": "Authentification requise"}}}
@@ -139,7 +140,7 @@ OPENAPI_SPEC = {
             "get": {"tags": ["market"], "summary": "Guide de sourcing et processus d'achat", "parameters": [{"name": "product", "in": "query", "schema": {"type": "string", "enum": ["gasoil", "bitume"], "default": "gasoil"}}, {"name": "region", "in": "query", "schema": {"type": "string", "default": "all"}}], "responses": {"200": {"description": "Contexte marché, fournisseurs, RFQ et étapes de contrôle"}, "400": {"description": "Filtre invalide"}}}
         },
         "/api/procurements": {
-            "description": "Authentification par clé API. Exception pour la page Budget en développement local sans clé configurée : serveur et client de boucle locale, requêtes du tableau de bord local uniquement.",
+            "description": "Données privées : session ou jeton individuel en mode équipe. Le développement personnel local conserve son accès de boucle locale.",
             "get": {"tags": ["market"], "summary": "Historique des achats", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "responses": {"200": {"description": "Achats et impacts calculés"}, "401": {"description": "Authentification requise"}}},
             "post": {"tags": ["market"], "summary": "Évaluer et enregistrer un achat", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProcurementInput"}}}}, "responses": {"201": {"description": "Achat enregistré"}, "400": {"description": "Entrée invalide", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}}},
         },
@@ -201,7 +202,7 @@ quote_properties.update({
     "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
     **{key: {"type": "number", "minimum": 0, "description": label + " : montant total hors prix unitaire, dans la devise du devis."} for key, label in COST_FIELDS.items()},
     "other_costs": {"type": "array", "maxItems": 20, "items": {"type": "object", "required": ["label", "amount"], "properties": {"label": {"type": "string", "maxLength": 100}, "amount": {"type": "number", "minimum": 0}}}},
-    "actor": {"type": "string", "maxLength": 100, "description": "Auteur déclaré de la modification."},
+    "actor": {"type": "string", "maxLength": 100, "description": "En mode individuel, remplacé par le nom du compte authentifié. Auteur déclaré seulement pour l'accès personnel local."},
     "change_reason": {"type": "string", "maxLength": 1000},
     "expected_version": {"type": "integer", "minimum": 1},
 })
@@ -243,3 +244,65 @@ OPENAPI_SPEC["components"]["schemas"]["ProcurementInput"]["properties"].update({
 OPENAPI_SPEC["components"]["schemas"]["ProcurementInput"]["required"] = []
 OPENAPI_SPEC["components"]["schemas"]["ProcurementInput"]["anyOf"] = [
     {"required": ["quote_id", "quote_version"]}, {"required": ["product", "supplier", "quantity", "unit_price", "currency", "exchange_rate"]}]
+
+# Account access applies equally to reads, exports and mutations.
+OPENAPI_SPEC["tags"].append({"name": "accounts", "description": "Comptes, sessions, jetons personnels et audit"})
+OPENAPI_SPEC["info"]["description"] += " En mode équipe, les données métier, historiques et exports sont privés. Lecteur : lecture/export ; éditeur : écritures/collectes ; administrateur : comptes/audit/métriques. Le mode développement personnel lié à la boucle locale permet l'accès local sans compte."
+OPENAPI_SPEC["components"]["schemas"].update({
+    "LoginInput": {"type": "object", "required": ["username", "password"], "properties": {
+        "username": {"type": "string"}, "password": {"type": "string", "format": "password"}}},
+    "PasswordChange": {"type": "object", "required": ["current_password", "new_password"], "properties": {
+        "current_password": {"type": "string", "format": "password"}, "new_password": {"type": "string", "format": "password", "minLength": 12, "maxLength": 128}}},
+    "UserInput": {"type": "object", "required": ["username", "password", "role"], "properties": {
+        "username": {"type": "string", "minLength": 3, "maxLength": 80}, "full_name": {"type": "string", "maxLength": 100},
+        "password": {"type": "string", "format": "password", "minLength": 12, "maxLength": 128},
+        "role": {"type": "string", "enum": ["viewer", "editor", "admin"]}}},
+    "UserCorrection": {"type": "object", "required": ["version"], "properties": {
+        "version": {"type": "integer", "minimum": 1}, "full_name": {"type": "string", "maxLength": 100},
+        "role": {"type": "string", "enum": ["viewer", "editor", "admin"]}, "active": {"type": "boolean"},
+        "password": {"type": "string", "format": "password", "minLength": 12, "maxLength": 128}}},
+    "PersonalTokenInput": {"type": "object", "required": ["label"], "properties": {
+        "label": {"type": "string", "maxLength": 100}, "days": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30}}},
+})
+
+def account_operation(summary, success="200", schema=None, parameters=None):
+    operation = {"tags": ["accounts"], "summary": summary, "responses": {success: {"description": summary},
+        "400": {"description": "Champs invalides"}, "409": {"description": "Version concurrente ou compte déjà existant"},
+        "429": {"description": "Trop de tentatives ; respecter Retry-After"}}}
+    if schema:
+        operation["requestBody"] = {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/" + schema}}}}
+    if parameters:
+        operation["parameters"] = parameters
+    return operation
+
+OPENAPI_SPEC["paths"].update({
+    "/api/auth/session": {"get": account_operation("Mode d'accès, utilisateur, rôle et jeton CSRF de la session courante")},
+    "/api/auth/login": {"post": account_operation("Ouvrir une session ; Set-Cookie HttpOnly/SameSite=Strict et réponse user/csrf_token", schema="LoginInput")},
+    "/api/auth/logout": {"post": account_operation("Révoquer la session courante et supprimer son cookie")},
+    "/api/auth/password": {"post": account_operation("Changer son mot de passe ; révoque toutes les sessions et tous les jetons du compte", schema="PasswordChange")},
+    "/api/auth/tokens": {"get": account_operation("Lister ses jetons personnels sans leurs secrets"),
+        "post": account_operation("Créer un jeton personnel ; sa valeur n'est retournée qu'une fois", "201", "PersonalTokenInput")},
+    "/api/auth/tokens/{id}": {"delete": account_operation("Révoquer un de ses propres jetons", parameters=[quote_id_parameter])},
+    "/api/users": {"get": account_operation("Lister les comptes sans empreintes de mots de passe (administrateur)"),
+        "post": account_operation("Créer un compte individuel (administrateur)", "201", "UserInput")},
+    "/api/users/{id}": {"put": account_operation("Modifier le rôle, nom, activité ou mot de passe ; protège le dernier administrateur", schema="UserCorrection", parameters=[quote_id_parameter])},
+    "/api/audit": {"get": account_operation("Événements paginés avec acteur, action, ressource et contexte de requête (administrateur)",
+        parameters=[{"$ref": "#/components/parameters/Page"}, {"$ref": "#/components/parameters/PageSize"}])},
+})
+public_paths = {"/api/auth/session", "/api/auth/login", "/api/connectivity", "/health", "/healthz", "/health/live", "/health/ready", "/readyz", "/docs", "/openapi.json"}
+account_security = [{"CookieSession": []}, {"BearerAuth": []}, {"ApiKeyHeader": []}]
+for path, operations in OPENAPI_SPEC["paths"].items():
+    for method, operation in operations.items():
+        if method not in {"get", "post", "put", "delete", "head"}:
+            continue
+        operation["security"] = [] if path in public_paths else account_security
+        if path not in public_paths or path == "/api/auth/login":
+            operation["responses"].setdefault("401", {"description": "Authentification requise ou identifiants incorrects"})
+        if path not in public_paths or path.startswith("/api/auth/"):
+            operation["responses"].setdefault("403", {"description": "Origine, HTTPS, CSRF ou permission insuffisante"})
+        if method in {"post", "put", "delete"} and path != "/api/auth/login":
+            operation.setdefault("parameters", []).append({"name": "X-CSRF-Token", "in": "header", "schema": {"type": "string"},
+                "description": "Obligatoire pour une session cookie ; issu de /api/auth/session. Non requis avec un jeton personnel."})
+OPENAPI_SPEC["paths"]["/api/history"]["get"]["summary"] = "Historique privé filtré et paginé"
+OPENAPI_SPEC["paths"]["/api/quotes"]["description"] = "Devis et justificatifs privés. Session ou jeton individuel en mode équipe ; accès personnel de boucle locale en développement."
+OPENAPI_SPEC["paths"]["/api/quotes/{id}/history"]["get"]["summary"] = "Historique des versions avec auteur authentifié, motif et snapshots avant/après"

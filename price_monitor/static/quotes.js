@@ -110,6 +110,10 @@ function updateQuoteUnits() {
 }
 
 function editQuote(quote = null) {
+  if (window.PriceMonitorAuth && !['editor', 'admin'].includes(window.PriceMonitorAuth.state.role)) {
+    showToast('Votre rôle permet la consultation des devis.', true);
+    return;
+  }
   const form = $('#quote-editor');
   quoteEditingId = quote?.id || null;
   form.reset();

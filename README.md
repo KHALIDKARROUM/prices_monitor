@@ -152,7 +152,7 @@ Dans Veille, choisissez « Bitume », puis « Indice mensuel BLS » ou « Devis 
 
 Dans **Fournisseurs → Gérer les devis**, créez un dossier avec fournisseur, référence, grade, norme, origine, Incoterm et lieu nommé, destination, quantité/unité, conditionnement, livraison, paiement, date de devis, validité et type de pièce commerciale. Les dossiers sont distincts des relevés publics de marché et des indices BLS. Les anciens relevés et budgets sont conservés; les conditions commerciales manquantes ne sont pas devinées à partir de leurs notes.
 
-**Corriger** exige un motif et conserve une nouvelle version avec valeurs avant/après, auteur déclaré et horodatage UTC. Un numéro de version attendu empêche une correction ancienne d’écraser une modification concurrente (réponse `409`). L’auteur est une indication saisie par l’équipe, pas une identité individuelle authentifiée : l’application conserve son contrôle d’accès existant par clé API et son exception de développement local.
+**Corriger** exige un motif et conserve une nouvelle version avec valeurs avant/après, auteur et horodatage UTC. Un numéro de version attendu empêche une correction ancienne d’écraser une modification concurrente (réponse `409`). Pour un compte individuel, le serveur attribue la correction et les justificatifs à l’utilisateur connecté, indépendamment du champ auteur envoyé par le navigateur. Les anciennes versions gardent leur auteur déclaré.
 
 Joignez PDF, PNG/JPEG, TXT UTF-8, DOCX ou XLSX sans macros : **5 Mo par pièce**, **50 Mo par dossier**, historique compris. Chaque pièce conserve son type, nom, taille et empreinte SHA-256. Les téléchargements passent par les routes privées du dossier, avec disposition pièce jointe. **Retirer** demande un motif et masque la pièce des justificatifs actifs; ses octets restent consultables dans l’historique. Les documents sont stockés dans la base : la sauvegarde SQLite et le dump MySQL (avec `--hex-blob`) les incluent.
 
@@ -164,17 +164,25 @@ Le budget comprend **marchandise + transport + assurance + inspection + droits +
 
 La migration **011**, exécutée au démarrage dans SQLite et MySQL, ajoute les tables et champs sans modifier les montants historiques. Redémarrez l’application après la mise à jour. Les nouveaux coûts des anciens budgets valent zéro. Les routes `/api/quotes`, `/api/quotes/{id}/history`, `/api/quotes/compare` et les routes documentaires sont décrites dans `/openapi.json`; elles utilisent la protection des données locales existante.
 
-## API locale
+## Comptes, confidentialité et API
 
-Les routes d'écriture sont protégées par une clé API. L'historique détaillé et sa comparaison restent publics en lecture seule afin que le tableau de bord fonctionne sans transmettre de secret. Définissez `PRICE_MONITOR_API_KEY` dans `.env` avec une valeur longue et aléatoire, puis envoyez-la avec `X-API-Key` ou `Authorization: Bearer <clé>` pour collecter, ajouter ou modifier des données. La clé n'est jamais acceptée dans l'URL.
+Le mode équipe protège les données du tableau de bord, les archives, comparaisons, exports, devis et justificatifs par un compte individuel. La page **Équipe** permet de gérer les comptes et consulter le journal d’audit. Trois rôles sont disponibles : **lecteur** (consultation et exports), **éditeur** (collectes et modifications), **administrateur** (gestion des comptes, audit et métriques). Une désactivation révoque immédiatement les sessions et jetons ; un changement de rôle s’applique aux accès déjà ouverts. Le dernier administrateur actif ne peut pas être désactivé ou rétrogradé.
+
+Créez le premier administrateur depuis le serveur, puis activez le mode équipe et redémarrez :
 
 ```powershell
-$bytes = [byte[]]::new(32)
-[Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
-$env:PRICE_MONITOR_API_KEY = [Convert]::ToBase64String($bytes)
+python -m price_monitor.accounts bootstrap --username votre.identifiant
+# Le mot de passe est demandé dans le terminal, sans affichage.
+# Dans .env : PRICE_MONITOR_TEAM_MODE=true
 ```
 
-Sur votre ordinateur, avec l'hôte local par défaut et en mode développement, la collecte, les règles de surveillance, les observations manuelles et la page Budget fonctionnent sans clé. Les observations et budgets autorisent les requêtes du tableau de bord local et refusent celles provenant d'un autre site. Une clé configurée est toujours vérifiée. Une clé est obligatoire pour toute instance publique ou en production (`PRICE_MONITOR_ENV=production`) ; le tableau de bord la demande au premier appel protégé et la conserve uniquement dans la session du navigateur.
+En développement sur `127.0.0.1`, `PRICE_MONITOR_SECURE_COOKIES=false` permet de tester le mode équipe en HTTP local. En production ou sur une interface partagée, le mode équipe est obligatoire, avec HTTPS et cookies sécurisés ; voir [`docs/operations.md`](docs/operations.md). Le démarrage refuse une configuration publique incomplète. La migration **013** ajoute les comptes, sessions, jetons et événements d’audit sur SQLite et MySQL.
+
+Les mots de passe sont hachés avec Argon2id. Les sessions utilisent un cookie `HttpOnly`, `SameSite=Strict`, sécurisé en production, avec une durée maximale de huit heures et trente minutes d’inactivité par défaut. Les écritures du navigateur exigent le jeton `X-CSRF-Token` de la session et une origine autorisée ; ces contrôles couvrent aussi la collecte et la gestion des alertes. Les connexions échouées sont limitées en base. Un changement ou une réinitialisation du mot de passe révoque toutes les sessions et tous les jetons du compte.
+
+Pour une intégration, créez un **jeton personnel** dans Équipe, copiez-le lors de sa création, puis envoyez `Authorization: Bearer <jeton>` ou `X-API-Key: <jeton>`. Il expire après la durée choisie (1 à 365 jours) et conserve les permissions actuelles du compte. Les jetons et sessions sont stockés uniquement sous forme d’empreintes. La clé partagée `PRICE_MONITOR_API_KEY` reste compatible avec le développement personnel local et ne donne aucun accès en mode équipe. Sans mode équipe ni clé, le serveur de développement lié à la boucle locale conserve l’accès personnel, avec les mêmes contrôles d’origine.
+
+Le journal conserve les connexions, refus d’accès, opérations de comptes, modifications, demandes de collecte et préparation des exports et téléchargements. Les écritures métier et leur audit partagent une transaction. Les valeurs commerciales, mots de passe, jetons et contenus de documents ne sont pas recopiés dans cet audit ; l’historique des corrections reste dans les dossiers de devis. La préparation d’un export ne prouve pas que son téléchargement a été terminé par le client.
 
 | Méthode | Route | Rôle |
 |---|---|---|
@@ -187,14 +195,19 @@ Sur votre ordinateur, avec l'hôte local par défaut et en mode développement, 
 | GET | `/api/benchmarks?product=bitume` | derniers indicateurs publics, séparés des devis |
 | GET | `/api/suppliers?product=bitume&region=europe` | canaux fournisseurs stockés en SQL |
 | GET | `/api/procurement-guide?product=gasoil&region=africa_middle_east` | contexte, fournisseurs, RFQ et étapes d'achat |
-| POST | `/api/alerts` | créer une règle (clé API) |
-| PUT / DELETE | `/api/alerts/{id}` | modifier, mettre en pause ou supprimer une règle (clé API) |
-| GET | `/api/observations?product=bitume` | historique filtré (sans clé en local ; clé API ailleurs) |
-| GET | `/api/history?page=1&page_size=50&product=bitume&supplier=ABC&source=devis&date_from=2026-01-01&date_to=2026-09-15&min_price=400&max_price=700` | historique public paginé et filtré |
-| GET | `/api/history/compare?period_a_from=2026-01-01&period_a_to=2026-03-31&period_b_from=2026-04-01&period_b_to=2026-06-30` | comparaison publique de deux périodes |
-| POST | `/api/collect` | collecte les fournisseurs disponibles, avec détail des reports (sans clé en local ; clé API ailleurs) |
-| POST | `/api/observations` | ajoute une observation validée (sans clé en local ; clé API ailleurs) |
+| POST | `/api/alerts` | créer une règle (éditeur) |
+| PUT / DELETE | `/api/alerts/{id}` | modifier, mettre en pause ou supprimer une règle (éditeur) |
+| GET | `/api/observations?product=bitume` | historique filtré authentifié |
+| GET | `/api/history?page=1&page_size=50&product=bitume&supplier=ABC&source=devis&date_from=2026-01-01&date_to=2026-09-15&min_price=400&max_price=700` | historique privé paginé et filtré |
+| GET | `/api/history/compare?period_a_from=2026-01-01&period_a_to=2026-03-31&period_b_from=2026-04-01&period_b_to=2026-06-30` | comparaison authentifiée de deux périodes |
+| POST | `/api/collect` | collecte les fournisseurs disponibles, avec détail des reports (éditeur) |
+| POST | `/api/observations` | ajoute une observation validée (éditeur) |
 | GET | `/export.csv` / `/export.xlsx` | exports |
+| GET / POST | `/api/auth/session` / `/api/auth/login` | état de connexion / ouverture de session |
+| POST | `/api/auth/logout` / `/api/auth/password` | déconnexion / changement de mot de passe |
+| GET / POST / DELETE | `/api/auth/tokens` / `/api/auth/tokens/{id}` | jetons personnels du compte connecté |
+| GET / POST / PUT | `/api/users` / `/api/users/{id}` | gestion des comptes (administrateur) |
+| GET | `/api/audit?page=1&page_size=50` | événements paginés (administrateur) |
 
 En production, une limitation en mémoire s'applique par adresse cliente : 60 requêtes par fenêtre de 60 secondes par défaut. Ajustez `PRICE_MONITOR_RATE_LIMIT_REQUESTS` et `PRICE_MONITOR_RATE_LIMIT_WINDOW_SECONDS` si nécessaire.
 
@@ -269,6 +282,6 @@ price-monitor-migrate
 price-monitor
 ```
 
-Les sondes opérationnelles sont `/health/live`, `/health/ready` et `/health` (readiness), tandis que `/metrics` expose des métriques Prometheus et `/openapi.json` la spécification OpenAPI. Une page d'accès rapide est disponible sur `/docs`.
+Le serveur HTTP utilise **Waitress**, avec workers, limite de corps et délais de connexion. Le déploiement public exige un reverse proxy HTTPS ; le compose expose le port de l’application uniquement sur `127.0.0.1`. Les sondes opérationnelles sont `/health/live`, `/health/ready` et `/health` (readiness), tandis que `/metrics` exige un compte ou jeton administrateur. `/openapi.json` et `/docs` décrivent l’API sans exposer les données métier.
 
 Les journaux sont structurés en JSON sur stdout. Les migrations SQLite versionnées sont dans `price_monitor/migrations/`; les migrations MySQL existantes sont dans `sql/mysql_migrations/`. La commande `price-monitor-backup` crée une sauvegarde cohérente SQLite ou un dump MySQL ; la stratégie de rétention, de copie hors site et de restauration est décrite dans [`docs/operations.md`](docs/operations.md).

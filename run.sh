@@ -35,7 +35,7 @@ else
   fi
 fi
 
-if ! "$PYTHON" -c 'import openpyxl, mysql.connector, apscheduler; from zoneinfo import ZoneInfo; ZoneInfo("America/New_York")' >/dev/null 2>&1; then
+if ! "$PYTHON" -c 'import openpyxl, mysql.connector, apscheduler, waitress, argon2; from zoneinfo import ZoneInfo; ZoneInfo("America/New_York")' >/dev/null 2>&1; then
   echo "Installing dependencies..."
   "$PYTHON" -m pip install -r requirements.txt
 fi

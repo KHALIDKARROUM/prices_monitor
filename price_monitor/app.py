@@ -7,9 +7,10 @@ import re
 import threading
 import time
 import uuid
+import ipaddress
 from collections import deque
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.cookies import SimpleCookie, CookieError
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse, quote as url_quote
 
@@ -28,7 +29,10 @@ from .config import (
     RATE_LIMIT_ENABLED,
     RATE_LIMIT_REQUESTS,
     RATE_LIMIT_WINDOW_SECONDS,
+    TEAM_MODE, PUBLIC_ORIGIN, SECURE_COOKIES, SESSION_HOURS, TRUSTED_PROXY, URL_SCHEME,
 )
+from .http_wsgi import WSGIRequest, WSGIServer
+from .access_store import ROLES, LoginThrottled, public_user
 from .database import create_database
 from .observability import logger, metrics
 from .openapi import OPENAPI_SPEC
@@ -87,14 +91,29 @@ def _is_loopback_host(host: str) -> bool:
 
 
 def validate_security_configuration() -> None:
-    """Prevent an explicitly public/production server from starting without a key."""
-    if ENVIRONMENT in {"production", "prod"} and not API_KEY:
-        raise RuntimeError("PRICE_MONITOR_API_KEY est obligatoire en production")
-    if not _is_loopback_host(HOST) and not API_KEY:
-        raise RuntimeError("PRICE_MONITOR_API_KEY est obligatoire lorsque PRICE_MONITOR_HOST est public")
+    public = ENVIRONMENT in {"production", "prod"} or not _is_loopback_host(HOST)
+    if public and not TEAM_MODE:
+        raise RuntimeError("Activez PRICE_MONITOR_TEAM_MODE pour un déploiement partagé ou public.")
+    if TEAM_MODE and not database.active_admin_count():
+        raise RuntimeError("Créez le premier administrateur avec price-monitor-users bootstrap avant le démarrage.")
+    if public and (not SECURE_COOKIES or not PUBLIC_ORIGIN):
+        raise RuntimeError("Configurez PRICE_MONITOR_PUBLIC_ORIGIN en HTTPS et les cookies sécurisés.")
+    if PUBLIC_ORIGIN:
+        parsed = urlparse(PUBLIC_ORIGIN)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
+            raise RuntimeError("PRICE_MONITOR_PUBLIC_ORIGIN doit être une origine HTTP(S) sans chemin.")
+        if public and parsed.scheme != "https":
+            raise RuntimeError("Une origine HTTPS est obligatoire pour le déploiement public.")
+    if URL_SCHEME not in {"http", "https"}:
+        raise RuntimeError("PRICE_MONITOR_URL_SCHEME doit être http ou https.")
+    if TRUSTED_PROXY:
+        try:
+            ipaddress.ip_address(TRUSTED_PROXY)
+        except ValueError:
+            raise RuntimeError("PRICE_MONITOR_TRUSTED_PROXY doit être l'adresse IP exacte du proxy de confiance.") from None
 
 
-def _authorization_value(handler: BaseHTTPRequestHandler) -> str:
+def _authorization_value(handler) -> str:
     api_key = handler.headers.get("X-API-Key", "").strip()
     if api_key:
         return api_key
@@ -150,19 +169,29 @@ def refresh_alert_states() -> None:
     manager.evaluate_live_freshness(database.source_health())
 
 
-class Handler(BaseHTTPRequestHandler):
+class Handler(WSGIRequest):
     server_version = "PriceMonitor/1.0"
 
     def log_message(self, fmt: str, *args) -> None:
         # Access logging is emitted once, as structured JSON, by handle_one_request.
         return
 
-    def handle_one_request(self) -> None:
+    def handle_request(self) -> None:
         started = time.perf_counter()
         self.request_id = uuid.uuid4().hex
         self._response_status = 500
         try:
-            super().handle_one_request()
+            if not self._access():
+                return
+            method = "GET" if self.command == "HEAD" else self.command
+            route = getattr(self, f"do_{method}", None)
+            if route is None:
+                return self.send_data(json_bytes({"error": "Méthode non autorisée."}), "application/json", 405,
+                                      {"Allow": "GET, HEAD, POST, PUT, DELETE"})
+            route()
+        except Exception:
+            logger.exception("Request failed", extra={"event": "http_handler_error"})
+            self.send_json({"error": "Erreur interne. Réessayez plus tard."}, 500)
         finally:
             duration = time.perf_counter() - started
             method = getattr(self, "command", "UNKNOWN")
@@ -190,7 +219,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def send_response(self, code: int, message: str | None = None) -> None:
         self._response_status = code
-        super().send_response(code, message)
+        self.response_headers = []
 
     def send_data(self, body: bytes, content_type: str, status: int = 200, headers: dict[str, str] | None = None) -> None:
         self.send_response(status)
@@ -198,15 +227,179 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Request-ID", self.request_id)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Frame-Options", "DENY")
         for key, value in (headers or {}).items():
             self.send_header(key, value)
         self.end_headers()
-        self.wfile.write(body)
+        self.response_body = body
 
     def send_json(self, value: object, status: int = 200) -> None:
         self.send_data(json_bytes(value), "application/json; charset=utf-8", status)
 
+    def _origin_allowed(self) -> bool:
+        try:
+            scheme = self.environ.get("wsgi.url_scheme", "http")
+            host = urlparse(f"{scheme}://{self.headers.get('Host', '')}")
+            if PUBLIC_ORIGIN:
+                expected = urlparse(PUBLIC_ORIGIN)
+                if (host.hostname, host.port or (443 if scheme == "https" else 80)) != (expected.hostname, expected.port or (443 if expected.scheme == "https" else 80)):
+                    return False
+            else:
+                if not _is_loopback_host(host.hostname or "") or (host.port or 80) != self.server.server_port:
+                    return False
+                expected = host
+            origin = self.headers.get("Origin")
+            if origin:
+                parsed = urlparse(origin)
+                if parsed.username or parsed.password or parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+                    return False
+                if (parsed.scheme, parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80)) != (
+                    expected.scheme, expected.hostname, expected.port or (443 if expected.scheme == "https" else 80)
+                ):
+                    return False
+            return self.headers.get("Sec-Fetch-Site", "") in {"", "same-origin", "none"}
+        except ValueError:
+            return False
+
+    def _identity(self):
+        credentials = _authorization_value(self)
+        if credentials:
+            lookup = getattr(database, "authenticate_user_token", None)
+            user = lookup(credentials) if lookup else None
+            if user:
+                return user
+            if not self._team_required() and API_KEY and hmac.compare_digest(credentials.encode(), API_KEY.encode()):
+                return {"id": None, "username": "service-key", "role": "admin", "kind": "api_key"}
+            return None
+        try:
+            cookies = SimpleCookie(self.headers.get("Cookie", ""))
+            session = cookies.get("pm_session")
+            if session and hasattr(database, "authenticate_session"):
+                user = database.authenticate_session(session.value)
+                if user:
+                    return user
+        except CookieError:
+            pass
+        if (not self._team_required() and not API_KEY and ENVIRONMENT in {"development", "dev", "local"}
+                and _is_loopback_host(HOST) and _is_loopback_host(self.client_address[0])):
+            return {"id": None, "username": "local-owner", "role": "admin", "kind": "local"}
+        return None
+
+    @staticmethod
+    def _team_required():
+        return TEAM_MODE or ENVIRONMENT in {"production", "prod"} or not _is_loopback_host(HOST)
+
+    def _audit(self, action, resource, resource_id="", **context):
+        if hasattr(database, "audit_action"):
+            database.audit_action(self.principal, action, resource, resource_id, request_id=self.request_id,
+                                  client_ip=self.client_address[0], **context)
+
+    def _deny(self, status, message):
+        self._audit("access.denied", "http", outcome="denied", details={"method": self.command, "path": urlparse(self.path).path[:200]})
+        self.send_data(json_bytes({"error": message}), "application/json; charset=utf-8", status,
+                       {"WWW-Authenticate": 'Bearer realm="price-monitor"'} if status == 401 else None)
+        return False
+
+    def _access(self):
+        path = urlparse(self.path).path
+        public = path in {"/", "/index.html", "/docs", "/openapi.json", "/health", "/healthz", "/health/live", "/health/ready", "/readyz", "/api/connectivity"} or path.startswith("/static/")
+        if public and self.command in {"GET", "HEAD"}:
+            return True
+        if not self._rate_limit():
+            return False
+        if not self._origin_allowed():
+            return self._deny(403, "Accès réservé à l'application de même origine.")
+        if self._team_required() and PUBLIC_ORIGIN.startswith("https:") and self.environ.get("wsgi.url_scheme") != "https":
+            return self._deny(403, "Une connexion HTTPS est requise.")
+        self.principal = self._identity()
+        if (path == "/api/auth/session" and self.command in {"GET", "HEAD"}) or (path == "/api/auth/login" and self.command == "POST"):
+            return True
+        if not self.principal:
+            return self._deny(401, "Authentification requise.")
+        if self.command not in {"GET", "HEAD"} and self.principal.get("kind") == "session":
+            if not hmac.compare_digest(self.headers.get("X-CSRF-Token", "").encode(), self.principal["csrf_token"].encode()):
+                return self._deny(403, "Session invalide. Rechargez la page puis réessayez.")
+        permission = "admin" if path in {"/metrics", "/api/users", "/api/audit"} or path.startswith("/api/users/") else (
+            "viewer" if self.command in {"GET", "HEAD"} or path.startswith("/api/auth/") else "editor")
+        if ROLES.get(self.principal.get("role"), 0) < ROLES[permission]:
+            return self._deny(403, "Votre rôle ne permet pas cette action.")
+        return True
+
+    def _mutation(self, action, resource, operation, payload=None, resource_id=""):
+        if hasattr(database, "audited_write"):
+            fields = [key[:80] for key in (payload or {}) if key not in {"password", "current_password", "new_password", "content_base64", "actor"}][:50]
+            return database.audited_write(self.principal, action, resource, operation, resource_id,
+                request_id=self.request_id, client_ip=self.client_address[0], details={"fields": fields})
+        return operation()
+
+    def _trusted_payload(self, payload):
+        if self.principal and self.principal.get("id"):
+            payload["actor"] = self.principal["username"]
+        return payload
+
+    def _json_payload(self, limit=1024 * 1024):
+        length = int(self.headers.get("Content-Length", "0"))
+        if length < 0 or length > limit:
+            raise QuotePayloadTooLarge("La requête est trop volumineuse.")
+        if length and self.headers.get("Content-Type", "").split(";", 1)[0] != "application/json":
+            raise ValueError("Envoyez un objet JSON.")
+        value = json.loads(self.rfile.read(length) or b"{}")
+        if not isinstance(value, dict):
+            raise ValueError("Envoyez un objet JSON.")
+        return value
+
+    @staticmethod
+    def _cookie(value, clear=False):
+        cookie = SimpleCookie()
+        cookie["pm_session"] = value
+        cookie["pm_session"]["path"] = "/"
+        cookie["pm_session"]["httponly"] = True
+        cookie["pm_session"]["samesite"] = "Strict"
+        cookie["pm_session"]["max-age"] = 0 if clear else SESSION_HOURS * 3600
+        if SECURE_COOKIES:
+            cookie["pm_session"]["secure"] = True
+        return cookie.output(header="").strip()
+
+    def _session_payload(self):
+        user = public_user(self.principal) if self.principal and self.principal.get("id") else None
+        return {"team_mode": self._team_required(), "api_key_mode": bool(API_KEY and not self._team_required()),
+                "user": user, "role": self.principal.get("role") if self.principal else None,
+                "csrf_token": self.principal.get("csrf_token") if self.principal else None}
+
+    def _auth_post(self, path):
+        payload = self._json_payload(64 * 1024)
+        if path == "/api/auth/login":
+            try:
+                result = database.login(payload.get("username"), payload.get("password"), self.client_address[0], self.request_id)
+            except LoginThrottled as exc:
+                return self.send_data(json_bytes({"error": str(exc)}), "application/json", 429, {"Retry-After": "900"})
+            except ValueError as exc:
+                return self.send_json({"error": str(exc)}, 401)
+            if self.principal and self.principal.get("kind") == "session":
+                database.logout(self.principal, self.request_id, self.client_address[0])
+            return self.send_data(json_bytes({"user": result["user"], "csrf_token": result["csrf_token"]}), "application/json",
+                                  headers={"Set-Cookie": self._cookie(result["session"])})
+        if path == "/api/auth/logout":
+            database.logout(self.principal, self.request_id, self.client_address[0])
+            return self.send_data(json_bytes({"status": "success"}), "application/json", headers={"Set-Cookie": self._cookie("", True)})
+        user_id = self.principal.get("id")
+        if not user_id:
+            return self.send_json({"error": "Connectez-vous à un compte individuel pour cette action."}, 403)
+        if path == "/api/auth/password":
+            self._mutation("password.changed", "account", lambda: database.change_password(user_id, payload.get("current_password"), payload.get("new_password")), resource_id=user_id)
+            return self.send_data(json_bytes({"status": "success", "message": "Mot de passe modifié. Reconnectez-vous."}), "application/json",
+                                  headers={"Set-Cookie": self._cookie("", True)})
+        if path == "/api/auth/tokens":
+            result = self._mutation("token.created", "api_token", lambda: database.create_user_token(user_id, payload.get("label"), payload.get("days", 30)))
+            return self.send_json(result, 201)
+        return self.send_json({"error": "Route introuvable"}, 404)
+
     def _rate_limit(self) -> bool:
+        if getattr(self, "_rate_checked", False):
+            return True
+        self._rate_checked = True
         if not RATE_LIMIT_ENABLED:
             return True
         allowed, retry_after = rate_limiter.check(self.client_address[0])
@@ -220,71 +413,16 @@ class Handler(BaseHTTPRequestHandler):
         )
         return False
 
-    def _authenticate_api(self) -> bool:
-        if not API_KEY:
-            self.send_json(
-                {"error": "API non configurée. Définissez PRICE_MONITOR_API_KEY."},
-                HTTPStatus.SERVICE_UNAVAILABLE,
-            )
-            return False
-        if not hmac.compare_digest(_authorization_value(self), API_KEY):
-            self.send_data(
-                json_bytes({"error": "Authentification requise."}),
-                "application/json; charset=utf-8",
-                HTTPStatus.UNAUTHORIZED,
-                headers={"WWW-Authenticate": 'Bearer realm="price-monitor"'},
-            )
-            return False
-        return True
-
-    def _protect_api(self) -> bool:
-        return self._authenticate_api()
-
     def _protect_collection(self) -> bool:
-        """Let the local dashboard trigger its own refresh without a secret.
-
-        A collection only contacts configured data providers and writes their
-        responses to the local database.  It is safe to make that one action
-        convenient on a loopback-only development server. Public/production
-        deployments remain key-protected.
-        """
-        if not API_KEY and ENVIRONMENT in {"development", "dev", "local"} and _is_loopback_host(HOST):
-            return True
-        return self._protect_api()
+        """Access, origin and role have already been checked by _access."""
+        return self.principal is not None
 
     def _protect_local_alerts(self) -> bool:
-        # The local dashboard can manage its own alert rules. Public and
-        # production deployments still require the configured API key.
-        if not API_KEY and ENVIRONMENT in {"development", "dev", "local"} and _is_loopback_host(HOST):
-            return True
-        return self._protect_api()
+        return self.principal is not None
 
     def _protect_local_records(self) -> bool:
         """Allow the local dashboard to read and save quotes and estimates."""
-        if (
-            not API_KEY
-            and ENVIRONMENT in {"development", "dev", "local"}
-            and _is_loopback_host(HOST)
-            and _is_loopback_host(self.client_address[0])
-        ):
-            origin = self.headers.get("Origin", "")
-            if origin:
-                try:
-                    parsed_origin = urlparse(origin)
-                    same_origin = (
-                        parsed_origin.scheme == "http"
-                        and _is_loopback_host(parsed_origin.hostname or "")
-                        and (parsed_origin.port or 80) == self.server.server_port
-                    )
-                except ValueError:
-                    same_origin = False
-            else:
-                same_origin = True
-            if not same_origin or self.headers.get("Sec-Fetch-Site", "") not in {"", "same-origin", "none"}:
-                self.send_json({"error": "Accès réservé au tableau de bord local."}, HTTPStatus.FORBIDDEN)
-                return False
-            return True
-        return self._protect_api()
+        return self.principal is not None
 
     def _quote_payload(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
@@ -318,6 +456,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"revisions": database.quote_history(int(quote_id))})
             if action == "documents" and document_id:
                 document = database.quote_document(int(quote_id), int(document_id))
+                self._audit("document.prepared", "quote_document", document_id, details={"quote_id": int(quote_id)})
                 return self.send_data(bytes(document["content"]), document["content_type"], headers={
                     "Content-Disposition": "attachment; filename=\"document\"; filename*=UTF-8''" + url_quote(document["filename"], safe=""),
                     "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
@@ -340,7 +479,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             logger.exception("Readiness check failed", extra={"event": "readiness_failed"})
             return self.send_json(
-                {"status": "not_ready", "service": "price-monitor", "checks": {"database": {"status": "error", "error": str(exc)}}},
+                {"status": "not_ready", "service": "price-monitor", "checks": {"database": {"status": "error", "error": "Base indisponible."}}},
                 HTTPStatus.SERVICE_UNAVAILABLE,
             )
 
@@ -371,6 +510,14 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/") and not self._rate_limit():
                 return
+            if parsed.path == "/api/auth/session":
+                return self.send_json(self._session_payload())
+            if parsed.path == "/api/users":
+                return self.send_json({"users": database.team_users()})
+            if parsed.path == "/api/audit":
+                return self.send_json(database.audit_events(int(query.get("page", [1])[0]), int(query.get("page_size", [50])[0])))
+            if parsed.path == "/api/auth/tokens":
+                return self.send_json({"tokens": database.user_tokens(self.principal.get("id"))})
             if parsed.path == "/api/quotes" or parsed.path.startswith("/api/quotes/"):
                 return self._quote_get(parsed.path, query)
             if parsed.path == "/api/connectivity":
@@ -443,9 +590,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"purchases": database.procurements(limit)})
             if parsed.path == "/export.csv":
                 body = csv_bytes(database.iter_history(**history_filters(query)))
+                self._audit("export.prepared", "history", details={"format": "csv"})
                 return self.send_data(body, "text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=price-observations.csv"})
             if parsed.path == "/export.xlsx":
                 body = xlsx_bytes(database.iter_history(**history_filters(query)))
+                self._audit("export.prepared", "history", details={"format": "xlsx"})
                 return self.send_data(body, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=price-observations.xlsx"})
             return self.send_json({"error": "Route introuvable"}, 404)
         except QuoteNotFound as exc:
@@ -463,15 +612,23 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/") and not self._rate_limit():
                 return
+            if parsed.path.startswith("/api/auth/"):
+                return self._auth_post(parsed.path)
+            if parsed.path == "/api/users":
+                payload = self._json_payload(64 * 1024)
+                user = self._mutation("user.created", "account", lambda: database.create_team_user(payload), payload)
+                return self.send_json({"user": user}, 201)
             if parsed.path == "/api/quotes" or parsed.path.startswith("/api/quotes/"):
                 if not self._protect_local_records():
                     return
-                payload = self._quote_payload()
+                payload = self._trusted_payload(self._quote_payload())
                 if parsed.path == "/api/quotes":
-                    return self.send_json({"quote": database.create_quote(payload)}, 201)
+                    quote = self._mutation("quote.created", "quote", lambda: database.create_quote(payload), payload)
+                    return self.send_json({"quote": quote}, 201)
                 match = re.fullmatch(r"/api/quotes/([1-9]\d*)/documents", parsed.path)
                 if match:
-                    return self.send_json({"quote": database.attach_quote_document(int(match[1]), payload)}, 201)
+                    quote = self._mutation("document.attached", "quote", lambda: database.attach_quote_document(int(match[1]), payload), payload, match[1])
+                    return self.send_json({"quote": quote}, 201)
                 return self.send_json({"error": "Route introuvable"}, 404)
             if parsed.path == "/api/collect":
                 if not self._protect_collection():
@@ -484,18 +641,18 @@ class Handler(BaseHTTPRequestHandler):
                     return
             elif parsed.path == "/api/observations" and not self._protect_local_records():
                 return
-            length = int(self.headers.get("Content-Length", 0))
-            payload = json.loads(self.rfile.read(length) or b"{}")
+            payload = self._trusted_payload(self._json_payload())
             if parsed.path == "/api/collect":
+                self._audit("collection.requested", "collection")
                 return self.send_json(run_collection(database))
             if parsed.path == "/api/observations":
-                record = database.insert_observation(payload)
+                record = self._mutation("observation.created", "observation", lambda: database.insert_observation(payload), payload)
                 return self.send_json({"status": "success", "observation": record}, 201)
             if parsed.path == "/api/procurements":
-                record = database.create_procurement(payload)
+                record = self._mutation("budget.created", "budget", lambda: database.create_procurement(payload), payload)
                 return self.send_json({"status": "success", "purchase": record}, 201)
             if parsed.path == "/api/alerts":
-                record = database.create_alert_rule(payload)
+                record = self._mutation("alert.created", "alert", lambda: database.create_alert_rule(payload), payload)
                 refresh_alert_states()
                 return self.send_json({"status": "success", "alert": record}, 201)
             return self.send_json({"error": "Route introuvable"}, 404)
@@ -516,16 +673,22 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/") and not self._rate_limit():
                 return
+            user_match = re.fullmatch(r"/api/users/([1-9]\d*)", parsed.path)
+            if user_match:
+                payload = self._json_payload(64 * 1024)
+                user = self._mutation("user.updated", "account", lambda: database.update_team_user(int(user_match[1]), payload), payload, user_match[1])
+                return self.send_json({"user": user})
             match = re.fullmatch(r"/api/quotes/([1-9]\d*)", parsed.path)
             if match:
                 if not self._protect_local_records():
                     return
-                return self.send_json({"quote": database.update_quote(int(match[1]), self._quote_payload())})
+                payload = self._trusted_payload(self._quote_payload())
+                quote = self._mutation("quote.corrected", "quote", lambda: database.update_quote(int(match[1]), payload), payload, match[1])
+                return self.send_json({"quote": quote})
             if alert_rule_id(parsed.path) is None or not self._protect_local_alerts():
                 return self.send_json({"error": "Route introuvable"}, 404) if alert_rule_id(parsed.path) is None else None
-            length = int(self.headers.get("Content-Length", 0))
-            payload = json.loads(self.rfile.read(length) or b"{}")
-            record = database.update_alert_rule(alert_rule_id(parsed.path), payload)
+            payload = self._json_payload()
+            record = self._mutation("alert.updated", "alert", lambda: database.update_alert_rule(alert_rule_id(parsed.path), payload), payload, alert_rule_id(parsed.path))
             refresh_alert_states()
             return self.send_json({"status": "success", "alert": record})
         except QuotePayloadTooLarge as exc:
@@ -545,17 +708,23 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/") and not self._rate_limit():
                 return
+            token_match = re.fullmatch(r"/api/auth/tokens/([1-9]\d*)", parsed.path)
+            if token_match:
+                self._mutation("token.revoked", "api_token", lambda: database.revoke_user_token(self.principal.get("id"), int(token_match[1])), resource_id=token_match[1])
+                return self.send_json({"status": "success"})
             match = re.fullmatch(r"/api/quotes/([1-9]\d*)/documents/([1-9]\d*)", parsed.path)
             if match:
                 if not self._protect_local_records():
                     return
-                return self.send_json({"quote": database.remove_quote_document(int(match[1]), int(match[2]), self._quote_payload())})
+                payload = self._trusted_payload(self._quote_payload())
+                quote = self._mutation("document.retired", "quote", lambda: database.remove_quote_document(int(match[1]), int(match[2]), payload), payload, match[1])
+                return self.send_json({"quote": quote})
             rule_id = alert_rule_id(parsed.path)
             if rule_id is None:
                 return self.send_json({"error": "Route introuvable"}, 404)
             if not self._protect_local_alerts():
                 return
-            database.delete_alert_rule(rule_id)
+            self._mutation("alert.deleted", "alert", lambda: database.delete_alert_rule(rule_id), resource_id=rule_id)
             return self.send_json({"status": "success", "deleted": rule_id})
         except QuotePayloadTooLarge as exc:
             return self.send_json({"error": str(exc)}, 413)
@@ -577,7 +746,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     validate_security_configuration()
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    server = WSGIServer((HOST, PORT), Handler)
     try:
         connectivity.start()
         scheduler.start()

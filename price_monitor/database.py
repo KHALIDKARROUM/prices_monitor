@@ -23,6 +23,7 @@ from .config import (
 from .bitumen import INDEX_CODE, INDEX_LABEL, INDEX_UNIT, benchmark_payload
 from .quote_store import QuoteStoreMixin, json_text
 from .collection_store import CollectionStoreMixin
+from .access_store import AccessStoreMixin, borrowed_connection
 from .market_calendar import market_session
 from .quotes import QuoteConflict
 from .quotes import COST_FIELDS, EXTRA_COST_FIELDS, landed_costs
@@ -453,7 +454,7 @@ def run_sqlite_migrations(connection: sqlite3.Connection, migrations_dir: Path =
     return newly_applied
 
 
-class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin):
+class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
     """SQLite persistence backend used locally and by default."""
 
     _lock = threading.RLock()
@@ -464,6 +465,9 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin):
         self.initialize()
 
     def connect(self) -> sqlite3.Connection:
+        borrowed = borrowed_connection(self)
+        if borrowed is not None:
+            return borrowed
         conn = sqlite3.connect(self.path, timeout=15)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
@@ -1812,6 +1816,9 @@ class MySQLDatabase(SQLiteDatabase):
         connection.close()
 
     def connect(self) -> _MySQLConnection:
+        borrowed = borrowed_connection(self)
+        if borrowed is not None:
+            return borrowed
         connector = _get_mysql_connector()
         return _MySQLConnection(connector.connect(**self.settings.connector_kwargs()))
 

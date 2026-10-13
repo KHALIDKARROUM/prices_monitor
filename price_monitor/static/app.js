@@ -30,6 +30,7 @@ function storeApiKey(value) {
 }
 
 async function protectedFetch(url, options = {}, allowPrompt = true, overrideApiKey = '') {
+  if (window.PriceMonitorAuth) return window.PriceMonitorAuth.fetch(url, options);
   const headers = new Headers(options.headers || {});
   const apiKey = overrideApiKey || getStoredApiKey();
   if (apiKey) headers.set('X-API-Key', apiKey);
@@ -669,7 +670,8 @@ const pageDetails = {
   'nouveau-prix': ['Nouveau prix', 'Ajoutez un devis ou un prix de bitume validé.'],
   fournisseurs: ['Fournisseurs', 'Trouvez vos contacts et préparez vos demandes de prix.'],
   budget: ['Budget', 'Estimez le coût de vos achats et leur impact.'],
-  activite: ['Activité', 'Consultez la qualité des données et les dernières collectes.']
+  activite: ['Activité', 'Consultez la qualité des données et les dernières collectes.'],
+  equipe: ['Mon compte / Équipe', 'Gérez vos accès et suivez les actions de votre équipe.']
 };
 // Preserve links saved before the page names changed.
 const pageAliases = {

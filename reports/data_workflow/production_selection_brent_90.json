@@ -1,0 +1,54 @@
+{
+  "product": "brent",
+  "horizon_days": 90,
+  "snapshot_sha256": "98aa047ab90dfec93ab188f50c79fd33b4b60188047560b6f132458ebb12aa26",
+  "protocol": "chronological_endpoints_v1",
+  "selected_model": "naive",
+  "selection_available": true,
+  "validation_mae": {
+    "naive": 7.6980268199233715,
+    "holt": 12.423299123659103
+  },
+  "candidates": {
+    "naive": {
+      "samples": 190,
+      "mae": 23.942736842105266,
+      "rmse": 30.7276481022342,
+      "bias": -7.415052631578948,
+      "mape_pct": 25.138813176944723,
+      "smape_pct": 26.618789710652386,
+      "direction_accuracy": 0,
+      "naive_mae": 23.942736842105266,
+      "mae_skill_vs_naive": 0.0,
+      "interval_coverage": 0.5210526315789473,
+      "mean_interval_width": 33.40815267226595,
+      "calibration_log_radius": 0.20408848614335187,
+      "calibration_samples": 127
+    },
+    "holt": {
+      "samples": 190,
+      "mae": 31.146831163174603,
+      "rmse": 41.657509141212046,
+      "bias": -2.994877050739854,
+      "mape_pct": 34.55823710610774,
+      "smape_pct": 32.28725140584888,
+      "direction_accuracy": 0.5578947368421052,
+      "naive_mae": 23.942736842105266,
+      "mae_skill_vs_naive": -0.3008885061293556,
+      "interval_coverage": 0.7157894736842105,
+      "mean_interval_width": 72.52769632485628,
+      "calibration_log_radius": 0.4114327327212625,
+      "calibration_samples": 127
+    }
+  },
+  "warnings": [
+    {
+      "code": "no_predictive_gain",
+      "message": "Holt ne démontre pas un gain d’au moins 2 % en validation. Projection au dernier prix connu, sans tendance prédictive démontrée."
+    },
+    {
+      "code": "undercoverage",
+      "message": "La bande nominale à 95 % ne couvre que 52% des prix testés. Incertitude sous-estimée sur cette période."
+    }
+  ]
+}

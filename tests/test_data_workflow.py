@@ -9,6 +9,8 @@ pytest.importorskip("sklearn")
 from price_monitor.analysis.data import load_market_data
 from price_monitor.analysis.features import make_features, make_supervised, purged_splits
 from price_monitor.analysis import modeling
+from price_monitor.services.forecasting import forecast_product
+from pathlib import Path
 
 
 @pytest.fixture
@@ -98,3 +100,23 @@ def test_error_metrics_reward_only_real_improvements():
     assert perfect["mae"] == 0 and perfect["mae_skill_vs_naive"] == 1
     naive = modeling.metrics([10, 12], [9, 10], [9, 10])
     assert naive["mae_skill_vs_naive"] == 0
+
+
+@pytest.mark.parametrize("product", ["brent", "gasoil"])
+def test_research_and_live_use_identical_comparison_and_selection(product, monkeypatch):
+    frame = load_market_data(Path(__file__).resolve().parents[1] / "data/processed/market_prices.csv")
+    monkeypatch.setattr(modeling, "candidates", lambda: {"naive": None, "holt": None})
+    series = frame[product].dropna()
+    live = forecast_product([{"price": value, "source_date": str(day.date()), "collected_at": str(day.date())}
+                             for day, value in series.items()], product, (1, 7, 30, 90))
+    for horizon in (1, 7, 30, 90):
+        research = modeling.run_experiment(frame, product, horizon)
+        chosen = live["model_selection"][str(horizon)]
+        assert chosen["selected_model"] == research["selected"] == research["production"]["selected_model"]
+        assert chosen["validation_mae"] == research["production"]["validation_mae"]
+        assert chosen["calibration_start"] == research["calibration_start"]
+        assert chosen["test_start"] == research["test_start"]
+        for name, score in chosen["candidates"].items():
+            row = research["metrics"].set_index("model").loc[name]
+            for metric in ("samples", "mae", "rmse", "mape_pct", "mae_skill_vs_naive", "interval_coverage", "calibration_log_radius"):
+                assert score[metric] == pytest.approx(row[metric])

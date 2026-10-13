@@ -1,4 +1,4 @@
-horizon_months,available,folds,samples,horizon_unit,evaluation,mae,rmse,mape,bias,naive_mae,mae_skill_vs_naive,interval_coverage
-1,True,5,5,months,observed_points_in_forecast_window,21.373743,26.069132,6.2131,-4.640016,16.9102,-0.263956,1
-3,True,5,15,months,observed_points_in_forecast_window,28.070916,34.348531,6.9135,-12.851204,20.095733,-0.39686,1
-6,True,5,30,months,observed_points_in_forecast_window,46.719905,61.301911,11.1228,-40.181724,35.570633,-0.31344,1
+horizon_months,samples,mae,rmse,bias,mape_pct,smape_pct,direction_accuracy,naive_mae,mae_skill_vs_naive,interval_coverage,mean_interval_width,calibration_log_radius,calibration_samples,available,mape,model,horizon_unit,evaluation,protocol,period,folds
+1,11,26.42545454545456,31.20004942012405,-15.949272727272728,5.8743725915501335,5.995389280080058,0,26.42545454545456,0.0,,,,8,True,5.8743725915501335,naive,months,first_publication_endpoint,chronological_endpoints_v1,final_holdout,0
+3,9,59.35177777777779,68.2107595210935,-54.10311111111112,11.936506318934681,12.888800076821596,0,59.35177777777779,0.0,,,,6,True,11.936506318934681,naive,months,first_publication_endpoint,chronological_endpoints_v1,final_holdout,0
+6,6,124.16116666666669,131.16618984771446,-124.16116666666669,23.434831277397773,26.88416016519618,0,124.16116666666669,0.0,,,,3,True,23.434831277397773,naive,months,first_publication_endpoint,chronological_endpoints_v1,final_holdout,0

@@ -123,6 +123,10 @@ textarea { resize: vertical; }
 .forecast-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .forecast-card-heading h3 { margin: 0; font-size: 13px; font-weight: 500; }
 .forecast-unit { color: var(--muted); font-size: 10px; }
+.forecast-quality { margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 5px; font-size: 11px; }
+.forecast-quality strong { display: block; font-size: 12px; }
+.forecast-quality p { margin: 7px 0 0; line-height: 1.5; }
+.forecast-quality.has-warning { color: #f5c678; background: rgba(245,198,120,.06); border-color: rgba(245,198,120,.4); }
 .forecast-chart-wrap { height: 230px; margin-top: 14px; }
 .forecast-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
 .forecast-stats span, .purchase-stat span { display: block; color: var(--muted); font-size: 10px; margin-bottom: 6px; }

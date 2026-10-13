@@ -92,21 +92,30 @@ function renderForecastProduct(key) {
   const product = forecastData?.products?.[key];
   const canvas = $(`#forecast-${key}-chart`);
   const stats = $(`#forecast-${key}-stats`);
+  const quality = $(`#forecast-${key}-quality`);
   if (forecastCharts[key]) { forecastCharts[key].destroy(); delete forecastCharts[key]; }
   if (!product || product.status !== 'ready') {
     canvas.hidden = true;
+    quality.hidden = true;
+    quality.innerHTML = '';
     stats.innerHTML = `<span class="error-note">${escapeHtml(product?.message || 'Prévision indisponible.')}</span>`;
     return;
   }
   const horizon = $(key === 'bitume' ? '#forecast-bitume-horizon' : '#forecast-horizon').value;
+  const selection = product.model_selection?.[horizon] || {};
+  const modelLabel = selection.selected_model === 'holt' ? 'Holt amorti' : 'Dernier prix connu';
+  const warnings = selection.warnings || [];
+  quality.hidden = false;
+  quality.classList.toggle('has-warning', warnings.length > 0);
+  quality.innerHTML = `<strong>Modèle retenu : ${modelLabel}</strong>${warnings.map(warning => `<p>${escapeHtml(warning.message)}</p>`).join('')}`;
   const actual = product.history || [];
   const future = product.forecasts?.[horizon] || [];
   const actualValues = actual.map(row => Number(row.value));
   const labels = [...actual.map(row => row.date), ...future.map(row => row.date)];
   const bridgeLength = Math.max(0, actual.length - 1);
   const bridge = (values) => [...Array(bridgeLength).fill(null), actualValues.at(-1), ...values];
-  const lower = bridge(future.map(row => Number(row.lower)));
-  const upper = bridge(future.map(row => Number(row.upper)));
+  const lower = bridge(future.map(row => row.lower == null ? null : Number(row.lower)));
+  const upper = bridge(future.map(row => row.upper == null ? null : Number(row.upper)));
   const forecast = bridge(future.map(row => Number(row.value)));
   const actualSeries = [...actualValues, ...Array(future.length).fill(null)];
   canvas.hidden = false;
@@ -118,10 +127,10 @@ function renderForecastProduct(key) {
   forecastCharts[key] = new Chart(chartContext, {
     type: 'line',
     data: { labels: labels.map(forecastDate), datasets: [
-      { label: 'Borne basse', data: lower, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: false, spanGaps: true },
-      { label: 'Bande indicative', data: upper, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: '-1', spanGaps: true },
+      { label: 'Borne basse', data: lower, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: false, spanGaps: false },
+      { label: 'Bande calibrée · 95 % nominal', data: upper, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: '-1', spanGaps: false },
       { label: 'Réel', data: actualSeries, borderColor: meta.color, backgroundColor: meta.color, borderWidth: 2, pointRadius: 0, tension: .3, spanGaps: true },
-      { label: 'Prévision', data: forecast, borderColor: '#f0f7f9', backgroundColor: '#f0f7f9', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, tension: .3, spanGaps: true }
+      { label: modelLabel, data: forecast, borderColor: '#f0f7f9', backgroundColor: '#f0f7f9', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, tension: .3, spanGaps: true }
     ] },
     options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#202020', padding: 10, callbacks: { label: item => ` ${item.dataset.label}: ${formatNumber(item.raw, item.raw < 10 ? 3 : 2)} ${escapeHtml(product.unit)}` } } }, scales: { x: { grid: { display: false }, ticks: { color: '#a0a0a0', maxTicksLimit: 8, font: { size: 10 } } }, y: { grid: { color: 'rgba(255,255,255,.07)' }, ticks: { color: '#a0a0a0', font: { size: 10 }, callback: value => formatNumber(value, value < 10 ? 3 : 0) }, border: { display: false } } } }
   });
@@ -129,7 +138,7 @@ function renderForecastProduct(key) {
   const finalForecast = future.at(-1);
   const backtest = product.backtest?.[horizon] || {};
   const change = lastActual?.value ? ((finalForecast.value - lastActual.value) / lastActual.value) * 100 : null;
-  stats.innerHTML = `<div><span>Dernier réel</span><strong>${formatNumber(lastActual?.value, lastActual?.value < 10 ? 3 : 2)}</strong></div><div><span>${key === 'bitume' ? 'À M+' : 'À J+'}${horizon}</span><strong>${formatNumber(finalForecast?.value, finalForecast?.value < 10 ? 3 : 2)}</strong><em class="${change >= 0 ? 'up' : 'down'}">${formatPct(change)}</em></div><div><span>MAPE backtest</span><strong>${backtest.mape == null ? '—' : `${formatNumber(backtest.mape, 1)} %`}</strong></div><div><span>Gain MAE vs prix constant</span><strong>${backtest.mae_skill_vs_naive == null ? '—' : `${formatNumber(100 * backtest.mae_skill_vs_naive, 1)} %`}</strong></div><div><span>Couverture historique</span><strong>${backtest.interval_coverage == null ? '—' : `${formatNumber(100 * backtest.interval_coverage, 1)} %`}</strong></div><div><span>Origine de la prévision</span><strong>${formatDate(product.forecast_origin || lastActual?.date)}</strong></div>`;
+  stats.innerHTML = `<div><span>Dernier réel</span><strong>${formatNumber(lastActual?.value, lastActual?.value < 10 ? 3 : 2)}</strong></div><div><span>${key === 'bitume' ? 'À M+' : 'À J+'}${horizon}</span><strong>${formatNumber(finalForecast?.value, finalForecast?.value < 10 ? 3 : 2)}</strong><em class="${change >= 0 ? 'up' : 'down'}">${formatPct(change)}</em></div><div><span>MAPE · test final (${backtest.samples || 0} prévisions)</span><strong>${backtest.mape == null ? '—' : `${formatNumber(backtest.mape, 1)} %`}</strong></div><div><span>Gain MAE vs prix constant</span><strong>${backtest.mae_skill_vs_naive == null ? '—' : `${formatNumber(100 * backtest.mae_skill_vs_naive, 1)} %`}</strong></div><div><span>Couverture · test final / 95 % nominal</span><strong>${backtest.interval_coverage == null ? '—' : `${formatNumber(100 * backtest.interval_coverage, 1)} %`}</strong></div><div><span>Origine de la prévision</span><strong>${formatDate(product.forecast_origin || lastActual?.date)}</strong></div>`;
 }
 
 function renderForecast() {
@@ -145,7 +154,7 @@ async function loadForecast() {
     forecastData = await response.json();
     const generated = forecastData.generated_at ? formatDate(forecastData.generated_at, true) : 'à l’instant';
     const stale = Object.values(forecastData.products || {}).filter(product => product.is_stale);
-    $('#forecast-status').textContent = `Holt amorti · prix : jours calendaires · indice bitume : mois · calculé ${generated}${stale.length ? ' · Attention : dernières données anciennes, projections ancrées sur leur date source.' : ''}`;
+    $('#forecast-status').textContent = `Modèle choisi par horizon · prix : jours calendaires · indice bitume : mois · calculé ${generated}${stale.length ? ' · Attention : dernières données anciennes, projections ancrées sur leur date source.' : ''}`;
     $('#forecast-status').classList.toggle('error-note', stale.length > 0);
     renderForecast();
   } catch (error) {

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from ..forecast_evaluation import evaluation_plan, expanding_folds
 
 
 def make_features(frame: pd.DataFrame, product: str) -> pd.DataFrame:
@@ -53,13 +54,9 @@ def make_supervised(frame: pd.DataFrame, product: str, horizon: int) -> tuple[pd
         raise ValueError("Horizon must be a positive number of calendar days")
     x = make_features(frame, product)
     price = frame[product].dropna()
-    requested = x.index + pd.Timedelta(days=horizon)
-    positions = price.index.searchsorted(requested)
-    valid = positions < len(price)
-    origins = x.index[valid]
-    targets = price.index[positions[valid]]
-    timely = targets <= requested[valid] + pd.Timedelta(days=4)
-    origins, targets = origins[timely], targets[timely]
+    plan = evaluation_plan([day.toordinal() for day in price.index], horizon)
+    origins = price.index[[pair["origin"] for pair in plan["pairs"]]]
+    targets = price.index[[pair["target"] for pair in plan["pairs"]]]
     labels = pd.DataFrame(index=origins)
     labels["target_date"] = targets
     labels["current_price"] = price.loc[origins].to_numpy()
@@ -71,9 +68,14 @@ def make_supervised(frame: pd.DataFrame, product: str, horizon: int) -> tuple[pd
 
 def purged_splits(labels: pd.DataFrame, n_splits: int = 3):
     """Expanding folds with all train labels strictly before validation origins."""
-    from sklearn.model_selection import TimeSeriesSplit
-    for train, valid in TimeSeriesSplit(n_splits=n_splits).split(labels):
-        train = train[(labels.iloc[train].target_date < labels.index[valid[0]]).to_numpy()]
-        if len(train) < 60:
-            raise ValueError("Insufficient training history after horizon purging")
-        yield train, valid
+    if n_splits != 3:
+        raise ValueError("The shared production protocol uses three validation folds")
+    # Express label dates as positions in a common timeline, as the live service does.
+    dates = sorted(set(labels.index) | set(labels.target_date))
+    positions = {day: index for index, day in enumerate(dates)}
+    pairs = [{"origin": positions[day], "target": positions[target]} for day, target in zip(labels.index, labels.target_date)]
+    folds = expanding_folds(pairs, list(range(len(labels))), [day.toordinal() for day in dates])
+    if not folds:
+        raise ValueError("Insufficient training history after horizon purging")
+    for fold in folds:
+        yield np.array(fold["train"]), np.array(fold["validation"])

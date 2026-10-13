@@ -1,9 +1,206 @@
 {
   "product": "bitume",
-  "label": "Bitume · indice BLS",
+  "label": "Bitume · indice BLS WPU058",
+  "instrument": "asphalt_index",
   "unit": "indice (déc. 1984 = 100)",
-  "model": "damped_holt",
-  "model_version": "2_calendar_time",
+  "model": "naive",
+  "model_version": "3_chronological_selection",
+  "evaluation_protocol": "chronological_endpoints_v1",
+  "model_selection": {
+    "1": {
+      "protocol": "chronological_endpoints_v1",
+      "selection_rule": "Lowest mean purged-CV endpoint MAE; require 2% improvement over persistence.",
+      "selected_model": "naive",
+      "selection_available": false,
+      "validation_mae": {},
+      "candidates": {
+        "naive": {
+          "samples": 11,
+          "mae": 26.42545454545456,
+          "rmse": 31.20004942012405,
+          "bias": -15.949272727272728,
+          "mape_pct": 5.8743725915501335,
+          "smape_pct": 5.995389280080058,
+          "direction_accuracy": 0,
+          "naive_mae": 26.42545454545456,
+          "mae_skill_vs_naive": 0.0,
+          "interval_coverage": null,
+          "mean_interval_width": null,
+          "calibration_log_radius": null,
+          "calibration_samples": 8
+        },
+        "holt": {
+          "samples": 11,
+          "mae": 38.22524635440001,
+          "rmse": 44.63748831671092,
+          "bias": -32.87058251671187,
+          "mape_pct": 7.951931765870294,
+          "smape_pct": 8.355332046841427,
+          "direction_accuracy": 0.45454545454545453,
+          "naive_mae": 26.42545454545456,
+          "mae_skill_vs_naive": -0.4465312711517815,
+          "interval_coverage": null,
+          "mean_interval_width": null,
+          "calibration_log_radius": null,
+          "calibration_samples": 8
+        }
+      },
+      "warnings": [
+        {
+          "code": "selection_unavailable",
+          "message": "Historique insuffisant pour comparer les modèles sur trois périodes de validation. Dernier prix connu retenu par défaut."
+        },
+        {
+          "code": "limited_evaluation",
+          "message": "Évaluation limitée : 11 prévisions testées sur la période finale."
+        },
+        {
+          "code": "uncalibrated_intervals",
+          "message": "Données de calibration insuffisantes pour certaines bandes à 95 %. Ces bandes ne sont pas affichées."
+        }
+      ],
+      "calibration_start": "2024-12-01",
+      "test_start": "2025-09-01",
+      "development_samples": 9,
+      "calibration_samples": 8,
+      "holdout_samples": 11,
+      "target_max_delay": 0,
+      "calibration_samples_by_step": {
+        "1": 8
+      }
+    },
+    "3": {
+      "protocol": "chronological_endpoints_v1",
+      "selection_rule": "Lowest mean purged-CV endpoint MAE; require 2% improvement over persistence.",
+      "selected_model": "naive",
+      "selection_available": false,
+      "validation_mae": {},
+      "candidates": {
+        "naive": {
+          "samples": 9,
+          "mae": 59.35177777777779,
+          "rmse": 68.2107595210935,
+          "bias": -54.10311111111112,
+          "mape_pct": 11.936506318934681,
+          "smape_pct": 12.888800076821596,
+          "direction_accuracy": 0,
+          "naive_mae": 59.35177777777779,
+          "mae_skill_vs_naive": 0.0,
+          "interval_coverage": null,
+          "mean_interval_width": null,
+          "calibration_log_radius": null,
+          "calibration_samples": 6
+        },
+        "holt": {
+          "samples": 9,
+          "mae": 61.49922537669034,
+          "rmse": 74.23670665604888,
+          "bias": -61.35185445818959,
+          "mape_pct": 11.928096706866823,
+          "smape_pct": 13.03437289258631,
+          "direction_accuracy": 0.5555555555555556,
+          "naive_mae": 59.35177777777779,
+          "mae_skill_vs_naive": -0.03618168956880985,
+          "interval_coverage": null,
+          "mean_interval_width": null,
+          "calibration_log_radius": null,
+          "calibration_samples": 6
+        }
+      },
+      "warnings": [
+        {
+          "code": "selection_unavailable",
+          "message": "Historique insuffisant pour comparer les modèles sur trois périodes de validation. Dernier prix connu retenu par défaut."
+        },
+        {
+          "code": "limited_evaluation",
+          "message": "Évaluation limitée : 9 prévisions testées sur la période finale."
+        },
+        {
+          "code": "uncalibrated_intervals",
+          "message": "Données de calibration insuffisantes pour certaines bandes à 95 %. Ces bandes ne sont pas affichées."
+        }
+      ],
+      "calibration_start": "2024-12-01",
+      "test_start": "2025-09-01",
+      "development_samples": 7,
+      "calibration_samples": 6,
+      "holdout_samples": 9,
+      "target_max_delay": 0,
+      "calibration_samples_by_step": {
+        "1": 6,
+        "2": 6,
+        "3": 6
+      }
+    },
+    "6": {
+      "protocol": "chronological_endpoints_v1",
+      "selection_rule": "Lowest mean purged-CV endpoint MAE; require 2% improvement over persistence.",
+      "selected_model": "naive",
+      "selection_available": false,
+      "validation_mae": {},
+      "candidates": {
+        "naive": {
+          "samples": 6,
+          "mae": 124.16116666666669,
+          "rmse": 131.16618984771446,
+          "bias": -124.16116666666669,
+          "mape_pct": 23.434831277397773,
+          "smape_pct": 26.88416016519618,
+          "direction_accuracy": 0,
+          "naive_mae": 124.16116666666669,
+          "mae_skill_vs_naive": 0.0,
+          "interval_coverage": null,
+          "mean_interval_width": null,
+          "calibration_log_radius": null,
+          "calibration_samples": 3
+        },
+        "holt": {
+          "samples": 6,
+          "mae": 116.35975963954583,
+          "rmse": 121.03351374502324,
+          "bias": -116.35975963954583,
+          "mape_pct": 21.979701572637993,
+          "smape_pct": 24.869874061991375,
+          "direction_accuracy": 0.6666666666666666,
+          "naive_mae": 124.16116666666669,
+          "mae_skill_vs_naive": 0.0628329069109439,
+          "interval_coverage": null,
+          "mean_interval_width": null,
+          "calibration_log_radius": null,
+          "calibration_samples": 3
+        }
+      },
+      "warnings": [
+        {
+          "code": "selection_unavailable",
+          "message": "Historique insuffisant pour comparer les modèles sur trois périodes de validation. Dernier prix connu retenu par défaut."
+        },
+        {
+          "code": "limited_evaluation",
+          "message": "Évaluation limitée : 6 prévisions testées sur la période finale."
+        },
+        {
+          "code": "uncalibrated_intervals",
+          "message": "Données de calibration insuffisantes pour certaines bandes à 95 %. Ces bandes ne sont pas affichées."
+        }
+      ],
+      "calibration_start": "2024-12-01",
+      "test_start": "2025-09-01",
+      "development_samples": 4,
+      "calibration_samples": 3,
+      "holdout_samples": 6,
+      "target_max_delay": 0,
+      "calibration_samples_by_step": {
+        "1": 3,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 3,
+        "6": 3
+      }
+    }
+  },
   "horizon_unit": "months",
   "horizons": [
     1,
@@ -12,8 +209,9 @@
   ],
   "frequency": "monthly",
   "data_kind": "index",
-  "interval_method": "heuristic_residual_sqrt_time",
+  "interval_method": "chronological_absolute_log_error_quantile",
   "interval_nominal_level": 0.95,
+  "interval_guarantee": false,
   "history_count": 60,
   "history": [
     {
@@ -261,112 +459,139 @@
     "1": [
       {
         "date": "2026-09-01",
-        "value": 552.257273,
-        "lower": 461.824107,
-        "upper": 642.690438
+        "value": 546.938,
+        "lower": null,
+        "upper": null
       }
     ],
     "3": [
       {
         "date": "2026-09-01",
-        "value": 552.257273,
-        "lower": 461.824107,
-        "upper": 642.690438
+        "value": 546.938,
+        "lower": null,
+        "upper": null
       },
       {
         "date": "2026-10-01",
-        "value": 562.31709,
-        "lower": 434.425281,
-        "upper": 690.208899
+        "value": 546.938,
+        "lower": null,
+        "upper": null
       },
       {
         "date": "2026-11-01",
-        "value": 572.226009,
-        "lower": 415.591172,
-        "upper": 728.860847
+        "value": 546.938,
+        "lower": null,
+        "upper": null
       }
     ],
     "6": [
       {
         "date": "2026-09-01",
-        "value": 552.257273,
-        "lower": 461.824107,
-        "upper": 642.690438
+        "value": 546.938,
+        "lower": null,
+        "upper": null
       },
       {
         "date": "2026-10-01",
-        "value": 562.31709,
-        "lower": 434.425281,
-        "upper": 690.208899
+        "value": 546.938,
+        "lower": null,
+        "upper": null
       },
       {
         "date": "2026-11-01",
-        "value": 572.226009,
-        "lower": 415.591172,
-        "upper": 728.860847
+        "value": 546.938,
+        "lower": null,
+        "upper": null
       },
       {
         "date": "2026-12-01",
-        "value": 581.986295,
-        "lower": 401.119964,
-        "upper": 762.852626
+        "value": 546.938,
+        "lower": null,
+        "upper": null
       },
       {
         "date": "2027-01-01",
-        "value": 591.600177,
-        "lower": 389.385471,
-        "upper": 793.814882
+        "value": 546.938,
+        "lower": null,
+        "upper": null
       },
       {
         "date": "2027-02-01",
-        "value": 601.06985,
-        "lower": 379.554739,
-        "upper": 822.584961
+        "value": 546.938,
+        "lower": null,
+        "upper": null
       }
     ]
   },
   "backtest": {
     "1": {
+      "samples": 11,
+      "mae": 26.42545454545456,
+      "rmse": 31.20004942012405,
+      "bias": -15.949272727272728,
+      "mape_pct": 5.8743725915501335,
+      "smape_pct": 5.995389280080058,
+      "direction_accuracy": 0,
+      "naive_mae": 26.42545454545456,
+      "mae_skill_vs_naive": 0.0,
+      "interval_coverage": null,
+      "mean_interval_width": null,
+      "calibration_log_radius": null,
+      "calibration_samples": 8,
       "available": true,
-      "folds": 5,
-      "samples": 5,
+      "mape": 5.8743725915501335,
+      "model": "naive",
       "horizon_unit": "months",
-      "evaluation": "observed_points_in_forecast_window",
-      "mae": 21.373743,
-      "rmse": 26.069132,
-      "mape": 6.2131,
-      "bias": -4.640016,
-      "naive_mae": 16.9102,
-      "mae_skill_vs_naive": -0.263956,
-      "interval_coverage": 1
+      "evaluation": "first_publication_endpoint",
+      "protocol": "chronological_endpoints_v1",
+      "period": "final_holdout",
+      "folds": 0
     },
     "3": {
+      "samples": 9,
+      "mae": 59.35177777777779,
+      "rmse": 68.2107595210935,
+      "bias": -54.10311111111112,
+      "mape_pct": 11.936506318934681,
+      "smape_pct": 12.888800076821596,
+      "direction_accuracy": 0,
+      "naive_mae": 59.35177777777779,
+      "mae_skill_vs_naive": 0.0,
+      "interval_coverage": null,
+      "mean_interval_width": null,
+      "calibration_log_radius": null,
+      "calibration_samples": 6,
       "available": true,
-      "folds": 5,
-      "samples": 15,
+      "mape": 11.936506318934681,
+      "model": "naive",
       "horizon_unit": "months",
-      "evaluation": "observed_points_in_forecast_window",
-      "mae": 28.070916,
-      "rmse": 34.348531,
-      "mape": 6.9135,
-      "bias": -12.851204,
-      "naive_mae": 20.095733,
-      "mae_skill_vs_naive": -0.39686,
-      "interval_coverage": 1
+      "evaluation": "first_publication_endpoint",
+      "protocol": "chronological_endpoints_v1",
+      "period": "final_holdout",
+      "folds": 0
     },
     "6": {
+      "samples": 6,
+      "mae": 124.16116666666669,
+      "rmse": 131.16618984771446,
+      "bias": -124.16116666666669,
+      "mape_pct": 23.434831277397773,
+      "smape_pct": 26.88416016519618,
+      "direction_accuracy": 0,
+      "naive_mae": 124.16116666666669,
+      "mae_skill_vs_naive": 0.0,
+      "interval_coverage": null,
+      "mean_interval_width": null,
+      "calibration_log_radius": null,
+      "calibration_samples": 3,
       "available": true,
-      "folds": 5,
-      "samples": 30,
+      "mape": 23.434831277397773,
+      "model": "naive",
       "horizon_unit": "months",
-      "evaluation": "observed_points_in_forecast_window",
-      "mae": 46.719905,
-      "rmse": 61.301911,
-      "mape": 11.1228,
-      "bias": -40.181724,
-      "naive_mae": 35.570633,
-      "mae_skill_vs_naive": -0.31344,
-      "interval_coverage": 1
+      "evaluation": "first_publication_endpoint",
+      "protocol": "chronological_endpoints_v1",
+      "period": "final_holdout",
+      "folds": 0
     }
   },
   "last_actual": {
@@ -376,8 +601,7 @@
   "status": "ready",
   "training_start": "2021-09-01",
   "training_end": "2026-08-01",
-  "residual_std": 46.13937,
-  "age_days": 68,
+  "age_days": 73,
   "is_stale": false,
   "forecast_origin": "2026-08-01"
 }

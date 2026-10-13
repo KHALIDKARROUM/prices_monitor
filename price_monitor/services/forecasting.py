@@ -1,18 +1,18 @@
 """Short-horizon market-price forecasting and walk-forward validation.
 
-The service intentionally uses only the Python standard library.  This keeps
-forecasting available in the production image without making the exploratory
-notebook dependencies part of the runtime.  The fixed-parameter Holt model is a transparent baseline, not an assumption
-that it outperforms a random walk. Missing calendar days propagate its state
-without adding invented observations.
+The service uses only the Python standard library, keeping notebook dependencies
+out of the production runtime. Holt must beat persistence on purged validation
+folds before it is selected for a production horizon. Bands are calibrated on a
+separate earlier period. Missing calendar days propagate model state without
+adding invented observations.
 """
 
 from __future__ import annotations
 
 import math
 from datetime import date, datetime, timedelta, timezone
-from statistics import mean, pstdev
 from typing import Any, Iterable
+from ..forecast_evaluation import PROTOCOL, NOMINAL_LEVEL, evaluate_baselines
 from ..bitumen import INDEX_LABEL, INDEX_UNIT
 from ..instruments import DEFAULT_INSTRUMENTS, INSTRUMENTS, canonical_daily_rows, row_instrument
 
@@ -65,7 +65,7 @@ def daily_series(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{"date": day.isoformat(), "value": value} for day, (_, value) in sorted(latest.items())]
 
 
-def _damped_holt(values: list[float], horizon: int, days: list[int] | None = None) -> list[float]:
+def _damped_holt(values: list[float], horizon: int, days: list[int] | None = None, *, model_horizon: int | None = None) -> list[float]:
     """Forecast with a damped trend exponential-smoothing model."""
     if not values:
         return []
@@ -74,7 +74,7 @@ def _damped_holt(values: list[float], horizon: int, days: list[int] | None = Non
 
     # A recent window limits the effect of old regimes while retaining enough
     # history for the 90-day forecast to estimate a stable trend.
-    window_size = min(len(values), max(90, horizon * 3, 180))
+    window_size = min(len(values), max(90, (model_horizon or horizon) * 3, 180))
     series = values[-window_size:]
     alpha = 0.32
     beta = 0.08
@@ -103,63 +103,19 @@ def _damped_holt(values: list[float], horizon: int, days: list[int] | None = Non
     return predictions
 
 
-def _residual_standard_deviation(values: list[float], days: list[int] | None = None) -> float:
-    """Estimate one-step residual noise with a short walk-forward pass."""
-    if len(values) < 3:
-        return max(values[0] * 0.01, 0.000001) if values else 1.0
-    start = max(2, len(values) - 120)
-    residuals: list[float] = []
-    for origin in range(start, len(values)):
-        gap = days[origin] - days[origin - 1] if days is not None else 1
-        prediction = _damped_holt(values[:origin], gap, days[:origin] if days is not None else None)[-1]
-        residuals.append((values[origin] - prediction) / math.sqrt(gap))
-    if not residuals:
-        return max(mean(values) * 0.01, 0.000001)
-    # Keep a small non-zero band for nearly constant test/demo series.
-    return max(pstdev(residuals), mean(values) * 0.01, 0.000001)
-
-
 def _backtest(values: list[float], horizon: int, days: list[int] | None = None) -> dict[str, Any]:
-    """Score observed prices inside complete calendar-day forecast windows.
-
-    Each origin uses only prior observations. Repeated observations across folds
-    are forecast pairs, not independent samples. Bands are heuristic, not a
-    calibrated statistical guarantee.
-    """
+    """Selected model's final-period endpoint score under the shared protocol."""
     timeline = days if days is not None else list(range(len(values)))
-    origins = [i for i in range(MIN_OBSERVATIONS, len(values))
-               if timeline[i - 1] + horizon <= timeline[-1]]
-    if not origins:
-        return {"available": False, "samples": 0, "mae": None, "rmse": None, "mape": None}
-    if len(origins) > 5:
-        origins = [origins[round(i * (len(origins) - 1) / 4)] for i in range(5)]
-    errors, percentages, baseline_errors, coverage = [], [], [], []
-    for origin in origins:
-        train = values[:origin]
-        prediction = _damped_holt(train, horizon, timeline[:origin])
-        noise = _residual_standard_deviation(train, timeline[:origin])
-        for index in range(origin, len(values)):
-            step = timeline[index] - timeline[origin - 1]
-            if step > horizon:
-                break
-            actual = values[index]
-            error = prediction[step - 1] - actual
-            errors.append(error)
-            percentages.append(abs(error) / actual * 100)
-            baseline_errors.append(abs(train[-1] - actual))
-            coverage.append(abs(error) <= 1.96 * noise * math.sqrt(step))
-    if not errors:
-        return {"available": False, "samples": 0, "mae": None, "rmse": None, "mape": None}
-    mae, baseline_mae = mean(map(abs, errors)), mean(baseline_errors)
-    return {
-        "available": True, "folds": len(origins), "samples": len(errors),
-        "horizon_unit": "calendar_days", "evaluation": "observed_points_in_forecast_window",
-        "mae": round(mae, 6), "rmse": round(math.sqrt(mean(e * e for e in errors)), 6),
-        "mape": round(mean(percentages), 4), "bias": round(mean(errors), 6),
-        "naive_mae": round(baseline_mae, 6),
-        "mae_skill_vs_naive": round(1 - mae / baseline_mae, 6) if baseline_mae else None,
-        "interval_coverage": round(mean(coverage), 4),
-    }
+    evaluation = evaluate_baselines(values, timeline, horizon, _damped_holt)
+    return _backtest_payload(evaluation, "calendar_days")
+
+
+def _backtest_payload(evaluation: dict, horizon_unit: str) -> dict:
+    score = evaluation["candidates"][evaluation["selected_model"]]
+    return {**score, "available": score["samples"] > 0, "mape": score["mape_pct"],
+            "model": evaluation["selected_model"], "horizon_unit": horizon_unit,
+            "evaluation": "first_publication_endpoint", "protocol": PROTOCOL,
+            "period": "final_holdout", "folds": len(evaluation["plan"]["folds"])}
 
 
 def _round(value: float | None) -> float | None:
@@ -183,14 +139,17 @@ def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tup
         "label": INSTRUMENTS[instrument]["label"],
         "instrument": instrument,
         "unit": meta["unit"],
-        "model": "damped_holt",
-        "model_version": "2_calendar_time",
+        "model": "per_horizon",
+        "model_version": "3_chronological_selection",
+        "evaluation_protocol": PROTOCOL,
+        "model_selection": {},
         "horizon_unit": "months" if monthly else "calendar_days",
         "horizons": list(horizons),
         "frequency": "monthly" if monthly else "daily",
         "data_kind": "index" if monthly else "quote",
-        "interval_method": "heuristic_residual_sqrt_time",
-        "interval_nominal_level": 0.95,
+        "interval_method": "chronological_absolute_log_error_quantile",
+        "interval_nominal_level": NOMINAL_LEVEL,
+        "interval_guarantee": False,
         "history_count": len(series),
         "history": series[-120:],
         "forecasts": {},
@@ -210,33 +169,47 @@ def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tup
     values = [float(item["value"]) for item in series]
     last_day = date.fromisoformat(series[-1]["date"])
     days = [date.fromisoformat(item["date"]).year * 12 + date.fromisoformat(item["date"]).month if monthly else date.fromisoformat(item["date"]).toordinal() for item in series]
-    residual_std = _residual_standard_deviation(values, days)
     age_days = (datetime.now(timezone.utc).date() - last_day).days
     base.update({
         "status": "ready",
         "training_start": series[0]["date"],
         "training_end": series[-1]["date"],
-        "residual_std": _round(residual_std),
         "age_days": age_days, "is_stale": age_days > (75 if monthly else 7),
         "forecast_origin": last_day.isoformat(),
     })
+    source_dates = dict(zip(days, (item["date"] for item in series)))
     for horizon in horizons:
-        predictions = _damped_holt(values, horizon, days)
+        evaluation = evaluate_baselines(values, days, horizon, _damped_holt, monthly=monthly)
+        selected = evaluation["selected_model"]
+        plan = evaluation["plan"]
+        base["model_selection"][str(horizon)] = {
+            key: evaluation[key] for key in ("protocol", "selection_rule", "selected_model",
+                                              "selection_available", "validation_mae", "candidates", "warnings")
+        }
+        base["model_selection"][str(horizon)].update({
+            "calibration_start": source_dates.get(plan["calibration_start"]),
+            "test_start": source_dates.get(plan["test_start"]),
+            "development_samples": len(plan["development"]),
+            "calibration_samples": len(plan["calibration"]),
+            "holdout_samples": len(plan["holdout"]),
+            "target_max_delay": plan["max_delay"],
+            "calibration_samples_by_step": evaluation["calibration_counts"],
+        })
+        predictions = [values[-1]] * horizon if selected == "naive" else _damped_holt(values, horizon, days)
         points = []
         for index, prediction in enumerate(predictions, start=1):
-            interval = 1.96 * residual_std * math.sqrt(index)
+            radius = evaluation["radii"][str(index)]
             month_number = last_day.year * 12 + last_day.month - 1 + index
             forecast_day = date(month_number // 12, month_number % 12 + 1, 1) if monthly else last_day + timedelta(days=index)
             points.append({
-                "date": forecast_day.isoformat(),
-                "value": _round(prediction),
-                "lower": _round(max(0.000001, prediction - interval)),
-                "upper": _round(prediction + interval),
+                "date": forecast_day.isoformat(), "value": _round(prediction),
+                "lower": _round(prediction * math.exp(-radius)) if radius is not None else None,
+                "upper": _round(prediction * math.exp(radius)) if radius is not None else None,
             })
         base["forecasts"][str(horizon)] = points
-        base["backtest"][str(horizon)] = _backtest(values, horizon, days)
-        if monthly:
-            base["backtest"][str(horizon)]["horizon_unit"] = "months"
+        base["backtest"][str(horizon)] = _backtest_payload(evaluation, base["horizon_unit"])
+    selected_models = {item["selected_model"] for item in base["model_selection"].values()}
+    base["model"] = next(iter(selected_models)) if len(selected_models) == 1 else "per_horizon"
     return base
 
 

@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, default=ROOT / "data/processed/market_prices.csv")
-    parser.add_argument("--output", type=Path, default=ROOT / "reports/data_science")
+    parser.add_argument("--output", type=Path, default=ROOT / "reports/data_workflow")
     parser.add_argument("--horizons", type=int, nargs="+", default=[1, 7, 30, 90])
     parser.add_argument("--save-models", action="store_true")
     args = parser.parse_args()

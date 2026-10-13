@@ -52,6 +52,12 @@ def test_bitumen_snapshot_is_visible_everywhere_and_imports_idempotently(tmp_pat
         month_index = origin.year * 12 + origin.month - 1 + horizon
         assert forecast["forecasts"][str(horizon)][-1]["date"] == f"{month_index // 12:04d}-{month_index % 12 + 1:02d}-01"
     assert forecast["backtest"]["3"]["available"]
+    for horizon, selection in forecast["model_selection"].items():
+        assert selection["selected_model"] == "naive"
+        assert set(selection["candidates"]) == {"naive", "holt"}
+        assert {"selection_unavailable", "limited_evaluation", "uncalibrated_intervals"} <= {warning["code"] for warning in selection["warnings"]}
+        assert all(point["value"] == forecast["last_actual"]["value"] for point in forecast["forecasts"][horizon])
+        assert all(point["lower"] is None and point["upper"] is None for point in forecast["forecasts"][horizon])
     assert Database(path).history(product="bitume")["total"] == 60
 
 

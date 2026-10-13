@@ -1,0 +1,54 @@
+{
+  "product": "gasoil",
+  "horizon_days": 90,
+  "snapshot_sha256": "98aa047ab90dfec93ab188f50c79fd33b4b60188047560b6f132458ebb12aa26",
+  "protocol": "chronological_endpoints_v1",
+  "selected_model": "naive",
+  "selection_available": true,
+  "validation_mae": {
+    "naive": 0.4099263565891473,
+    "holt": 0.6296921090764003
+  },
+  "candidates": {
+    "naive": {
+      "samples": 189,
+      "mae": 0.7798730158730158,
+      "rmse": 1.0459132057022866,
+      "bias": -0.4902010582010582,
+      "mape_pct": 20.684904927484805,
+      "smape_pct": 23.874281676740413,
+      "direction_accuracy": 0,
+      "naive_mae": 0.7798730158730158,
+      "mae_skill_vs_naive": 0.0,
+      "interval_coverage": 0.5661375661375662,
+      "mean_interval_width": 1.2721941217250476,
+      "calibration_log_radius": 0.21292875530081115,
+      "calibration_samples": 126
+    },
+    "holt": {
+      "samples": 189,
+      "mae": 1.1886542970133034,
+      "rmse": 1.53908250396111,
+      "bias": -0.28424775862921586,
+      "mape_pct": 32.9244610806862,
+      "smape_pct": 34.406276286536816,
+      "direction_accuracy": 0.3544973544973545,
+      "naive_mae": 0.7798730158730158,
+      "mae_skill_vs_naive": -0.5241638995326492,
+      "interval_coverage": 0.6031746031746031,
+      "mean_interval_width": 2.798037168936095,
+      "calibration_log_radius": 0.42802063151600134,
+      "calibration_samples": 126
+    }
+  },
+  "warnings": [
+    {
+      "code": "no_predictive_gain",
+      "message": "Holt ne démontre pas un gain d’au moins 2 % en validation. Projection au dernier prix connu, sans tendance prédictive démontrée."
+    },
+    {
+      "code": "undercoverage",
+      "message": "La bande nominale à 95 % ne couvre que 57% des prix testés. Incertitude sous-estimée sur cette période."
+    }
+  ]
+}

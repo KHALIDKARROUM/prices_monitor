@@ -82,6 +82,9 @@ test('manual collections show the discrepancy immediately and use a warning toas
   context.protectedFetch = async () => ({ ok: true, json: async () => ({ status: 'success', rows: 2, source_comparison: comparison() }) });
   context.showToast = (message, warning) => notices.push({ message, warning });
   context.loadDashboard = context.loadLogs = () => { refreshes++; };
+  const events = [];
+  context.document = { dispatchEvent: event => events.push(event.type) };
+  context.Event = class { constructor(type) { this.type = type; } };
   const start = appSource.indexOf("$('#collect-btn').addEventListener");
   const end = appSource.indexOf("$('#bitumen-form').addEventListener", start);
   vm.runInContext(appSource.slice(start, end), context);
@@ -91,4 +94,24 @@ test('manual collections show the discrepancy immediately and use a warning toas
   assert.equal(notices[0].warning, true);
   assert.equal($('#collect-btn').disabled, false);
   assert.equal(refreshes, 2);
+  assert.deepEqual(events, ['collection-finished']);
+});
+
+test('a quota-limited manual refresh explains why collection is waiting', async () => {
+  const { $, context } = dashboard();
+  let collect;
+  const notices = [];
+  $('#collect-btn').addEventListener = (_, callback) => { collect = callback; };
+  context.protectedFetch = async () => ({ ok: true, json: async () => ({ status: 'deferred', rows: 0,
+    message: 'Alpha Vantage : quota atteint, prochaine collecte demain.', providers: [{ status: 'deferred' }] }) });
+  context.showToast = message => notices.push(message);
+  context.loadDashboard = context.loadLogs = () => {};
+  context.document = { dispatchEvent() {} };
+  context.Event = class {};
+  const start = appSource.indexOf("$('#collect-btn').addEventListener");
+  const end = appSource.indexOf("$('#bitumen-form').addEventListener", start);
+  vm.runInContext(appSource.slice(start, end), context);
+  await collect();
+  assert.match(notices[0], /quota atteint/);
+  assert.equal($('#collect-btn').disabled, false);
 });

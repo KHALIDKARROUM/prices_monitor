@@ -316,14 +316,22 @@ def test_successful_collection_clears_previous_source_error(empty_database):
 
 
 def test_scheduler_collects_immediately_when_the_service_starts(empty_database, monkeypatch):
-    calls = []
-    monkeypatch.setattr(scheduler_module, "run_collection", lambda database: calls.append(database))
-    scheduler = scheduler_module.CollectionScheduler(empty_database)
-
-    scheduler.start()
-    scheduler.stop()
-
-    assert calls == [empty_database]
+    import threading
+    called = threading.Event()
+    coordinator = scheduler_module.CollectionCoordinator(empty_database, providers=["fred"])
+    def fake_collection(provider):
+        called.set()
+        return {"next_collection_at": "2099-01-01T00:00:00+00:00"}
+    monkeypatch.setattr(coordinator, "collect_provider", fake_collection)
+    scheduler = scheduler_module.CollectionScheduler(empty_database, coordinator)
+    try:
+        scheduler.start()
+        assert called.wait(2)
+    finally:
+        scheduler.stop()
+        for worker in scheduler._workers:
+            worker.join(2)
+        scheduler._thread.join(2)
 
 
 def test_collect_all_fails_when_no_source_succeeds_and_demo_mode_is_off(monkeypatch):

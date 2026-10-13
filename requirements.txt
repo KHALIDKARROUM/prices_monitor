@@ -1,4 +1,5 @@
-# Runtime minimal (the app itself uses the Python standard library)
+# IANA time zones, including daylight saving on Windows.
+tzdata>=2024.1
 # Optional production integrations:
 openpyxl>=3.1.0
 mysql-connector-python>=9.0.0

@@ -87,7 +87,10 @@ OPENAPI_SPEC = {
             "get": {"tags": ["market"], "summary": "Prix par API et écarts entre séries équivalentes", "responses": {"200": {"description": "Dernier relevé par fournisseur, date, unité, marché, disponibilité et comparaison. Seules les mêmes séries, dates, unités et devises permettent de signaler un écart suspect. Les sources absentes restent non vérifiées."}}}
         },
         "/api/connectivity": {
-            "get": {"tags": ["health"], "summary": "Connexion Internet vérifiée et résultat de la dernière collecte", "responses": {"200": {"description": "État online, offline ou checking, horodatages et dernière collecte"}}}
+            "get": {"tags": ["health"], "summary": "Connexion Internet vérifiée et disponibilité agrégée des fournisseurs", "responses": {"200": {"description": "État online, offline ou checking, horodatages et statut agrégé success, partial, error ou pending"}}}
+        },
+        "/api/collection-schedules": {
+            "get": {"tags": ["market"], "summary": "Calendrier et quotas des fournisseurs configurés", "responses": {"200": {"description": "Liste providers : provider, interval_minutes, status, next_collection_at, requests_last_24h, request_limit_24h (null sans plafond local), failures, reason et last_error. Les heures sont en UTC ; les fermetures de marché, quotas et délais de reprise sont pris en compte."}}}
         },
         "/api/forecast": {
             "get": {"tags": ["market"], "summary": "Prévisions gasoil, Brent et indice Bitume", "parameters": [{"$ref": "#/components/parameters/HistoryDays"}], "responses": {"200": {"description": "Prix à 7/30/90 jours; indice bitume BLS à 1/3/6 mois, depuis la dernière date source. Chaque produit expose son unité, fréquence, horizons, bandes indicatives, comparaison à la persistance et couverture historique."}, "400": {"description": "Paramètre invalide"}}}
@@ -123,7 +126,7 @@ OPENAPI_SPEC = {
             "get": {"tags": ["market"], "summary": "Comparer publiquement deux périodes", "responses": {"200": {"description": "Comparaison par produit"}, "400": {"description": "Périodes invalides"}}}
         },
         "/api/collect": {
-            "post": {"tags": ["market"], "summary": "Déclencher une collecte immédiate", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "responses": {"200": {"description": "Résultat de collecte avec source_comparison : statut de cohérence, message, avertissements et écarts entre les prix reçus dans cette collecte."}, "401": {"description": "Authentification requise"}}}
+            "post": {"tags": ["market"], "summary": "Collecter les fournisseurs disponibles", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "responses": {"200": {"description": "status success, partial, error ou deferred ; rows, message, providers (résultats et prochaines échéances) et source_comparison entre dernières publications équivalentes. Une collecte manuelle peut avancer un fournisseur sain mais respecte quotas, délais d'échec, concurrence et fermetures. Les reports ne sont pas de nouvelles erreurs de source."}, "401": {"description": "Authentification requise"}}}
         },
         "/api/logs": {"get": {"tags": ["market"], "summary": "Derniers journaux de collecte", "responses": {"200": {"description": "Journaux"}}}},
         "/api/benchmarks": {

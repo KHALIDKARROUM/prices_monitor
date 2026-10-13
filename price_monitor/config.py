@@ -53,6 +53,16 @@ def _env_positive_int(name: str, default: int) -> int:
     return value
 
 
+def _env_nonnegative_int(name: str, default: int = 0) -> int:
+    try:
+        value = int(os.getenv(name, str(default)).strip())
+    except ValueError as exc:
+        raise ValueError(f"{name} doit être un entier positif ou nul") from exc
+    if value < 0:
+        raise ValueError(f"{name} doit être un entier positif ou nul")
+    return value
+
+
 def _env_json_object(name: str) -> dict[str, dict[str, float]]:
     raw_value = os.getenv(name, "").strip()
     if not raw_value:
@@ -130,10 +140,33 @@ FRED_API_KEY = os.getenv("FRED_API_KEY", "")
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
 EIA_API_KEY = os.getenv("EIA_API_KEY", "").strip()
 LIVE_QUOTES_ENABLED = _env_bool("PRICE_MONITOR_LIVE_QUOTES_ENABLED", True)
-# Fetch once when the service starts, then keep the newest published prices in
-# the local database.  Sources may publish at different cadences; an unchanged
-# value is intentionally kept as an auditable collection event.
+# Legacy setting now controls only live quotes (and demo data).
 COLLECTION_INTERVAL_MINUTES = _env_positive_int("PRICE_MONITOR_COLLECTION_INTERVAL_MINUTES", 1)
+PROVIDER_INTERVAL_MINUTES = {
+    "fred": _env_positive_int("PRICE_MONITOR_FRED_INTERVAL_MINUTES", 360),
+    "eia": _env_positive_int("PRICE_MONITOR_EIA_INTERVAL_MINUTES", 360),
+    "alpha_vantage": _env_positive_int("PRICE_MONITOR_ALPHA_VANTAGE_INTERVAL_MINUTES", 720),
+    "bls": _env_positive_int("PRICE_MONITOR_BLS_INTERVAL_MINUTES", 1440),
+    "yahoo": _env_positive_int("PRICE_MONITOR_YAHOO_INTERVAL_MINUTES", COLLECTION_INTERVAL_MINUTES),
+    "demo": COLLECTION_INTERVAL_MINUTES,
+}
+PROVIDER_DAILY_LIMITS = {
+    "alpha_vantage": _env_positive_int("PRICE_MONITOR_ALPHA_VANTAGE_DAILY_LIMIT", 25),
+    "bls": _env_positive_int("PRICE_MONITOR_BLS_DAILY_LIMIT", 25),
+    "fred": _env_nonnegative_int("PRICE_MONITOR_FRED_DAILY_LIMIT"),
+    "eia": _env_nonnegative_int("PRICE_MONITOR_EIA_DAILY_LIMIT"),
+    "yahoo": _env_nonnegative_int("PRICE_MONITOR_YAHOO_DAILY_LIMIT"),
+}
+COLLECTION_BACKOFF_SECONDS = _env_positive_int("PRICE_MONITOR_COLLECTION_BACKOFF_SECONDS", 60)
+COLLECTION_MAX_BACKOFF_SECONDS = _env_positive_int("PRICE_MONITOR_COLLECTION_MAX_BACKOFF_SECONDS", 21600)
+# ISO timestamps with offsets; supports holiday, early-close and exceptional
+# closure windows without assuming equity-market holidays apply to futures.
+try:
+    MARKET_CLOSURES = json.loads(os.getenv("PRICE_MONITOR_MARKET_CLOSURES", "[]"))
+except json.JSONDecodeError as exc:
+    raise ValueError("PRICE_MONITOR_MARKET_CLOSURES doit contenir une liste JSON") from exc
+if not isinstance(MARKET_CLOSURES, list):
+    raise ValueError("PRICE_MONITOR_MARKET_CLOSURES doit contenir une liste JSON")
 SERVICE_NAME = os.getenv("PRICE_MONITOR_SERVICE_NAME", "price-monitor")
 LOG_LEVEL = os.getenv("PRICE_MONITOR_LOG_LEVEL", "INFO").strip().upper()
 

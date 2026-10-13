@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import smtplib
 import ssl
+import threading
+from functools import wraps
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
@@ -29,6 +31,8 @@ from ..database import DatabaseBackend, PRODUCTS
 from ..bitumen import INDEX_LABEL, INDEX_UNIT
 from ..observability import logger, metrics
 from ..instruments import INSTRUMENTS, DEFAULT_INSTRUMENTS, canonical_latest, row_instrument, price_alert_key
+from ..market_calendar import LIVE_SOURCE_CODES, live_monitoring_anchor
+from ..config import PROVIDER_INTERVAL_MINUTES
 
 
 FRESHNESS_WINDOWS = {
@@ -40,6 +44,18 @@ FRESHNESS_WINDOWS = {
     "mensuelle": timedelta(days=62),
     "monthly": timedelta(days=62),
 }
+
+
+_evaluation_lock = threading.RLock()
+
+
+def _serialized_evaluation(method):
+    """Provider workers cannot notify the same unacknowledged event twice."""
+    @wraps(method)
+    def evaluate(*args, **kwargs):
+        with _evaluation_lock:
+            return method(*args, **kwargs)
+    return evaluate
 
 
 @dataclass(frozen=True)
@@ -206,6 +222,7 @@ class AlertManager:
             }
         return thresholds
 
+    @_serialized_evaluation
     def evaluate_collection(
         self,
         observations: list[dict[str, Any]],
@@ -217,6 +234,7 @@ class AlertManager:
         self._dispatch(events)
         return events
 
+    @_serialized_evaluation
     def evaluate_live_freshness(
         self,
         sources: list[dict[str, Any]],
@@ -233,7 +251,14 @@ class AlertManager:
             source = by_code.get(source_codes.get(product, ""), {})
             if not source or not source.get("active", 1):
                 continue
+            opened_at = live_monitoring_anchor(source_codes[product], now)
+            if opened_at is None:
+                # Leave both active and recovered state untouched while closed.
+                continue
             threshold = float(rule["threshold"])
+            if now < opened_at + timedelta(minutes=min(5, threshold)):
+                # A reopening alone cannot count as a fresh quote or recovery.
+                continue
             quote_at = source.get("last_quote_at")
             try:
                 anchor = self._parse_datetime(quote_at or rule["created_at"])
@@ -272,6 +297,7 @@ class AlertManager:
             self._dispatch(events)
         return events
 
+    @_serialized_evaluation
     def evaluate_prices(
         self,
         observations: list[dict[str, Any]],
@@ -329,6 +355,7 @@ class AlertManager:
             self._dispatch(events)
         return events
 
+    @_serialized_evaluation
     def evaluate_sources(
         self,
         sources: list[dict[str, Any]],
@@ -340,6 +367,9 @@ class AlertManager:
         for source in sources:
             code = str(source.get("code", "")).strip()
             if not code or not source.get("active", 1):
+                continue
+            opened_at = live_monitoring_anchor(code, now) if code in LIVE_SOURCE_CODES else None
+            if code in LIVE_SOURCE_CODES and (opened_at is None or now < opened_at + timedelta(minutes=5)):
                 continue
             label = str(source.get("label") or code)
             last_error = str(source.get("last_error") or "").strip()
@@ -375,6 +405,11 @@ class AlertManager:
             freshness_window = FRESHNESS_WINDOWS.get(frequency)
             if freshness_window is None:
                 continue
+            provider = {"fred_diesel": "fred", "fred_brent": "fred", "eia_diesel": "eia", "eia_brent": "eia",
+                        "alpha_brent": "alpha_vantage", "bls_asphalt_ppi": "bls", "live_brent": "yahoo",
+                        "live_gasoil_proxy": "yahoo"}.get(code)
+            if provider:
+                freshness_window = max(freshness_window, timedelta(minutes=PROVIDER_INTERVAL_MINUTES[provider] * 2))
             try:
                 last_success = self._parse_datetime(source["last_success_at"])
             except (TypeError, ValueError):

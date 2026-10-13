@@ -36,7 +36,7 @@ from .services.export import csv_bytes, xlsx_bytes
 from .services.forecasting import build_forecast
 from .services.alerts import AlertManager
 from .services.procurement import build_procurement_guide
-from .services.scheduler import CollectionScheduler, run_collection
+from .services.scheduler import CollectionScheduler, CollectionCoordinator
 from .services.connectivity import ConnectivityMonitor
 from .quotes import INCOTERMS, DOCUMENT_TYPES, PACKAGING, COST_FIELDS, QuoteConflict, QuoteNotFound
 from .quote_store import MAX_DOCUMENT_BYTES, DOCUMENT_FORMATS
@@ -46,6 +46,10 @@ ROOT = Path(__file__).resolve().parent
 database = create_database()
 scheduler = CollectionScheduler(database)
 connectivity = ConnectivityMonitor()
+
+
+def run_collection(database):
+    return CollectionCoordinator(database).collect_now()
 
 
 class QuotePayloadTooLarge(ValueError):
@@ -376,8 +380,12 @@ class Handler(BaseHTTPRequestHandler):
                     {"status": logs[0]["status"], "finished_at": logs[0]["finished_at"]}
                     if logs else None
                 )
+                if hasattr(database, "collection_state"):
+                    payload["collection"] = CollectionCoordinator(database).availability()
                 payload["demo_mode"] = DEMO_MODE
                 return self.send_json(payload)
+            if parsed.path == "/api/collection-schedules":
+                return self.send_json({"providers": CollectionCoordinator(database).snapshot()})
             if parsed.path == "/api/dashboard":
                 days = max(1, min(1825, int(query.get("days", [30])[0])))
                 instruments = {product: query[f"{product}_instrument"][0] for product in ("brent", "gasoil") if query.get(f"{product}_instrument")}
@@ -569,11 +577,11 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     validate_security_configuration()
-    connectivity.start()
-    scheduler.start()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
-    logger.info("Price Monitor started", extra={"event": "service_started", "host": HOST, "port": PORT})
     try:
+        connectivity.start()
+        scheduler.start()
+        logger.info("Price Monitor started", extra={"event": "service_started", "host": HOST, "port": PORT})
         server.serve_forever()
     except KeyboardInterrupt:
         logger.info("Shutdown requested", extra={"event": "service_shutdown"})

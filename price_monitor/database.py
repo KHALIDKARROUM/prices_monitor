@@ -22,6 +22,8 @@ from .config import (
 )
 from .bitumen import INDEX_CODE, INDEX_LABEL, INDEX_UNIT, benchmark_payload
 from .quote_store import QuoteStoreMixin, json_text
+from .collection_store import CollectionStoreMixin
+from .market_calendar import market_session
 from .quotes import QuoteConflict
 from .quotes import COST_FIELDS, EXTRA_COST_FIELDS, landed_costs
 from .services.comparison import SOURCE_CODE_BY_LABEL, compare_api_prices
@@ -286,6 +288,14 @@ class DatabaseBackend(Protocol):
 
     def source_health(self) -> list[dict[str, Any]]: ...
 
+    def collection_state(self, provider: str) -> dict: ...
+    def claim_collection(self, provider: str, now: float, force: bool = False) -> str | None: ...
+    def finish_collection(self, provider: str, token: str, *, now: float, next_due: float,
+                          failures: int, status: str, error: str = "") -> None: ...
+    def request_budget(self, provider: str, now: float, limit: int = 0) -> dict: ...
+    def reserve_provider_request(self, provider: str, now: float, limit: int = 0) -> dict: ...
+    def defer_provider_requests(self, provider: str, until: float, reason: str) -> None: ...
+
     def latest(self) -> list[dict[str, Any]]: ...
 
     def latest_by_instrument(self) -> list[dict[str, Any]]: ...
@@ -443,7 +453,7 @@ def run_sqlite_migrations(connection: sqlite3.Connection, migrations_dir: Path =
     return newly_applied
 
 
-class SQLiteDatabase(QuoteStoreMixin):
+class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin):
     """SQLite persistence backend used locally and by default."""
 
     _lock = threading.RLock()
@@ -1381,6 +1391,7 @@ class SQLiteDatabase(QuoteStoreMixin):
             latest = [row for row in latest if row["product"] != "bitume"] + [index_rows[-1]]
         source_health = self.source_health()
         live_sources = {row["code"]: row for row in source_health}
+        market = market_session(datetime.now(timezone.utc))
         by_product: dict[str, list[dict[str, Any]]] = {p: [] for p in PRODUCTS}
         for row in rows:
             by_product.setdefault(row["product"], []).append(row)
@@ -1423,7 +1434,9 @@ class SQLiteDatabase(QuoteStoreMixin):
                 "source": str(current["source"]) if current else None,
                 "collected_at": current["collected_at"] if current else None,
                 "quote_at": normalized_quote_at,
-                "is_live": bool(quote_age is not None and 0 <= quote_age <= 5),
+                "is_live": bool(market["open"] and quote_age is not None and 0 <= quote_age <= 5),
+                "market_closed": current_is_live_feed and not market["open"],
+                "next_market_open_at": market["next_open_at"].isoformat() if current_is_live_feed and not market["open"] else None,
                 "quote_age_minutes": quote_age,
                 "age_days": age_days,
                 "is_stale": age_days is not None and age_days > freshness_days,

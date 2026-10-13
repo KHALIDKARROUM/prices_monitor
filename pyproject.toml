@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Price Monitor contributors" }]
 dependencies = [
+  "tzdata>=2024.1",
   "openpyxl>=3.1.0",
   "mysql-connector-python>=9.0.0",
   "APScheduler>=3.10.0",

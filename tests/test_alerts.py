@@ -87,7 +87,7 @@ def test_stale_source_alert_uses_expected_frequency(empty_database):
 
 
 def test_live_quote_freshness_uses_exchange_time_and_sends_email_on_recovery(empty_database):
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now = datetime(2026, 10, 13, 12, tzinfo=timezone.utc)
     rule = empty_database.create_alert_rule({
         "product": "brent", "direction": "stale", "threshold": 15, "channel": "email",
     })
@@ -111,7 +111,7 @@ def test_live_quote_freshness_uses_exchange_time_and_sends_email_on_recovery(emp
 
 
 def test_live_quote_alert_triggers_at_five_minute_boundary(empty_database):
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now = datetime(2026, 10, 13, 12, tzinfo=timezone.utc)
     empty_database.create_alert_rule({
         "product": "brent", "direction": "stale", "threshold": 5, "channel": "email",
     })
@@ -127,7 +127,7 @@ def test_live_quote_alert_triggers_at_five_minute_boundary(empty_database):
 
 
 def test_live_quote_check_is_scheduled_for_stale_deadline(empty_database):
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now = datetime(2026, 10, 13, 12, tzinfo=timezone.utc)
     empty_database.create_alert_rule({
         "product": "gasoil", "direction": "stale", "threshold": 5, "channel": "email",
     })
@@ -135,11 +135,11 @@ def test_live_quote_check_is_scheduled_for_stale_deadline(empty_database):
         "live_gasoil_proxy", True, now.isoformat(), quote_at=(now - timedelta(minutes=4, seconds=30)).isoformat(),
     )
 
-    assert 28 <= _next_live_check_delay(empty_database) <= 30
+    assert _next_live_check_delay(empty_database, now) == 30
 
 
 def test_live_quote_freshness_retries_an_undelivered_email(empty_database):
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now = datetime(2026, 10, 13, 12, tzinfo=timezone.utc)
     empty_database.create_alert_rule({"product": "gasoil", "direction": "stale", "threshold": 5, "channel": "email"})
     empty_database.update_source_health("live_gasoil_proxy", True, now.isoformat(), quote_at=(now - timedelta(minutes=10)).isoformat())
 
@@ -155,6 +155,79 @@ def test_live_quote_freshness_retries_an_undelivered_email(empty_database):
     manager.evaluate_live_freshness(empty_database.source_health())
 
     assert len(notifier.batches) == 2
+
+
+def test_market_closure_and_reopening_do_not_trigger_or_recover_stale_quotes(empty_database, monkeypatch):
+    from price_monitor import market_calendar
+    monkeypatch.setattr(market_calendar, "CLOSURES", [])
+    now = datetime.fromisoformat("2026-10-16T20:55:00+00:00")
+    empty_database.create_alert_rule({"product": "brent", "direction": "stale", "threshold": 5, "channel": "email"})
+    empty_database.update_source_health("live_brent", True, now.isoformat(), quote_at=now.isoformat())
+    notifier = FakeNotifier()
+    manager = AlertManager(empty_database, notifier=notifier, now=lambda: now)
+    assert manager.evaluate_live_freshness(empty_database.source_health()) == []
+    now = datetime.fromisoformat("2026-10-17T12:00:00+00:00")
+    assert manager.evaluate_live_freshness(empty_database.source_health()) == []
+    assert manager.evaluate_sources(empty_database.source_health()) == []
+    now = datetime.fromisoformat("2026-10-18T22:04:59+00:00")
+    assert manager.evaluate_live_freshness(empty_database.source_health()) == []
+    now += timedelta(seconds=1)
+    assert [event.status for event in manager.evaluate_live_freshness(empty_database.source_health())] == ["triggered"]
+    # Pausing a previously active alert must not announce a recovery.
+    now = datetime.fromisoformat("2026-10-19T21:30:00+00:00")
+    assert manager.evaluate_live_freshness(empty_database.source_health()) == []
+    assert empty_database.alert_rules()[0]["active"]
+    now = datetime.fromisoformat("2026-10-19T22:01:00+00:00")
+    assert manager.evaluate_live_freshness(empty_database.source_health()) == []
+    assert empty_database.alert_rules()[0]["active"]
+    now = datetime.fromisoformat("2026-10-19T22:05:00+00:00")
+    empty_database.update_source_health("live_brent", True, now.isoformat(), quote_at=now.isoformat())
+    assert [event.status for event in manager.evaluate_live_freshness(empty_database.source_health())] == ["recovered"]
+    assert len(notifier.batches) == 2
+
+
+def test_parallel_workers_do_not_duplicate_a_pending_freshness_notification(empty_database):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+    now = datetime.fromisoformat("2026-10-13T12:00:00+00:00")
+    empty_database.create_alert_rule({"product": "brent", "direction": "stale", "threshold": 5, "channel": "email"})
+    empty_database.update_source_health("live_brent", True, now.isoformat(), quote_at=(now - timedelta(minutes=10)).isoformat())
+    entered, release, second_started, second_done = (threading.Event() for _ in range(4))
+    class SlowNotifier(FakeNotifier):
+        def send(self, events):
+            self.batches.append(events)
+            entered.set()
+            assert release.wait(3)
+            return True
+    notifier = SlowNotifier()
+    first = AlertManager(empty_database, notifier=notifier, now=lambda: now)
+    second = AlertManager(empty_database, notifier=notifier, now=lambda: now)
+    def second_check():
+        second_started.set()
+        result = second.evaluate_live_freshness(empty_database.source_health())
+        second_done.set()
+        return result
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        initial = pool.submit(first.evaluate_live_freshness, empty_database.source_health())
+        try:
+            assert entered.wait(2)
+            concurrent = pool.submit(second_check)
+            assert second_started.wait(2)
+            assert not second_done.wait(0.1)
+        finally:
+            release.set()
+        assert len(initial.result()) == 1
+        assert concurrent.result() == []
+    assert len(notifier.batches) == 1
+
+
+def test_long_freshness_threshold_is_not_reset_by_every_daily_reopening(empty_database):
+    now = datetime.fromisoformat("2026-10-18T22:05:00+00:00")
+    empty_database.create_alert_rule({"product": "brent", "direction": "stale", "threshold": 1440, "channel": "email"})
+    empty_database.update_source_health("live_brent", True, now.isoformat(), quote_at="2026-10-16T20:00:00+00:00")
+    notifier = FakeNotifier()
+    manager = AlertManager(empty_database, notifier=notifier, now=lambda: now)
+    assert [event.status for event in manager.evaluate_live_freshness(empty_database.source_health())] == ["triggered"]
 
 
 def test_live_quote_rule_requires_live_product_and_email(empty_database):

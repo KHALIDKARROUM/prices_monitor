@@ -69,6 +69,8 @@ function renderMetrics(metrics) {
       ? '<span class="freshness missing">Aucune donnée</span>'
       : m.data_kind === 'index'
         ? `<span class="freshness ${m.is_stale ? 'stale' : 'current'}">Indice mensuel · ${new Date(m.source_date).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}${m.is_stale ? ' · ancien' : ''}</span>`
+      : m.market_closed
+        ? `<span class="freshness" title="Prochaine ouverture : ${escapeHtml(formatDate(m.next_market_open_at, true))}">Marché fermé · ${m.quote_at ? formatDate(m.quote_at, true) : 'heure inconnue'}</span>`
       : m.is_live
         ? `<span class="freshness current" title="${escapeHtml(m.source || 'Flux de marché')}">En direct · ${formatDate(m.quote_at, true)}</span>`
       : m.quote_at
@@ -780,10 +782,13 @@ $('#collect-btn').addEventListener('click', async () => {
     if (!response.ok || result.status === 'error') throw new Error(result.message || result.error || 'La collecte a échoué.');
     renderSourceComparison(result.source_comparison);
     const mismatch = result.source_comparison?.mismatch_count > 0;
-    showToast(mismatch ? result.source_comparison.message : `${result.rows} relevé(s) enregistré(s).`, mismatch);
+    const deferred = (result.providers || []).filter(provider => provider.status === 'deferred');
+    const info = result.status === 'deferred' ? result.message : `${result.rows} relevé(s) enregistré(s).${deferred.length ? ` ${deferred.length} fournisseur(s) en attente — détails dans Activité.` : ''}`;
+    showToast(mismatch ? result.source_comparison.message : info, mismatch || result.status === 'partial');
   } catch (error) {
     showToast(error.message, true);
   } finally {
+    document.dispatchEvent(new Event('collection-finished'));
     button.disabled = false;
     button.innerHTML = '<span>↻</span> Lancer une collecte';
     loadDashboard();

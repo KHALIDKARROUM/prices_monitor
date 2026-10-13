@@ -4,7 +4,7 @@ Application de suivi des prix internationaux du gasoil, du Brent et du bitume, a
 
 ## Ce qui est livré
 
-- collecte automatique au démarrage, puis chaque minute par défaut ; le tableau de bord ouvert s'actualise chaque minute ;
+- collectes en arrière-plan selon chaque fournisseur, quotas persistants et reprises progressives ; les données enregistrées sont accessibles dès le démarrage ; le tableau de bord ouvert s'actualise chaque minute ;
 - historique réel de cinq ans pour le Brent et le gasoil, issu des séries EIA publiées par FRED ;
 - historique réel de 60 indices mensuels bitume BLS/FRED WPU058, utilisé dans les cartes, graphiques, archives, exports et comparaisons ;
 - quatre APIs et six flux traçables : FRED (Brent et diesel), EIA directe (Brent et diesel), Alpha Vantage (Brent, optionnel) et BLS (indice bitume) ;
@@ -39,6 +39,28 @@ python -m price_monitor.app
 ```
 
 Pour utiliser MySQL, copiez `.env.example` vers `.env`, configurez `PRICE_MONITOR_DB_BACKEND=mysql` ainsi que `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER` et `MYSQL_PASSWORD`. L'application crée la base configurée si le compte possède ce droit, applique `sql/mysql_schema.sql`, puis exécute les migrations non encore enregistrées.
+
+## Calendrier des fournisseurs
+
+Chaque fournisseur dispose d'un worker indépendant : une réponse lente ne bloque ni les autres flux, ni les lectures du tableau de bord. Au lancement, seuls les fournisseurs arrivés à échéance sont collectés. Le calendrier enregistré est conservé après un redémarrage. La page **Activité** affiche la cadence, la prochaine collecte, les requêtes sur 24 heures et les raisons d'attente ; ces informations sont également disponibles via `GET /api/collection-schedules`.
+
+| Fournisseur | Intervalle par défaut | Configuration |
+| --- | --- | --- |
+| FRED, prix quotidiens | 6 heures | `PRICE_MONITOR_FRED_INTERVAL_MINUTES=360` |
+| EIA, prix quotidiens | 6 heures | `PRICE_MONITOR_EIA_INTERVAL_MINUTES=360` |
+| Alpha Vantage, Brent quotidien | 12 heures | `PRICE_MONITOR_ALPHA_VANTAGE_INTERVAL_MINUTES=720` |
+| BLS/FRED, indice mensuel | 24 heures | `PRICE_MONITOR_BLS_INTERVAL_MINUTES=1440` |
+| Yahoo, contrats BZ et HO | 1 minute pendant les séances | `PRICE_MONITOR_YAHOO_INTERVAL_MINUTES=1` |
+
+L'ancien `PRICE_MONITOR_COLLECTION_INTERVAL_MINUTES` fournit désormais uniquement la valeur par défaut des cotations Yahoo et du mode démonstration. Il n'accélère plus les publications quotidiennes ou mensuelles. Les clés optionnelles continuent d'activer les fournisseurs correspondants.
+
+[Alpha Vantage annonce 25 requêtes quotidiennes pour son accès standard gratuit](https://www.alphavantage.co/support/) et [BLS limite les utilisateurs non enregistrés à 25 requêtes quotidiennes](https://www.bls.gov/developers/api_faqs.htm). Les limites locales `PRICE_MONITOR_ALPHA_VANTAGE_DAILY_LIMIT=25` et `PRICE_MONITOR_BLS_DAILY_LIMIT=25` utilisent une fenêtre glissante de 24 heures, sans supposer une heure de remise à zéro du fournisseur. Chaque tentative HTTP consomme une réservation, même en cas d'échec. Les réservations sont atomiques et sauvegardées dans la même base pour les collectes planifiées, manuelles et les instances utilisant cette base. Les requêtes d'autres applications utilisant la même clé ou adresse IP ne sont pas connues localement ; les réponses de quota du fournisseur provoquent également une pause. Une augmentation de limite doit correspondre à votre abonnement. Des plafonds locaux facultatifs existent pour FRED, EIA et Yahoo (`PRICE_MONITOR_<FOURNISSEUR>_DAILY_LIMIT`, 0 par défaut).
+
+Une erreur réseau applique un délai exponentiel de 60 secondes à six heures, configurable avec `PRICE_MONITOR_COLLECTION_BACKOFF_SECONDS` et `PRICE_MONITOR_COLLECTION_MAX_BACKOFF_SECONDS`. Le délai `Retry-After`, numérique ou daté, des réponses HTTP 429/503 est respecté. Les avis de quota Alpha Vantage et BLS reçus avec HTTP 200 provoquent une pause de 24 heures. FRED ne contourne pas une limitation HTTP par son relais CSV. Le relais officiel FRED de l'indice BLS reste utilisable : il est comptabilisé comme une requête FRED. Une collecte manuelle peut avancer la collecte d'un fournisseur sain ; elle ne contourne ni quota, ni délai d'échec, ni collecte déjà en cours, ni fermeture de marché. Les collectes différées ne sont pas enregistrées comme de nouveaux échecs du fournisseur.
+
+Les cotations NYMEX BZ/HO utilisent les séances du dimanche 18 h au vendredi 17 h, heure de New York, et la pause quotidienne de 17 h à 18 h, avec changements d'heure gérés par `tzdata`. Les fermetures exceptionnelles, jours fériés et clôtures anticipées se configurent dans `PRICE_MONITOR_MARKET_CLOSURES`, une liste JSON de fenêtres `{ "start": "horodatage ISO avec fuseau", "end": "horodatage ISO avec fuseau" }`. Maintenez ces fenêtres d'après le [calendrier officiel CME](https://www.cmegroup.com/trading-hours.html) ; les jours fériés des marchés actions ne sont pas appliqués automatiquement aux contrats énergie. Les contrôles de fraîcheur des cotations sont suspendus pendant ces fermetures, puis reprennent après cinq minutes de grâce au maximum, sans dépasser le seuil de la règle. La réouverture seule ne déclenche aucune notification de rétablissement.
+
+Les migrations `012` ajoutent les calendriers, les leases de concurrence et le suivi des requêtes dans SQLite et MySQL. Elles s'appliquent au prochain démarrage et sont incluses dans les sauvegardes de la base.
 
 ## Navigation
 
@@ -157,7 +179,8 @@ Sur votre ordinateur, avec l'hôte local par défaut et en mode développement, 
 | Méthode | Route | Rôle |
 |---|---|---|
 | GET | `/api/dashboard?days=30` | indicateurs, séries et derniers relevés |
-| GET | `/api/connectivity` | connexion Internet vérifiée et état de la dernière collecte |
+| GET | `/api/connectivity` | connexion Internet vérifiée et disponibilité agrégée des fournisseurs |
+| GET | `/api/collection-schedules` | calendriers, quotas de requêtes et raisons des reports par fournisseur |
 | GET | `/api/source-comparison` | prix par fournisseur, dates, unités et écarts entre séries équivalentes |
 | GET | `/api/forecast?history_days=1825` | gasoil/Brent à 7/30/90 jours et indice bitume à 1/3/6 mois, bandes indicatives et backtest |
 | GET | `/api/alerts` | règles d'alerte et états courants |
@@ -169,7 +192,7 @@ Sur votre ordinateur, avec l'hôte local par défaut et en mode développement, 
 | GET | `/api/observations?product=bitume` | historique filtré (sans clé en local ; clé API ailleurs) |
 | GET | `/api/history?page=1&page_size=50&product=bitume&supplier=ABC&source=devis&date_from=2026-01-01&date_to=2026-09-15&min_price=400&max_price=700` | historique public paginé et filtré |
 | GET | `/api/history/compare?period_a_from=2026-01-01&period_a_to=2026-03-31&period_b_from=2026-04-01&period_b_to=2026-06-30` | comparaison publique de deux périodes |
-| POST | `/api/collect` | déclenche une collecte immédiate (sans clé en local ; clé API ailleurs) |
+| POST | `/api/collect` | collecte les fournisseurs disponibles, avec détail des reports (sans clé en local ; clé API ailleurs) |
 | POST | `/api/observations` | ajoute une observation validée (sans clé en local ; clé API ailleurs) |
 | GET | `/export.csv` / `/export.xlsx` | exports |
 
@@ -179,11 +202,11 @@ En production, une limitation en mémoire s'applique par adresse cliente : 60 re
 
 Les règles d'alerte peuvent être créées, modifiées, mises en pause ou supprimées depuis la page « Veille » du tableau de bord. Chaque règle associe un produit, une direction (`above` ou `below`), un seuil et un canal (`webhook`, `email` ou `both`). L'interface affiche les règles actives, rétablies, surveillées et en pause.
 
-Pour surveiller la fraîcheur des cotations en direct, choisissez « Cotation en direct non actualisée » pour le Brent ou le proxy gasoil, puis un délai de 2 à 1440 minutes et « Email ». L'application compare l'heure réelle de la dernière cotation renvoyée par le fournisseur, et non l'heure de collecte. Elle contrôle l'échéance à la seconde près pendant qu'elle tourne, puis tente d'envoyer un email au franchissement du délai et un autre quand une cotation récente revient. La livraison dans la boîte de réception dépend du serveur SMTP et peut prendre plus de temps. Une fermeture de marché peut déclencher cette alerte. Aucune notification ne peut être envoyée si l'application est arrêtée.
+Pour surveiller la fraîcheur des cotations en direct, choisissez « Cotation en direct non actualisée » pour le Brent ou le proxy gasoil, puis un délai de 2 à 1440 minutes et « Email ». L'application compare l'heure réelle de la dernière cotation renvoyée par le fournisseur, et non l'heure de collecte. Pendant les séances ouvertes, elle contrôle l'échéance à la seconde près, puis tente d'envoyer un email au franchissement du délai et un autre quand une cotation récente revient. Les fermetures connues suspendent les contrôles sans modifier l'état de l'alerte ; à la réouverture, un délai de grâce de cinq minutes au maximum, borné par le seuil, permet de recevoir une nouvelle cotation sans réinitialiser indéfiniment les délais longs. La livraison dans la boîte de réception dépend du serveur SMTP et peut prendre plus de temps. Aucune notification ne peut être envoyée si l'application est arrêtée.
 
 L'envoi exige `PRICE_MONITOR_ALERT_EMAIL_TO`, `PRICE_MONITOR_ALERT_SMTP_HOST` et `PRICE_MONITOR_ALERT_SMTP_FROM` (ou `PRICE_MONITOR_ALERT_SMTP_USER`) dans `.env`, ainsi que les identifiants SMTP nécessaires au fournisseur. Pour Gmail, utilisez un [mot de passe d'application Google](https://support.google.com/accounts/answer/185833) dans `PRICE_MONITOR_ALERT_SMTP_PASSWORD` ; le mot de passe habituel du compte peut être refusé. Veille affiche si le canal email est configuré, mais seul un envoi réussi confirme les identifiants. Les erreurs de livraison restent dans les journaux du serveur et la notification de fraîcheur est retentée lors des contrôles suivants.
 
-Pour recevoir un bilan des messages de collecte, renseignez `PRICE_MONITOR_DIGEST_EMAIL_TO` dans `.env`. Tant que l'application tourne, elle envoie un seul email de synthèse toutes les cinq heures (`PRICE_MONITOR_DIGEST_INTERVAL_HOURS=5`) avec le nombre de collectes réussies, partielles et échouées, le total de données collectées et les erreurs regroupées. Le premier bilan part cinq heures après le démarrage ; la collecte peut continuer chaque minute. Le bilan utilise les paramètres `PRICE_MONITOR_ALERT_SMTP_*` déjà configurés. Si l'envoi échoue, les collectes non envoyées restent dans le prochain bilan, et une nouvelle tentative a lieu cinq heures plus tard. Les alertes de prix configurées dans « Veille » restent des notifications distinctes.
+Pour recevoir un bilan des messages de collecte, renseignez `PRICE_MONITOR_DIGEST_EMAIL_TO` dans `.env`. Tant que l'application tourne, elle envoie un seul email de synthèse toutes les cinq heures (`PRICE_MONITOR_DIGEST_INTERVAL_HOURS=5`) avec le nombre de collectes par fournisseur réussies, partielles et échouées, le total de données collectées et les erreurs regroupées. Le premier bilan part cinq heures après le démarrage ; chaque fournisseur suit sa propre cadence. Le bilan utilise les paramètres `PRICE_MONITOR_ALERT_SMTP_*` déjà configurés. Si l'envoi échoue, les collectes non envoyées restent dans le prochain bilan, et une nouvelle tentative a lieu cinq heures plus tard. Les alertes de prix configurées dans « Veille » restent des notifications distinctes.
 
 Les règles configurées dans l'interface sont persistées dans `alert_rules`. Pour conserver la compatibilité avec les installations existantes, `PRICE_MONITOR_ALERT_THRESHOLDS` reste utilisé comme configuration de secours tant qu'aucune règle enregistrée n'existe :
 

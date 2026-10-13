@@ -174,8 +174,14 @@ def test_dashboard_marks_old_latest_price_as_stale(empty_database):
     assert metric["is_stale"] is True
 
 
-def test_dashboard_uses_live_quote_timestamp_even_when_price_is_unchanged(empty_database):
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+def test_dashboard_uses_live_quote_timestamp_even_when_price_is_unchanged(empty_database, monkeypatch):
+    from price_monitor import database as database_module
+    now = datetime(2026, 10, 13, 12, tzinfo=timezone.utc)
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now.astimezone(tz) if tz else now.replace(tzinfo=None)
+    monkeypatch.setattr(database_module, "datetime", FixedDateTime)
     source_date = now.date().isoformat()
     live = empty_database.insert_observation({
         **observation_payload("brent", 98.5, source_date, (now - timedelta(minutes=8)).isoformat()),

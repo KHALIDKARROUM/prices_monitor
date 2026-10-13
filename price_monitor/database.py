@@ -9,7 +9,7 @@ import sqlite3
 import threading
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
 
 from .config import (
     DB_BACKEND,
@@ -24,7 +24,7 @@ from .bitumen import INDEX_CODE, INDEX_LABEL, INDEX_UNIT, benchmark_payload
 from .services.comparison import SOURCE_CODE_BY_LABEL, compare_api_prices
 from .instruments import (
     INSTRUMENTS, DEFAULT_INSTRUMENTS, LIVE_INSTRUMENTS,
-    resolve_instrument, canonical_daily_rows, canonical_latest, price_alert_key,
+    resolve_instrument, canonical_daily_rows, canonical_latest, price_alert_key, SOURCE_PRIORITY,
 )
 
 
@@ -66,6 +66,11 @@ MARKET_READINGS_SQL = """
         ) revised WHERE revision_rank=1
     ) sequenced
 """
+
+DAILY_SOURCE_PRIORITY_SQL = "CASE source " + " ".join(
+    "WHEN '" + source.replace("'", "''") + f"' THEN {priority}"
+    for source, priority in SOURCE_PRIORITY.items()
+) + " ELSE 10 END"
 
 SUPPLIER_CHANNEL_ROWS = [
     (
@@ -282,7 +287,14 @@ class DatabaseBackend(Protocol):
 
     def latest_by_instrument(self) -> list[dict[str, Any]]: ...
 
-    def observations(self, product: str | None = None, days: int = 30, limit: int = 600, instrument: str | None = None) -> list[dict[str, Any]]: ...
+    def observations(self, product: str | None = None, days: int = 30, limit: int | None = 600, instrument: str | None = None, daily: bool = False) -> list[dict[str, Any]]: ...
+
+    def iter_history(
+        self, product: str | None = None, supplier: str | None = None, source: str | None = None,
+        date_from: str | None = None, date_to: str | None = None,
+        min_price: float | None = None, max_price: float | None = None,
+        data_kind: str | None = None, instrument: str | None = None,
+    ) -> Iterator[dict[str, Any]]: ...
 
     def dashboard(self, days: int = 30, instruments: dict[str, str] | None = None) -> dict[str, Any]: ...
 
@@ -1017,18 +1029,8 @@ class SQLiteDatabase:
         instrument: str | None = None,
     ) -> dict[str, Any]:
         clauses, params = self._history_filters(
-            product, supplier, source, date_from, date_to, min_price, max_price
+            product, supplier, source, date_from, date_to, min_price, max_price, data_kind, instrument
         )
-        if data_kind:
-            if data_kind not in {"quote", "index"}:
-                raise ValueError("Le type de donnée doit être quote ou index.")
-            clauses.append("data_kind=?")
-            params.append(data_kind)
-        if instrument:
-            if instrument not in INSTRUMENTS or (product and INSTRUMENTS[instrument]["product"] != product):
-                raise ValueError("Instrument incompatible avec le produit.")
-            clauses.append("instrument=?")
-            params.append(instrument)
         page = max(1, int(page))
         page_size = max(1, min(int(page_size), 10_000))
         where = " AND ".join(clauses) if clauses else "1=1"
@@ -1051,6 +1053,31 @@ class SQLiteDatabase:
             "pages": math.ceil(total / page_size) if total else 0,
         }
 
+    def iter_history(
+        self, product: str | None = None, supplier: str | None = None, source: str | None = None,
+        date_from: str | None = None, date_to: str | None = None,
+        min_price: float | None = None, max_price: float | None = None,
+        data_kind: str | None = None, instrument: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Read every matching record from one query, without a page-size cutoff."""
+        clauses, params = self._history_filters(
+            product, supplier, source, date_from, date_to, min_price, max_price, data_kind, instrument
+        )
+        where = " AND ".join(clauses) if clauses else "1=1"
+        connection = self.connect()
+        try:
+            query = f"""SELECT * FROM ({MARKET_READINGS_SQL}) readings WHERE {where}
+                ORDER BY source_date DESC, collected_at DESC, id DESC"""
+            cursor = (connection.execute(query, params, buffered=False)
+                      if isinstance(connection, _MySQLConnection) else connection.execute(query, params))
+            while batch := cursor.fetchmany(1000):
+                for row in batch:
+                    yield dict(row)
+        finally:
+            # Closing the read connection also handles an export cancelled
+            # before its unbuffered MySQL result was completely consumed.
+            connection.close()
+
     def compare_periods(
         self,
         period_a_from: str,
@@ -1072,14 +1099,14 @@ class SQLiteDatabase:
         if period_a_from > period_a_to or period_b_from > period_b_to:
             raise ValueError("La date de début doit précéder la date de fin.")
 
-        first = self.history(
+        first = list(self.iter_history(
             product, supplier, source, period_a_from, period_a_to, min_price, max_price,
-            page=1, page_size=10_000, data_kind=data_kind, instrument=instrument,
-        )["items"]
-        second = self.history(
+            data_kind=data_kind, instrument=instrument,
+        ))
+        second = list(self.iter_history(
             product, supplier, source, period_b_from, period_b_to, min_price, max_price,
-            page=1, page_size=10_000, data_kind=data_kind, instrument=instrument,
-        )["items"]
+            data_kind=data_kind, instrument=instrument,
+        ))
 
         first = canonical_daily_rows([r for r in first if r["product"] != "bitume"]) + [r for r in first if r["product"] == "bitume"]
         second = canonical_daily_rows([r for r in second if r["product"] != "bitume"]) + [r for r in second if r["product"] == "bitume"]
@@ -1120,6 +1147,8 @@ class SQLiteDatabase:
         date_to: str | None,
         min_price: float | None,
         max_price: float | None,
+        data_kind: str | None = None,
+        instrument: str | None = None,
     ) -> tuple[list[str], list[Any]]:
         clauses: list[str] = []
         params: list[Any] = []
@@ -1158,6 +1187,16 @@ class SQLiteDatabase:
             params.append(value)
         if min_price is not None and max_price is not None and float(min_price) > float(max_price):
             raise ValueError("Le prix minimum doit être inférieur au prix maximum.")
+        if data_kind:
+            if data_kind not in {"quote", "index"}:
+                raise ValueError("Le type de donnée doit être quote ou index.")
+            clauses.append("data_kind=?")
+            params.append(data_kind)
+        if instrument:
+            if instrument not in INSTRUMENTS or (product and INSTRUMENTS[instrument]["product"] != product):
+                raise ValueError("Instrument incompatible avec le produit.")
+            clauses.append("instrument=?")
+            params.append(instrument)
         return clauses, params
 
     def log_collection(self, status: str, rows: int, message: str, started_at: str, finished_at: str) -> None:
@@ -1205,30 +1244,29 @@ class SQLiteDatabase:
                 if row["instrument"] == DEFAULT_INSTRUMENTS[row["product"]]}
         return [rows[product] for product in PRODUCTS if product in rows]
 
-    def observations(self, product: str | None = None, days: int = 30, limit: int = 600, instrument: str | None = None) -> list[dict[str, Any]]:
-        # A price belongs on the chart when it was published by the market
-        # source, not when this application happened to collect it.
-        clauses = ["source_date >= ?"]
-        params: list[Any] = [
-            (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
-        ]
-        if product in PRODUCTS:
-            clauses.append("product = ?")
-            params.append(product)
-        if instrument:
-            if instrument not in INSTRUMENTS or (product and INSTRUMENTS[instrument]["product"] != product):
-                raise ValueError("Instrument incompatible avec le produit.")
-            clauses.append("instrument = ?")
-            params.append(instrument)
-        params.append(limit)
+    def observations(self, product: str | None = None, days: int = 30, limit: int | None = 600, instrument: str | None = None, daily: bool = False) -> list[dict[str, Any]]:
+        """Return the newest records in chronological order; aggregate before limiting."""
+        cutoff = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
+        clauses, params = self._history_filters(product, None, None, cutoff, None, None, None, instrument=instrument)
+        selection = f"SELECT * FROM ({MARKET_READINGS_SQL}) readings WHERE {' AND '.join(clauses)}"
+        if daily:
+            selection = f"""SELECT * FROM (
+                SELECT filtered.*, ROW_NUMBER() OVER (
+                    PARTITION BY instrument, source_date
+                    ORDER BY {DAILY_SOURCE_PRIORITY_SQL}, collected_at DESC, id DESC
+                ) AS day_rank FROM ({selection}) filtered
+            ) daily_readings WHERE day_rank=1"""
+        limit_sql = ""
+        if limit is not None:
+            limit_sql = " LIMIT ?"
+            params.append(max(1, int(limit)))
         with self.connect() as conn:
             rows = conn.execute(
-                f"""SELECT * FROM ({MARKET_READINGS_SQL}) readings
-                WHERE {' AND '.join(clauses)}
-                ORDER BY source_date ASC, collected_at ASC LIMIT ?""",
+                f"""SELECT * FROM ({selection}) selected
+                ORDER BY source_date DESC, collected_at DESC, id DESC{limit_sql}""",
                 params,
             ).fetchall()
-            return [dict(r) for r in rows]
+            return [dict(r) for r in reversed(rows)]
 
     def bitumen_series(self, days: int = 1825, include_anchor: bool = False) -> list[dict[str, Any]]:
         cutoff = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
@@ -1292,8 +1330,8 @@ class SQLiteDatabase:
                 selected[product] = live if any(r["instrument"] == live for r in latest) else DEFAULT_INSTRUMENTS[product]
         rows = canonical_daily_rows([
             row for product, instrument in selected.items()
-            for row in self.observations(product, days=days, limit=100_000, instrument=instrument)
-        ]) + self.observations("bitume", days=days, limit=100_000, instrument="bitumen_quote")
+            for row in self.observations(product, days=days, limit=None, instrument=instrument, daily=True)
+        ]) + self.observations("bitume", days=days, limit=None, instrument="bitumen_quote")
         latest = [r for r in latest if r["product"] == "bitume" or r["instrument"] == selected.get(r["product"])]
         supplier_quote = next((row for row in latest if row["product"] == "bitume"), None)
         index_rows = self.bitumen_series(days, include_anchor=True)
@@ -1683,13 +1721,16 @@ class _MySQLConnection:
     def _sql(statement: str) -> str:
         return statement.replace("?", "%s")
 
-    def execute(self, statement: str, params: Any = ()) -> Any:
-        cursor = self._connection.cursor(dictionary=True, buffered=True)
+    def execute(self, statement: str, params: Any = (), *, buffered: bool = True) -> Any:
+        cursor = self._connection.cursor(dictionary=True, buffered=buffered)
         if params:
             cursor.execute(self._sql(statement), tuple(params))
         else:
             cursor.execute(self._sql(statement))
         return cursor
+
+    def close(self) -> None:
+        self._connection.close()
 
     def executemany(self, statement: str, params: Any) -> None:
         cursor = self._connection.cursor()

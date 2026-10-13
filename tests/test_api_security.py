@@ -25,7 +25,7 @@ class StubDatabase:
     def source_comparison(self):
         return {"status": "unverified", "sources": [], "pairs": [], "mismatch_count": 0}
 
-    def observations(self, product=None, days=30, limit=600, instrument=None):
+    def observations(self, product=None, days=30, limit=600, instrument=None, daily=False):
         self.observation_calls += 1
         return [{"product": product or "bitume", "days": days}]
 
@@ -36,6 +36,9 @@ class StubDatabase:
     def history(self, **kwargs):
         self.history_calls += 1
         return {"items": [{"product": "gasoil"}], "page": 1, "pages": 1, "total": 1}
+
+    def iter_history(self, **kwargs):
+        return iter(self.history(**kwargs)["items"])
 
     def compare_periods(self, *args, **kwargs):
         self.history_calls += 1

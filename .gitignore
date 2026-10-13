@@ -1,6 +1,4 @@
-**/storage/*.db
-**/storage/*.sqlite
-**/storage/*.log
+**/storage/
 __pycache__/
 *.pyc
 .env

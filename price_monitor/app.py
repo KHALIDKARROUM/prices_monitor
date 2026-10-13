@@ -386,10 +386,10 @@ class Handler(BaseHTTPRequestHandler):
                 limit = max(1, min(1000, int(query.get("limit", [100])[0])))
                 return self.send_json({"purchases": database.procurements(limit)})
             if parsed.path == "/export.csv":
-                body = csv_bytes(database.history(**history_filters(query), page=1, page_size=10000)["items"])
+                body = csv_bytes(database.iter_history(**history_filters(query)))
                 return self.send_data(body, "text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=price-observations.csv"})
             if parsed.path == "/export.xlsx":
-                body = xlsx_bytes(database.history(**history_filters(query), page=1, page_size=10000)["items"])
+                body = xlsx_bytes(database.iter_history(**history_filters(query)))
                 return self.send_data(body, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=price-observations.xlsx"})
             return self.send_json({"error": "Route introuvable"}, 404)
         except ValueError as exc:

@@ -51,7 +51,7 @@ def test_forecast_marks_short_history_as_insufficient():
 
 
 class ForecastDatabase:
-    def observations(self, product=None, days=30, limit=600, instrument=None):
+    def observations(self, product=None, days=30, limit=600, instrument=None, daily=False):
         rows = synthetic_rows()
         for row in rows:
             row["product"] = product

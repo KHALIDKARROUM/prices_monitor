@@ -173,3 +173,12 @@ for product, choices in (("brent", ["brent_spot", "brent_futures"]), ("gasoil", 
         "description": "Sélectionne la même série pour la carte, les statistiques et le graphique. Par défaut, contrat à terme enregistré, sinon spot.",
     })
 OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] = "Les prévisions Brent et diesel utilisent uniquement les séries spot avec priorité stable FRED, EIA, Alpha Vantage. Contrats à terme et proxy heating oil sont exclus de cet historique."
+OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] += " Un point par date source est sélectionné avant la limite; les 5 000 points agrégés les plus récents sont conservés dans l'ordre chronologique."
+OPENAPI_SPEC["paths"]["/api/observations"]["get"]["description"] = "Les 600 relevés bruts les plus récents de la période sont retournés dans l'ordre chronologique. Pour parcourir tous les relevés, utiliser les archives paginées ou les exports."
+OPENAPI_SPEC["paths"]["/api/history/compare"]["get"]["description"] = "Compare toutes les données correspondant aux filtres, sans plafond de 10 000 relevés par période; les séries quotidiennes sont agrégées par instrument et date."
+for path in ("/export.csv", "/export.xlsx"):
+    OPENAPI_SPEC["paths"][path]["get"]["description"] = "Exporte tous les relevés correspondant aux filtres des archives, sans limite de pagination ni plafond de 10 000 lignes."
+    if path == "/export.xlsx":
+        OPENAPI_SPEC["paths"][path]["get"]["description"] += " Les données continuent sur une nouvelle feuille après 1 048 575 lignes, avec un en-tête sur chaque feuille."
+    history_parameters = OPENAPI_SPEC["paths"]["/api/history"]["get"]["parameters"]
+    OPENAPI_SPEC["paths"][path]["get"]["parameters"] = [parameter for parameter in history_parameters if parameter.get("$ref") not in {"#/components/parameters/Page", "#/components/parameters/PageSize"}]

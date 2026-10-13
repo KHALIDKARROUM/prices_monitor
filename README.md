@@ -106,6 +106,10 @@ Les séries Brent et gasoil sont conservées dans leurs unités publiées respec
 
 ## Prévisions
 
+Les entrées de prévision sont agrégées en SQL avant toute limite : un relevé réel par instrument et date source, choisi avec la priorité de fournisseur décrite ci-dessous puis la dernière heure de collecte. La limite de 5 000 porte sur les points agrégés les plus récents, restitués dans l'ordre chronologique. Une journée dense en cotations intraday ne peut donc plus masquer les publications suivantes. Le tableau de bord utilise aussi les séries quotidiennes complètes de la période; les archives paginées conservent les relevés bruts.
+
+Les exports CSV et Excel incluent tous les relevés correspondant aux filtres, sans plafond de 10 000 lignes. La lecture SQL se fait par lots sur une seule requête. Excel écrit les lignes progressivement et ouvre une nouvelle feuille après 1 048 575 lignes de données, avec les en-têtes répétés. Les comparaisons de périodes utilisent également toutes les données correspondantes.
+
 Les instruments sont séparés par un identifiant stable : `brent_spot`, `brent_futures`, `diesel_spot`, `heating_oil_futures`, `bitumen_quote` et `asphalt_index`. Une variation compare les observations du même instrument et de la même source. Les cartes et graphiques utilisent le même instrument choisi dans Marchés; la sélection automatique conserve les cotations à terme lorsqu'elles sont enregistrées, sinon le spot. Les statistiques et comparaisons de périodes prennent un relevé par jour et par instrument, avec priorité FRED, puis EIA, puis Alpha Vantage pour les séries spot. Les désaccords entre API restent visibles dans le contrôle des sources.
 
 Les archives et exports acceptent `instrument=brent_spot` (ou un autre identifiant). `/api/dashboard` accepte `brent_instrument` et `gasoil_instrument`; les prévisions quotidiennes utilisent exclusivement les séries spot. Les comparaisons de périodes retournent une ligne séparée par instrument, sans moyenne commune spot/contrat à terme/proxy. Les estimations d'achat utilisent le benchmark spot pour les produits quotidiens, jamais le proxy heating oil.

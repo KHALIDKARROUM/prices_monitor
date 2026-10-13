@@ -246,7 +246,7 @@ def build_forecast(database: Any, history_days: int = DEFAULT_HISTORY_DAYS) -> d
     products: dict[str, Any] = {}
     for product in FORECAST_PRODUCTS:
         instrument = "asphalt_index" if product == "bitume" else DEFAULT_INSTRUMENTS[product]
-        rows = database.observations(product, days=history_days, limit=MAX_HISTORY_ROWS, instrument=instrument)
+        rows = database.observations(product, days=history_days, limit=MAX_HISTORY_ROWS, instrument=instrument, daily=True)
         products[product] = forecast_product(rows, product)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),

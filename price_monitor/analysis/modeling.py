@@ -1,4 +1,3 @@
-"""Chronological model selection, calibration, and a frozen final holdout."""
 from __future__ import annotations
 
 import math

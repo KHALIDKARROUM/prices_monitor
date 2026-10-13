@@ -6,7 +6,7 @@
   <meta name="description" content="Tableau de bord de suivi des prix internationaux du gasoil, du Brent et du bitume">
   <meta name="theme-color" content="#000000">
   <title>Marchés · Price Monitor</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script id="chart-library" async src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -35,16 +35,25 @@
     <main class="content" id="main-content" tabindex="-1">
       <header class="topbar">
         <div><p class="eyebrow">PRICE MONITOR / MARCHÉS INTERNATIONAUX</p><h1 id="page-title" tabindex="-1">Marchés</h1><p class="topbar-intro" id="page-description">L’essentiel des prix, en un regard.</p></div>
-        <div class="top-actions"><span class="live-pill" id="system-status" role="status"><i></i> Système opérationnel</span><button class="icon-button" id="refresh-btn" title="Actualiser les données" aria-label="Actualiser les données">↻</button><div class="avatar" aria-label="Profil KK">KK</div></div>
+        <div class="top-actions"><span class="live-pill warning" id="system-status" role="status"><i></i> Vérification de la connexion…</span><button class="icon-button" id="refresh-btn" title="Actualiser les données" aria-label="Actualiser les données">↻</button><div class="avatar" aria-label="Profil KK">KK</div></div>
       </header>
 
 
       <div id="toast" class="toast" role="status"></div>
+      <div id="api-price-warning" class="comparison-warning" role="alert" hidden>
+        <strong id="api-price-warning-message"></strong>
+        <p id="api-price-warning-details"></p>
+        <a href="#marches">Voir la comparaison dans Marchés →</a>
+      </div>
       <div class="page-view" id="marches" data-page="marches" aria-label="Marchés">
       <section id="overview" class="hero-row">
         <div><p class="muted">Vue consolidée · <span id="period-label">30 derniers jours</span></p><p class="last-update">Dernière actualisation <strong id="last-update">—</strong></p></div>
         <div class="hero-actions"><select id="period-select" aria-label="Période des marchés"><option value="7">7 jours</option><option value="30" selected>30 jours</option><option value="90">90 jours</option><option value="365">12 mois</option><option value="1825">5 ans</option></select><button class="primary-btn" id="collect-btn"><span>↻</span> Lancer une collecte</button></div>
       </section>
+      <div class="instrument-controls" aria-label="Instruments affichés">
+        <label>Brent suivi<select id="market-brent-instrument"><option value="">Sélection automatique</option><option value="brent_spot">Brent Europe · spot</option><option value="brent_futures">Brent BZ=F · contrat à terme</option></select></label>
+        <label>Gasoil suivi<select id="market-gasoil-instrument"><option value="">Sélection automatique</option><option value="diesel_spot">Diesel New York Harbor · spot</option><option value="heating_oil_futures">Heating oil HO=F · proxy gasoil</option></select></label>
+      </div>
       <section class="metric-grid" id="metric-grid">
         <div class="skeleton metric-card"></div><div class="skeleton metric-card"></div><div class="skeleton metric-card"></div>
       </section>
@@ -58,7 +67,16 @@
       </section>
       <section class="panel latest-panel" id="history">
         <div class="panel-heading"><div><p class="eyebrow">DERNIERS RELEVÉS</p><h2>Derniers prix</h2></div><div class="export-actions"><a href="/export.csv" class="text-btn">↓ CSV</a><a href="/export.xlsx" class="text-btn">↓ Excel</a><a href="#archives" class="text-btn muted-link">Ouvrir les archives →</a></div></div>
-        <div class="table-scroll"><table><thead><tr><th>Produit</th><th>Prix actuel</th><th>Variation</th><th>Date source</th><th>Collecté le</th><th>Source</th><th></th></tr></thead><tbody id="latest-table"><tr><td colspan="7" class="empty">Chargement…</td></tr></tbody></table></div>
+        <div class="table-scroll"><table><thead><tr><th>Produit</th><th>Prix / indice actuel</th><th>Variation</th><th>Date source</th><th>Collecté le</th><th>Source</th><th></th></tr></thead><tbody id="latest-table"><tr><td colspan="7" class="empty">Chargement…</td></tr></tbody></table></div>
+      </section>
+      <section class="panel source-comparison-panel" id="source-comparison">
+        <div class="panel-heading"><div><p class="eyebrow">CONTRÔLE ENTRE FOURNISSEURS</p><h2>Comparer les prix des API</h2></div><span class="comparison-badge" id="comparison-summary" role="status">Chargement…</span></div>
+        <p class="panel-intro">Contrôle automatique après chaque collecte. Dernier relevé enregistré pour chaque API, indépendamment de la période du graphique. Un écart peut signaler un problème lorsque le produit de marché, la date, l'unité et la devise sont identiques.</p>
+        <div class="table-scroll"><table><thead><tr><th>Produit</th><th>API / type de donnée</th><th>Prix / indice</th><th>Date source</th><th>Dernier accès réussi</th><th>Disponibilité</th></tr></thead><tbody id="api-price-table"><tr><td colspan="6" class="empty">Chargement…</td></tr></tbody></table></div>
+        <h3 class="comparison-heading">Écarts et vérifications</h3>
+        <p class="chart-note">Écart absolu et pourcentage par rapport à la première API. Pour deux flux quotidiens équivalents, seules les différences d'arrondi sont tolérées : 0,005 USD/baril et 0,0005 USD/gallon.</p>
+        <div class="table-scroll"><table><thead><tr><th>Produit</th><th>API comparées</th><th>Écart absolu</th><th>Écart %</th><th>Conclusion</th></tr></thead><tbody id="api-comparison-table"><tr><td colspan="5" class="empty">Chargement…</td></tr></tbody></table></div>
+        <p class="chart-note" id="comparison-note"></p>
       </section>
       </div>
 
@@ -70,10 +88,11 @@
         </div>
         <p class="chart-note" id="forecast-status">Modèle de tendance amortie · validation historique en cours…</p>
         <div class="forecast-grid">
-          <article class="forecast-card"><div class="forecast-card-heading"><h3>Gasoil / diesel</h3><span class="forecast-unit">USD/gallon</span></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-gasoil-chart"></canvas></div><div class="forecast-stats" id="forecast-gasoil-stats"><span>Chargement…</span></div></article>
-          <article class="forecast-card"><div class="forecast-card-heading"><h3>Pétrole Brent</h3><span class="forecast-unit">USD/baril</span></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-brent-chart"></canvas></div><div class="forecast-stats" id="forecast-brent-stats"><span>Chargement…</span></div></article>
+          <article class="forecast-card"><div class="forecast-card-heading"><h3>Diesel New York Harbor · spot</h3><span class="forecast-unit">USD/gallon</span></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-gasoil-chart"></canvas></div><div class="forecast-stats" id="forecast-gasoil-stats"><span>Chargement…</span></div></article>
+          <article class="forecast-card"><div class="forecast-card-heading"><h3>Brent Europe · spot</h3><span class="forecast-unit">USD/baril</span></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-brent-chart"></canvas></div><div class="forecast-stats" id="forecast-brent-stats"><span>Chargement…</span></div></article>
+          <article class="forecast-card"><div class="forecast-card-heading"><h3>Bitume · indice BLS</h3><span class="forecast-unit">indice (déc. 1984 = 100)</span></div><div class="forecast-controls"><label for="forecast-bitume-horizon">Horizon mensuel</label><select id="forecast-bitume-horizon"><option value="1">1 mois</option><option value="3" selected>3 mois</option><option value="6">6 mois</option></select></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-bitume-chart"></canvas></div><div class="forecast-stats" id="forecast-bitume-stats"><span>Chargement…</span></div><p class="chart-note">Projection de l'indice mensuel WPU058. Les devis fournisseurs restent en USD/tonne.</p></article>
         </div>
-        <p class="forecast-disclaimer">Bandes indicatives à 95 % nominal : leur couverture réelle est mesurée sur le passé et peut être inférieure. Un gain MAE positif indique une amélioration par rapport au dernier prix constant. Les horizons partent de la dernière date source, pas de la date du jour.</p>
+        <p class="forecast-disclaimer">Bandes indicatives à 95 % nominal : leur couverture réelle est mesurée sur le passé et peut être inférieure. Un gain MAE positif indique une amélioration par rapport au dernier prix constant. Les prévisions quotidiennes utilisent uniquement les séries spot, séparées des contrats à terme et du proxy heating oil. Les horizons partent de la dernière date source, pas de la date du jour.</p>
       </section>
       </div>
 
@@ -85,8 +104,11 @@
           <form id="alert-form" class="alert-form">
             <div class="alert-form-heading"><strong id="alert-form-title">Créer une règle</strong><button class="text-btn" type="button" id="alert-cancel" hidden>Annuler</button></div>
             <label>Produit<select name="product"><option value="gasoil">Gasoil / diesel</option><option value="brent">Pétrole Brent</option><option value="bitume">Bitume</option></select></label>
-            <label>Condition<select name="direction"><option value="above">Prix au-dessus de</option><option value="below">Prix en-dessous de</option></select></label>
-            <label>Seuil<input type="number" name="threshold" min="0.000001" step="0.0001" required placeholder="90"></label>
+            <label id="alert-instrument-field">Instrument suivi<select name="instrument"></select></label>
+            <label id="alert-basis-field" hidden>Valeur suivie<select name="basis"><option value="quote">Devis fournisseur · USD/tonne</option><option value="index">Indice mensuel BLS · base 100 en déc. 1984</option></select></label>
+            <label>Condition<select name="direction"><option value="above">Prix au-dessus de</option><option value="below">Prix en-dessous de</option><option value="stale">Cotation en direct non actualisée</option></select></label>
+            <label><span id="alert-threshold-label">Seuil de prix</span><input type="number" name="threshold" min="0.000001" step="any" required placeholder="90"></label>
+            <p class="field-help" id="alert-freshness-help" hidden>Recevez un email lorsque la dernière cotation de marché dépasse le délai choisi, puis au retour d'une cotation récente. Le marché fermé peut aussi déclencher l'alerte.</p>
             <label>Notification<select name="channel"><option value="webhook">Webhook</option><option value="email">Email</option><option value="both">Webhook + email</option></select></label>
             <label class="alert-muted-field"><input type="checkbox" name="muted"> Mettre en pause les notifications</label>
             <button class="primary-btn full" type="submit" id="alert-save">Créer l'alerte <span>→</span></button>
@@ -97,10 +119,18 @@
       </div>
 
       <div class="page-view" id="archives" data-page="archives" aria-label="Archives">
+      <section class="panel bitumen-history-panel" id="bitumen-history" aria-labelledby="bitumen-history-title">
+        <div class="panel-heading"><div><p class="eyebrow">BITUME · SÉRIE MENSUELLE</p><h2 id="bitumen-history-title">Historique du bitume</h2></div><span class="activity-count" id="bitumen-history-count" aria-live="polite">Chargement…</span></div>
+        <p class="panel-intro">Indice BLS WPU058 · base décembre 1984 = 100. Chaque ligne correspond à un mois publié. Les devis fournisseurs en USD/tonne se retrouvent dans les archives filtrées ci-dessous.</p>
+        <div class="table-scroll"><table><thead><tr><th scope="col">Mois</th><th scope="col">Indice BLS</th><th scope="col">Variation mensuelle</th></tr></thead><tbody id="bitumen-history-table"><tr><td colspan="3" class="empty">Chargement de l'historique du bitume…</td></tr></tbody></table></div>
+        <div class="panel-heading bitumen-history-toolbar"><div class="pagination" aria-label="Pages de l'historique du bitume"><button class="text-btn" type="button" id="bitumen-history-prev" disabled>← Plus récents</button><span id="bitumen-history-page-label">Page 1</span><button class="text-btn" type="button" id="bitumen-history-next" disabled>Plus anciens →</button></div><div class="export-actions"><a href="/export.csv?product=bitume&amp;data_kind=index" class="text-btn">↓ CSV bitume</a><a href="/export.xlsx?product=bitume&amp;data_kind=index" class="text-btn">↓ Excel bitume</a></div></div>
+      </section>
       <section class="panel history-page" id="history-page">
         <div class="panel-heading"><div><p class="eyebrow">HISTORIQUE COMPLET</p><h2>Archives des prix</h2></div><span class="activity-count" id="history-count">—</span></div>
         <form id="history-filters" class="history-filters">
           <label>Produit<select name="product"><option value="">Tous les produits</option><option value="gasoil">Gasoil / diesel</option><option value="brent">Pétrole Brent</option><option value="bitume">Bitume</option></select></label>
+          <label>Type de donnée<select name="data_kind"><option value="">Prix et indices</option><option value="quote">Prix / devis</option><option value="index">Indice bitume BLS</option></select></label>
+          <label>Instrument<select name="instrument"><option value="">Tous les instruments</option><option value="diesel_spot">Diesel · spot</option><option value="heating_oil_futures">Heating oil · proxy gasoil</option><option value="brent_spot">Brent · spot</option><option value="brent_futures">Brent · contrat à terme</option><option value="bitumen_quote">Bitume · devis</option><option value="asphalt_index">Bitume · indice BLS</option></select></label>
           <label>Fournisseur<input type="text" name="supplier" placeholder="Rechercher…"></label>
           <label>Source<input type="text" name="source" placeholder="EIA, FRED, devis…"></label>
           <label>Date début<input type="date" name="date_from"></label>
@@ -110,7 +140,8 @@
           <div class="history-filter-actions"><button class="primary-btn" type="submit">Filtrer</button><button class="text-btn history-reset" type="button" id="history-reset">Réinitialiser</button></div>
         </form>
         <div class="panel-heading history-toolbar"><div class="pagination" id="history-pagination"><button class="text-btn" type="button" id="history-prev">← Précédent</button><span id="history-page-label">Page 1</span><button class="text-btn" type="button" id="history-next">Suivant →</button></div><div class="export-actions"><a href="/export.csv" id="history-csv" class="text-btn">↓ CSV filtré</a><a href="/export.xlsx" id="history-xlsx" class="text-btn">↓ Excel filtré</a></div></div>
-        <div class="table-scroll"><table><thead><tr><th>Date source</th><th>Produit</th><th>Prix</th><th>Fournisseur</th><th>Source</th><th>Collecté le</th><th>Variation</th></tr></thead><tbody id="history-table"><tr><td colspan="7" class="empty">Utilisez les filtres pour charger l'historique.</td></tr></tbody></table></div>
+        <div class="table-scroll"><table><thead><tr><th>Date source</th><th>Produit</th><th>Prix / indice</th><th>Fournisseur</th><th>Source</th><th>Collecté le</th><th>Variation</th></tr></thead><tbody id="history-table"><tr><td colspan="7" class="empty">Utilisez les filtres pour charger l'historique.</td></tr></tbody></table></div>
+        <p class="chart-note">Bitume : l'indice BLS est mensuel et garde sa base déc. 1984 = 100. Les devis sont enregistrés séparément en USD/tonne. Les périodes et les limites numériques filtrent les valeurs publiées, sans interpolation.</p>
       </section>
       <section class="panel compare-panel" id="compare">
         <div class="panel-heading"><div><p class="eyebrow">COMPARAISON DE PÉRIODES</p><h2>Mesurer l'évolution</h2></div></div>
@@ -172,7 +203,8 @@
           <button class="primary-btn" type="submit">Calculer l'impact d'achat <span>→</span></button>
         </form>
         <div id="procurement-summary" class="purchase-summary" hidden></div>
-        <div class="table-scroll procurement-history"><table><thead><tr><th>Date</th><th>Produit</th><th>Fournisseur</th><th>Quantité</th><th>Total</th><th>Écart budget</th><th>Impact prix</th></tr></thead><tbody id="procurement-table"><tr><td colspan="7" class="empty">Aucun achat enregistré.</td></tr></tbody></table></div>
+        <div class="procurement-history-state" id="procurement-history-state" role="status"><p id="procurement-history-message">Chargement de l'historique des achats…</p><button class="text-btn" type="button" id="procurement-history-retry" hidden>Réessayer</button></div>
+        <div class="table-scroll procurement-history" id="procurement-history-table" hidden><table><thead><tr><th>Date</th><th>Produit</th><th>Fournisseur</th><th>Quantité</th><th>Total</th><th>Écart budget</th><th>Impact prix</th></tr></thead><tbody id="procurement-table"></tbody></table></div>
       </section>
       </div>
 
@@ -190,6 +222,7 @@
       <footer><span>Price Monitor</span><span>Gasoil · Brent · Bitume</span></footer>
     </main>
   </div>
+  <script src="/static/connectivity.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

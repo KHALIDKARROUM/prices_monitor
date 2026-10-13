@@ -11,7 +11,7 @@
       "missing_weekdays_including_holidays": 41,
       "longest_gap_calendar_days": 5,
       "latest_source_date": "2026-09-09",
-      "age_calendar_days": 13,
+      "age_calendar_days": 28,
       "raw_sha256": "87e4e7f740b9ed6f784116d1c42cce25198119e972fb3449409d1a3fd5269a35",
       "raw_mismatches": 0
     },
@@ -22,7 +22,7 @@
       "missing_weekdays_including_holidays": 58,
       "longest_gap_calendar_days": 5,
       "latest_source_date": "2026-09-09",
-      "age_calendar_days": 13,
+      "age_calendar_days": 28,
       "raw_sha256": "d6070410d48e90d805311208738e458c6aca18cc59d75acfc349d0126cd02326",
       "raw_mismatches": 0
     }

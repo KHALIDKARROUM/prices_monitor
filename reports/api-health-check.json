@@ -1,0 +1,435 @@
+{
+  "checked_at": "2026-10-08T08:46:29.443523+00:00",
+  "configured": {
+    "fred_json_key": false,
+    "eia_key": false,
+    "alpha_vantage_key": false,
+    "app_key": false
+  },
+  "endpoints": [
+    {
+      "path": "/health/live",
+      "status": 200,
+      "bytes": 44
+    },
+    {
+      "path": "/health/ready",
+      "status": 200,
+      "bytes": 155
+    },
+    {
+      "path": "/api/connectivity",
+      "status": 200,
+      "bytes": 221
+    },
+    {
+      "path": "/api/dashboard?days=30",
+      "status": 200,
+      "bytes": 1481119
+    },
+    {
+      "path": "/api/source-comparison",
+      "status": 200,
+      "bytes": 5790,
+      "sources": [
+        {
+          "code": "fred_brent",
+          "provider": "FRED",
+          "availability": "available",
+          "source_date": "2026-10-06",
+          "last_success_at": "2026-10-08T08:54:53+00:00"
+        },
+        {
+          "code": "eia_brent",
+          "provider": "EIA",
+          "availability": "not_configured",
+          "source_date": null,
+          "last_success_at": null
+        },
+        {
+          "code": "alpha_brent",
+          "provider": "Alpha Vantage",
+          "availability": "not_configured",
+          "source_date": null,
+          "last_success_at": null
+        },
+        {
+          "code": "live_brent",
+          "provider": "Yahoo Finance",
+          "availability": "available",
+          "source_date": "2026-10-08",
+          "last_success_at": "2026-10-08T08:54:53+00:00"
+        },
+        {
+          "code": "fred_diesel",
+          "provider": "FRED",
+          "availability": "available",
+          "source_date": "2026-10-06",
+          "last_success_at": "2026-10-08T08:54:53+00:00"
+        },
+        {
+          "code": "eia_diesel",
+          "provider": "EIA",
+          "availability": "not_configured",
+          "source_date": null,
+          "last_success_at": null
+        },
+        {
+          "code": "live_gasoil_proxy",
+          "provider": "Yahoo Finance",
+          "availability": "available",
+          "source_date": "2026-10-08",
+          "last_success_at": "2026-10-08T08:54:53+00:00"
+        },
+        {
+          "code": "bls_asphalt_ppi",
+          "provider": "BLS via FRED",
+          "availability": "available",
+          "source_date": "2026-08-01",
+          "last_success_at": "2026-10-08T08:54:53+00:00"
+        }
+      ]
+    },
+    {
+      "path": "/api/forecast?history_days=1825",
+      "status": 200,
+      "bytes": 38529
+    },
+    {
+      "path": "/api/alerts",
+      "status": 200,
+      "bytes": 890
+    },
+    {
+      "path": "/api/observations?product=bitume",
+      "status": 200,
+      "bytes": 2
+    },
+    {
+      "path": "/api/history?product=bitume&data_kind=index&page_size=100",
+      "status": 200,
+      "bytes": 33122
+    },
+    {
+      "path": "/api/history/compare?period_a_from=2026-07-01&period_a_to=2026-07-31&period_b_from=2026-08-01&period_b_to=2026-08-31&product=bitume",
+      "status": 200,
+      "bytes": 989
+    },
+    {
+      "path": "/api/logs",
+      "status": 200,
+      "bytes": 2290
+    },
+    {
+      "path": "/api/benchmarks?product=bitume",
+      "status": 200,
+      "bytes": 789
+    },
+    {
+      "path": "/api/suppliers?product=bitume",
+      "status": 200,
+      "bytes": 2663
+    },
+    {
+      "path": "/api/procurement-guide?product=bitume",
+      "status": 200,
+      "bytes": 6088
+    },
+    {
+      "path": "/api/procurements?limit=20",
+      "status": 200,
+      "bytes": 17
+    },
+    {
+      "path": "/export.csv?product=bitume&data_kind=index",
+      "status": 200,
+      "bytes": 20053
+    },
+    {
+      "path": "/export.xlsx?product=bitume&data_kind=index",
+      "status": 200,
+      "bytes": 10190
+    },
+    {
+      "path": "/openapi.json",
+      "status": 200,
+      "bytes": 11720
+    },
+    {
+      "path": "/metrics",
+      "status": 200,
+      "bytes": 2134
+    }
+  ],
+  "providers_checked_at": "2026-10-08T08:47:18.289642+00:00",
+  "providers": [
+    {
+      "code": "fred_diesel",
+      "status": "working",
+      "price": 4.713,
+      "value": null,
+      "unit": "USD/gallon",
+      "source_date": "2026-10-06",
+      "quote_at": null
+    },
+    {
+      "code": "fred_brent",
+      "status": "working",
+      "price": 125.44,
+      "value": null,
+      "unit": "USD/baril",
+      "source_date": "2026-10-06",
+      "quote_at": null
+    },
+    {
+      "code": "live_gasoil_proxy",
+      "status": "working",
+      "price": 4.8223,
+      "value": null,
+      "unit": "USD/gallon",
+      "source_date": "2026-10-08",
+      "quote_at": "2026-10-08T08:37:07+00:00"
+    },
+    {
+      "code": "live_brent",
+      "status": "working",
+      "price": 104.23,
+      "value": null,
+      "unit": "USD/baril",
+      "source_date": "2026-10-08",
+      "quote_at": "2026-10-08T08:37:11+00:00"
+    },
+    {
+      "code": "bitume_fred_mirror",
+      "status": "working",
+      "price": 546.938,
+      "value": null,
+      "unit": null,
+      "source_date": "2026-08-01",
+      "quote_at": null
+    },
+    {
+      "code": "bls_direct",
+      "status": "REQUEST_NOT_PROCESSED",
+      "message": [
+        "Request could not be serviced, as the daily threshold for total number of requests allocated to the user with registration key  has been reached."
+      ]
+    },
+    {
+      "code": "eia_diesel",
+      "status": "not_configured",
+      "reason": "API key missing"
+    },
+    {
+      "code": "eia_brent",
+      "status": "not_configured",
+      "reason": "API key missing"
+    },
+    {
+      "code": "alpha_brent",
+      "status": "not_configured",
+      "reason": "API key missing"
+    }
+  ],
+  "bls_backoff_verification": {
+    "direct_requests": 1,
+    "sources": [
+      "BLS/FRED - WPU058",
+      "BLS/FRED - WPU058"
+    ],
+    "values": [
+      546.938,
+      546.938
+    ],
+    "source_dates": [
+      "2026-08-01",
+      "2026-08-01"
+    ],
+    "retry_delay_seconds": 86400
+  },
+  "endpoints_before_fixes": [
+    {
+      "path": "/health/live",
+      "status": 200,
+      "bytes": 44
+    },
+    {
+      "path": "/health/ready",
+      "status": 200,
+      "bytes": 155
+    },
+    {
+      "path": "/api/connectivity",
+      "status": 200,
+      "bytes": 221,
+      "connectivity": {
+        "status": "online",
+        "checked_at": "2026-10-08T08:46:25.312933+00:00",
+        "changed_at": "2026-10-08T08:37:59.924943+00:00",
+        "collection": {
+          "status": "success",
+          "finished_at": "2026-10-08T08:46:06+00:00"
+        },
+        "demo_mode": false
+      }
+    },
+    {
+      "path": "/api/dashboard?days=30",
+      "status": 200,
+      "bytes": 1477217
+    },
+    {
+      "path": "/api/source-comparison",
+      "status": 200,
+      "bytes": 5790,
+      "sources": [
+        {
+          "code": "fred_brent",
+          "provider": "FRED",
+          "availability": "available",
+          "source_date": "2026-10-06",
+          "last_success_at": "2026-10-08T08:46:06+00:00",
+          "error": null
+        },
+        {
+          "code": "eia_brent",
+          "provider": "EIA",
+          "availability": "not_configured",
+          "source_date": null,
+          "last_success_at": null,
+          "error": null
+        },
+        {
+          "code": "alpha_brent",
+          "provider": "Alpha Vantage",
+          "availability": "not_configured",
+          "source_date": null,
+          "last_success_at": null,
+          "error": null
+        },
+        {
+          "code": "live_brent",
+          "provider": "Yahoo Finance",
+          "availability": "available",
+          "source_date": "2026-10-08",
+          "last_success_at": "2026-10-08T08:46:06+00:00",
+          "error": null
+        },
+        {
+          "code": "fred_diesel",
+          "provider": "FRED",
+          "availability": "available",
+          "source_date": "2026-10-06",
+          "last_success_at": "2026-10-08T08:46:06+00:00",
+          "error": null
+        },
+        {
+          "code": "eia_diesel",
+          "provider": "EIA",
+          "availability": "not_configured",
+          "source_date": null,
+          "last_success_at": null,
+          "error": null
+        },
+        {
+          "code": "live_gasoil_proxy",
+          "provider": "Yahoo Finance",
+          "availability": "available",
+          "source_date": "2026-10-08",
+          "last_success_at": "2026-10-08T08:46:06+00:00",
+          "error": null
+        },
+        {
+          "code": "bls_asphalt_ppi",
+          "provider": "BLS via FRED",
+          "availability": "available",
+          "source_date": "2026-08-01",
+          "last_success_at": "2026-10-08T08:46:06+00:00",
+          "error": null
+        }
+      ]
+    },
+    {
+      "path": "/api/forecast?history_days=1825",
+      "status": 200,
+      "bytes": 38541
+    },
+    {
+      "path": "/api/alerts",
+      "status": 200,
+      "bytes": 890
+    },
+    {
+      "path": "/api/observations?product=bitume",
+      "status": 503,
+      "error": "{\"error\": \"API non configurée. Définissez PRICE_MONITOR_API_KEY.\"}"
+    },
+    {
+      "path": "/api/history?product=bitume&data_kind=index&page_size=100",
+      "status": 200,
+      "bytes": 33122
+    },
+    {
+      "path": "/api/history/compare?period_a_from=2026-07-01&period_a_to=2026-07-31&period_b_from=2026-08-01&period_b_to=2026-08-31&product=bitume",
+      "status": 200,
+      "bytes": 989
+    },
+    {
+      "path": "/api/logs",
+      "status": 200,
+      "bytes": 2290
+    },
+    {
+      "path": "/api/benchmarks?product=bitume",
+      "status": 200,
+      "bytes": 789
+    },
+    {
+      "path": "/api/suppliers?product=bitume",
+      "status": 200,
+      "bytes": 2663
+    },
+    {
+      "path": "/api/procurement-guide?product=bitume",
+      "status": 200,
+      "bytes": 6088
+    },
+    {
+      "path": "/api/procurements?limit=20",
+      "status": 200,
+      "bytes": 17
+    },
+    {
+      "path": "/export.csv?product=bitume&data_kind=index",
+      "status": 200,
+      "bytes": 20053
+    },
+    {
+      "path": "/export.xlsx?product=bitume&data_kind=index",
+      "status": 200,
+      "bytes": 10190
+    },
+    {
+      "path": "/openapi.json",
+      "status": 200,
+      "bytes": 11530
+    },
+    {
+      "path": "/metrics",
+      "status": 200,
+      "bytes": 2480
+    }
+  ],
+  "verified_after_fixes_at": "2026-10-08T08:55:44.077437+00:00",
+  "validation": {
+    "python_tests_passed": 173,
+    "ui_tests_passed": 20,
+    "skipped": "Live MySQL integration test not configured"
+  },
+  "fixes": [
+    "Local observation API now follows local dashboard access rules, with configured-key and cross-site protections.",
+    "BLS direct checks are spaced six hours apart; daily quota failure defers direct requests for 24 hours while FRED is fetched normally.",
+    "FRED, EIA and Alpha Vantage choose the newest valid published value and reject non-finite, non-positive and invalid/future dated readings.",
+    "EIA requests descending date order explicitly."
+  ]
+}

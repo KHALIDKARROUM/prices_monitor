@@ -1,0 +1,383 @@
+{
+  "product": "bitume",
+  "label": "Bitume · indice BLS",
+  "unit": "indice (déc. 1984 = 100)",
+  "model": "damped_holt",
+  "model_version": "2_calendar_time",
+  "horizon_unit": "months",
+  "horizons": [
+    1,
+    3,
+    6
+  ],
+  "frequency": "monthly",
+  "data_kind": "index",
+  "interval_method": "heuristic_residual_sqrt_time",
+  "interval_nominal_level": 0.95,
+  "history_count": 60,
+  "history": [
+    {
+      "date": "2021-09-01",
+      "value": 338.217
+    },
+    {
+      "date": "2021-10-01",
+      "value": 342.458
+    },
+    {
+      "date": "2021-11-01",
+      "value": 376.741
+    },
+    {
+      "date": "2021-12-01",
+      "value": 408.154
+    },
+    {
+      "date": "2022-01-01",
+      "value": 404.808
+    },
+    {
+      "date": "2022-02-01",
+      "value": 434.651
+    },
+    {
+      "date": "2022-03-01",
+      "value": 460.651
+    },
+    {
+      "date": "2022-04-01",
+      "value": 507.501
+    },
+    {
+      "date": "2022-05-01",
+      "value": 557.391
+    },
+    {
+      "date": "2022-06-01",
+      "value": 559.772
+    },
+    {
+      "date": "2022-07-01",
+      "value": 528.04
+    },
+    {
+      "date": "2022-08-01",
+      "value": 518.67
+    },
+    {
+      "date": "2022-09-01",
+      "value": 462.707
+    },
+    {
+      "date": "2022-10-01",
+      "value": 505.156
+    },
+    {
+      "date": "2022-11-01",
+      "value": 527.984
+    },
+    {
+      "date": "2022-12-01",
+      "value": 477.291
+    },
+    {
+      "date": "2023-01-01",
+      "value": 433.119
+    },
+    {
+      "date": "2023-02-01",
+      "value": 426.812
+    },
+    {
+      "date": "2023-03-01",
+      "value": 489.816
+    },
+    {
+      "date": "2023-04-01",
+      "value": 379.038
+    },
+    {
+      "date": "2023-05-01",
+      "value": 331.876
+    },
+    {
+      "date": "2023-06-01",
+      "value": 353.569
+    },
+    {
+      "date": "2023-07-01",
+      "value": 350.733
+    },
+    {
+      "date": "2023-08-01",
+      "value": 354.22
+    },
+    {
+      "date": "2023-09-01",
+      "value": 376.112
+    },
+    {
+      "date": "2023-10-01",
+      "value": 424.852
+    },
+    {
+      "date": "2023-11-01",
+      "value": 383.912
+    },
+    {
+      "date": "2023-12-01",
+      "value": 338.198
+    },
+    {
+      "date": "2024-01-01",
+      "value": 334.323
+    },
+    {
+      "date": "2024-02-01",
+      "value": 321.52
+    },
+    {
+      "date": "2024-03-01",
+      "value": 291.533
+    },
+    {
+      "date": "2024-04-01",
+      "value": 303.851
+    },
+    {
+      "date": "2024-05-01",
+      "value": 310.387
+    },
+    {
+      "date": "2024-06-01",
+      "value": 319.49
+    },
+    {
+      "date": "2024-07-01",
+      "value": 301.233
+    },
+    {
+      "date": "2024-08-01",
+      "value": 306.112
+    },
+    {
+      "date": "2024-09-01",
+      "value": 313.728
+    },
+    {
+      "date": "2024-10-01",
+      "value": 305.652
+    },
+    {
+      "date": "2024-11-01",
+      "value": 302.617
+    },
+    {
+      "date": "2024-12-01",
+      "value": 305.182
+    },
+    {
+      "date": "2025-01-01",
+      "value": 336.166
+    },
+    {
+      "date": "2025-02-01",
+      "value": 374.492
+    },
+    {
+      "date": "2025-03-01",
+      "value": 377.533
+    },
+    {
+      "date": "2025-04-01",
+      "value": 379.257
+    },
+    {
+      "date": "2025-05-01",
+      "value": 393.531
+    },
+    {
+      "date": "2025-06-01",
+      "value": 394.597
+    },
+    {
+      "date": "2025-07-01",
+      "value": 371.578
+    },
+    {
+      "date": "2025-08-01",
+      "value": 353.717
+    },
+    {
+      "date": "2025-09-01",
+      "value": 371.496
+    },
+    {
+      "date": "2025-10-01",
+      "value": 423.153
+    },
+    {
+      "date": "2025-11-01",
+      "value": 376.59
+    },
+    {
+      "date": "2025-12-01",
+      "value": 378.376
+    },
+    {
+      "date": "2026-01-01",
+      "value": 399.534
+    },
+    {
+      "date": "2026-02-01",
+      "value": 432.983
+    },
+    {
+      "date": "2026-03-01",
+      "value": 455.164
+    },
+    {
+      "date": "2026-04-01",
+      "value": 481.933
+    },
+    {
+      "date": "2026-05-01",
+      "value": 531.835
+    },
+    {
+      "date": "2026-06-01",
+      "value": 553.235
+    },
+    {
+      "date": "2026-07-01",
+      "value": 557.994
+    },
+    {
+      "date": "2026-08-01",
+      "value": 546.938
+    }
+  ],
+  "forecasts": {
+    "1": [
+      {
+        "date": "2026-09-01",
+        "value": 552.257273,
+        "lower": 461.824107,
+        "upper": 642.690438
+      }
+    ],
+    "3": [
+      {
+        "date": "2026-09-01",
+        "value": 552.257273,
+        "lower": 461.824107,
+        "upper": 642.690438
+      },
+      {
+        "date": "2026-10-01",
+        "value": 562.31709,
+        "lower": 434.425281,
+        "upper": 690.208899
+      },
+      {
+        "date": "2026-11-01",
+        "value": 572.226009,
+        "lower": 415.591172,
+        "upper": 728.860847
+      }
+    ],
+    "6": [
+      {
+        "date": "2026-09-01",
+        "value": 552.257273,
+        "lower": 461.824107,
+        "upper": 642.690438
+      },
+      {
+        "date": "2026-10-01",
+        "value": 562.31709,
+        "lower": 434.425281,
+        "upper": 690.208899
+      },
+      {
+        "date": "2026-11-01",
+        "value": 572.226009,
+        "lower": 415.591172,
+        "upper": 728.860847
+      },
+      {
+        "date": "2026-12-01",
+        "value": 581.986295,
+        "lower": 401.119964,
+        "upper": 762.852626
+      },
+      {
+        "date": "2027-01-01",
+        "value": 591.600177,
+        "lower": 389.385471,
+        "upper": 793.814882
+      },
+      {
+        "date": "2027-02-01",
+        "value": 601.06985,
+        "lower": 379.554739,
+        "upper": 822.584961
+      }
+    ]
+  },
+  "backtest": {
+    "1": {
+      "available": true,
+      "folds": 5,
+      "samples": 5,
+      "horizon_unit": "months",
+      "evaluation": "observed_points_in_forecast_window",
+      "mae": 21.373743,
+      "rmse": 26.069132,
+      "mape": 6.2131,
+      "bias": -4.640016,
+      "naive_mae": 16.9102,
+      "mae_skill_vs_naive": -0.263956,
+      "interval_coverage": 1
+    },
+    "3": {
+      "available": true,
+      "folds": 5,
+      "samples": 15,
+      "horizon_unit": "months",
+      "evaluation": "observed_points_in_forecast_window",
+      "mae": 28.070916,
+      "rmse": 34.348531,
+      "mape": 6.9135,
+      "bias": -12.851204,
+      "naive_mae": 20.095733,
+      "mae_skill_vs_naive": -0.39686,
+      "interval_coverage": 1
+    },
+    "6": {
+      "available": true,
+      "folds": 5,
+      "samples": 30,
+      "horizon_unit": "months",
+      "evaluation": "observed_points_in_forecast_window",
+      "mae": 46.719905,
+      "rmse": 61.301911,
+      "mape": 11.1228,
+      "bias": -40.181724,
+      "naive_mae": 35.570633,
+      "mae_skill_vs_naive": -0.31344,
+      "interval_coverage": 1
+    }
+  },
+  "last_actual": {
+    "date": "2026-08-01",
+    "value": 546.938
+  },
+  "status": "ready",
+  "training_start": "2021-09-01",
+  "training_end": "2026-08-01",
+  "residual_std": 46.13937,
+  "age_days": 68,
+  "is_stale": false,
+  "forecast_origin": "2026-08-01"
+}

@@ -1,8 +1,12 @@
 **/storage/*.db
 **/storage/*.sqlite
+**/storage/*.log
 __pycache__/
 *.pyc
 .env
 .venv/
+.pytest_cache/
+.chart-data-*/
 reports/data_science/models/
+reports/data_workflow/models/
 notebooks/.ipynb_checkpoints/

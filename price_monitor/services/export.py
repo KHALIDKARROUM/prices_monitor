@@ -5,7 +5,7 @@ import io
 from typing import Iterable
 
 
-FIELDS = ("id", "product", "price", "unit", "currency", "source", "supplier", "source_date", "collected_at", "variation", "variation_pct", "is_unchanged", "notes")
+FIELDS = ("id", "product", "price", "unit", "currency", "source", "supplier", "source_date", "collected_at", "variation", "variation_pct", "is_unchanged", "notes", "data_kind", "benchmark_code", "instrument")
 
 
 def csv_bytes(rows: Iterable[dict]) -> bytes:
@@ -26,7 +26,7 @@ def xlsx_bytes(rows: list[dict]) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Relevés"
-    headers = ["ID", "Produit", "Prix", "Unité", "Devise", "Source", "Fournisseur", "Date source", "Date collecte", "Variation", "Variation %", "Inchangée", "Remarque"]
+    headers = ["ID", "Produit", "Prix / indice", "Unité", "Devise", "Source", "Fournisseur", "Date source", "Date collecte", "Variation", "Variation %", "Inchangée", "Remarque", "Type de donnée", "Code indicateur", "Instrument"]
     sheet.append(headers)
     for cell in sheet[1]:
         cell.font = Font(bold=True, color="FFFFFF")

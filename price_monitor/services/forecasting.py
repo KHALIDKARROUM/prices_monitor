@@ -13,9 +13,11 @@ import math
 from datetime import date, datetime, timedelta, timezone
 from statistics import mean, pstdev
 from typing import Any, Iterable
+from ..bitumen import INDEX_LABEL, INDEX_UNIT
+from ..instruments import DEFAULT_INSTRUMENTS, INSTRUMENTS, canonical_daily_rows, row_instrument
 
 
-FORECAST_PRODUCTS = ("gasoil", "brent")
+FORECAST_PRODUCTS = ("gasoil", "brent", "bitume")
 FORECAST_HORIZONS = (7, 30, 90)
 DEFAULT_HISTORY_DAYS = 1825
 MAX_HISTORY_ROWS = 5000
@@ -24,6 +26,7 @@ MIN_OBSERVATIONS = 30
 PRODUCT_META = {
     "gasoil": {"label": "Gasoil / diesel", "unit": "USD/gallon"},
     "brent": {"label": "Pétrole Brent", "unit": "USD/baril"},
+    "bitume": {"label": INDEX_LABEL, "unit": INDEX_UNIT},
 }
 
 
@@ -164,15 +167,28 @@ def _round(value: float | None) -> float | None:
 
 
 def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tuple[int, ...] = FORECAST_HORIZONS) -> dict[str, Any]:
+    monthly = product == "bitume"
+    instrument = "asphalt_index" if monthly else DEFAULT_INSTRUMENTS[product]
+    rows = list(rows)
+    if monthly:
+        # Supplier transaction prices cannot be combined with the BLS index.
+        rows = [row for row in rows if row.get("data_kind") == "index"]
+        horizons = (1, 3, 6)
+    else:
+        rows = canonical_daily_rows([dict(row, product=product) for row in rows if row_instrument(dict(row, product=product)) == instrument])
     series = daily_series(rows)
     meta = PRODUCT_META[product]
     base: dict[str, Any] = {
         "product": product,
-        "label": meta["label"],
+        "label": INSTRUMENTS[instrument]["label"],
+        "instrument": instrument,
         "unit": meta["unit"],
         "model": "damped_holt",
         "model_version": "2_calendar_time",
-        "horizon_unit": "calendar_days",
+        "horizon_unit": "months" if monthly else "calendar_days",
+        "horizons": list(horizons),
+        "frequency": "monthly" if monthly else "daily",
+        "data_kind": "index" if monthly else "quote",
         "interval_method": "heuristic_residual_sqrt_time",
         "interval_nominal_level": 0.95,
         "history_count": len(series),
@@ -187,13 +203,13 @@ def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tup
     if len(series) < MIN_OBSERVATIONS:
         base.update({
             "status": "insufficient_data",
-            "message": f"Au moins {MIN_OBSERVATIONS} relevés journaliers sont nécessaires.",
+            "message": f"Au moins {MIN_OBSERVATIONS} relevés {'mensuels' if monthly else 'journaliers'} sont nécessaires.",
         })
         return base
 
     values = [float(item["value"]) for item in series]
     last_day = date.fromisoformat(series[-1]["date"])
-    days = [date.fromisoformat(item["date"]).toordinal() for item in series]
+    days = [date.fromisoformat(item["date"]).year * 12 + date.fromisoformat(item["date"]).month if monthly else date.fromisoformat(item["date"]).toordinal() for item in series]
     residual_std = _residual_standard_deviation(values, days)
     age_days = (datetime.now(timezone.utc).date() - last_day).days
     base.update({
@@ -201,7 +217,7 @@ def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tup
         "training_start": series[0]["date"],
         "training_end": series[-1]["date"],
         "residual_std": _round(residual_std),
-        "age_days": age_days, "is_stale": age_days > 7,
+        "age_days": age_days, "is_stale": age_days > (75 if monthly else 7),
         "forecast_origin": last_day.isoformat(),
     })
     for horizon in horizons:
@@ -209,23 +225,28 @@ def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tup
         points = []
         for index, prediction in enumerate(predictions, start=1):
             interval = 1.96 * residual_std * math.sqrt(index)
+            month_number = last_day.year * 12 + last_day.month - 1 + index
+            forecast_day = date(month_number // 12, month_number % 12 + 1, 1) if monthly else last_day + timedelta(days=index)
             points.append({
-                "date": (last_day + timedelta(days=index)).isoformat(),
+                "date": forecast_day.isoformat(),
                 "value": _round(prediction),
                 "lower": _round(max(0.000001, prediction - interval)),
                 "upper": _round(prediction + interval),
             })
         base["forecasts"][str(horizon)] = points
         base["backtest"][str(horizon)] = _backtest(values, horizon, days)
+        if monthly:
+            base["backtest"][str(horizon)]["horizon_unit"] = "months"
     return base
 
 
 def build_forecast(database: Any, history_days: int = DEFAULT_HISTORY_DAYS) -> dict[str, Any]:
-    """Build forecasts for the two externally collected market products."""
+    """Build daily price and monthly Bitume-index forecasts separately."""
     history_days = max(90, min(DEFAULT_HISTORY_DAYS, int(history_days)))
     products: dict[str, Any] = {}
     for product in FORECAST_PRODUCTS:
-        rows = database.observations(product, days=history_days, limit=MAX_HISTORY_ROWS)
+        instrument = "asphalt_index" if product == "bitume" else DEFAULT_INSTRUMENTS[product]
+        rows = database.observations(product, days=history_days, limit=MAX_HISTORY_ROWS, instrument=instrument)
         products[product] = forecast_product(rows, product)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),

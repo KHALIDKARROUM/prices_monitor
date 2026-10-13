@@ -18,7 +18,9 @@ from sklearn.inspection import permutation_importance
 from statsmodels.tsa.stattools import acf, adfuller, kpss
 from threadpoolctl import threadpool_limits
 
-from .data import PRODUCTS, UNITS, audit_data, load_market_data
+from .data import PRODUCTS, UNITS, audit_data, load_market_data, load_bitumen_data
+from ..services.forecasting import forecast_product
+from ..bitumen import INDEX_UNIT
 from .modeling import SEED, run_experiment
 
 
@@ -101,6 +103,58 @@ def _markdown_table(frame: pd.DataFrame) -> str:
     return "\n".join(rows)
 
 
+def run_bitumen_analysis(data_path: Path, output: Path) -> dict:
+    """Monthly index statistics and walk-forward baseline, in its own units."""
+    series = load_bitumen_data(data_path)
+    output.mkdir(parents=True, exist_ok=True)
+    rows = [{"price": float(value), "source_date": str(day.date()),
+             "collected_at": f"{day.date()}T00:00:00+00:00", "data_kind": "index"}
+            for day, value in series.items()]
+    forecast = forecast_product(rows, "bitume")
+    write_json(output / "bitumen_forecast.json", forecast)
+    series.describe().rename("bitume_index").to_csv(output / "bitumen_statistics.csv")
+    audit = {"series": "WPU058", "unit": INDEX_UNIT, "frequency": "monthly",
+             "sha256": hashlib.sha256(data_path.read_bytes()).hexdigest(),
+             "observations": len(series), "start": str(series.index[0].date()),
+             "end": str(series.index[-1].date()),
+             "missing_months": len(pd.date_range(series.index[0], series.index[-1], freq="MS").difference(series.index)),
+             "publication_time_available": False}
+    raw_path = data_path.parent.parent / "raw" / "FRED_WPU058.csv"
+    if raw_path.exists():
+        raw = pd.read_csv(raw_path, na_values=["."], index_col=0, parse_dates=True)["WPU058"]
+        raw = pd.to_numeric(raw, errors="raise").reindex(series.index)
+        audit["raw_mismatches"] = int((~np.isclose(series, raw, rtol=0, atol=1e-9)).sum())
+        audit["raw_sha256"] = hashlib.sha256(raw_path.read_bytes()).hexdigest()
+        if audit["raw_mismatches"]:
+            raise ValueError("Bitume snapshot differs from its bundled raw series")
+    write_json(output / "bitumen_data_quality.json", audit)
+    backtest = pd.DataFrame.from_dict(forecast["backtest"], orient="index")
+    backtest.to_csv(output / "bitumen_backtest.csv", index_label="horizon_months")
+    fig, axes = plt.subplots(2, 1, figsize=(11, 7))
+    axes[0].plot(series.index, series, color="#8c78b6", marker=".", label="Published monthly index")
+    axes[0].set(title="Bitume — BLS/FRED WPU058", ylabel="Index Dec 1984=100")
+    axes[1].bar(series.index, series.pct_change().mul(100), width=20, color="#8c78b6")
+    axes[1].set(ylabel="Monthly change (%)", xlabel="Source month")
+    axes[1].axhline(0, color="#888", lw=.7)
+    _save(fig, output, "eda_bitumen_index.png")
+    report = f"""# Bitume — monthly index analysis
+
+Source: [BLS/FRED WPU058](https://fred.stlouisfed.org/series/WPU058), **{audit['start']} → {audit['end']}**, {len(series)} observed months. Unit: **Index Dec 1984=100**. Missing months: {audit['missing_months']}. Processed SHA-256: `{audit['sha256']}`.
+
+![Monthly index and changes](eda_bitumen_index.png)
+
+The fixed-parameter damped-Holt model projects 1, 3 and 6 calendar months from the last source month. The dashboard uses the same calculation. Supplier USD/tonne prices stay separate; no daily index observations are invented. Statistics: [bitumen_statistics.csv](bitumen_statistics.csv). Forecast points and bands: [bitumen_forecast.json](bitumen_forecast.json). Raw/processed audit: [bitumen_data_quality.json](bitumen_data_quality.json).
+
+## Walk-forward checks
+
+{_markdown_table(backtest.reset_index(names='horizon_months'))}
+
+MAE/RMSE are in index points. Positive MAE skill means improvement over persistence; negative skill means worse. Bands are heuristic with a 95% nominal level; empirical coverage is reported separately. These are baseline diagnostics, not a model-selection or trading-profitability result. Historical publication timestamps and vintages are unavailable, so these checks use source months and cannot establish real-time availability.
+"""
+    (output / "bitumen_report.md").write_text(report, encoding="utf-8")
+    return audit
+
+
 def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_models=False) -> dict:
     data_path, output = Path(data_path).resolve(), Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -180,8 +234,17 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
         "data_sha256": audit["sha256"], "data_start": audit["start"], "data_end": audit["end"],
         "code_sha256": {str(p.relative_to(Path(__file__).parents[1])): hashlib.sha256(p.read_bytes()).hexdigest() for p in source_files},
         "eda": eda, "experiments": selections}
+    bitumen_path = data_path.parent / "bitumen_index.csv"
+    if bitumen_path.exists():
+        manifest["bitumen_index"] = run_bitumen_analysis(bitumen_path, output)
     write_json(output / "manifest.json", manifest)
     selected_rows = table[table.selected_on_validation]
+    bitumen_note = (
+        "Bitumen is covered separately by its monthly BLS/FRED WPU058 index: [monthly report](bitumen_report.md), statistics, 1/3/6-month forecasts and walk-forward scores. It is not mixed into the daily price ML experiment or relabeled as USD/tonne."
+        if "bitumen_index" in manifest else
+        "No monthly Bitume snapshot was supplied; its separate analysis was not run."
+    )
+    bitumen_visual = "![Bitume monthly index and changes](eda_bitumen_index.png)" if "bitumen_index" in manifest else ""
     columns = ["product", "horizon_days", "model", "mae", "rmse", "mae_skill_vs_naive", "interval_coverage"]
     report = f"""# Data science audit and results
 
@@ -228,12 +291,16 @@ Calibration-set permutation importance is saved in [feature_importance.csv](feat
 - No ML model is automatically promoted to the live app. Review validation consistency, holdout skill, freshness and interval coverage before a separate deployment decision.
 - Historical provider publication timestamps and vintages are unavailable. Source-date causality prevents mechanical future leakage, but a true as-of backtest requires release timestamps/revision history. Data imported into SQL uses reconstructed collection times; those cannot establish actual availability.
 - Prices are market benchmarks. They omit executable quotes, transaction costs, freight, FX and supplier terms. No profitability or purchasing recommendation is inferred from forecast accuracy.
-- Bitumen is excluded: no comparable daily transaction-price history is supplied. The monthly BLS index is a separate quantity and must not be relabeled as USD/tonne.
+- {bitumen_note}
 - Overlapping horizons and serial dependence mean fold errors are not independent. Calibration quantiles have a 95% nominal level; time-series dependence and regime changes remove exchangeability guarantees. Use measured holdout coverage.
 - Check fresh-data errors, missingness, feature ranges and interval coverage after deployment; reassess on new chronological data, not by repeatedly tuning to this holdout. Use block-bootstrap uncertainty or non-overlapping evaluation when more history is available.
 - Serialized models, if requested, are research artifacts fitted on development only, with their training cutoff in each model card. Never load untrusted pickle/joblib files. Baseline artifacts contain `model=None` and an explicit baseline name.
 
 ## References
+
+{bitumen_visual}
+
+- [BLS/FRED WPU058 monthly index](https://fred.stlouisfed.org/series/WPU058)
 
 - [scikit-learn: lagged features and time-series validation](https://scikit-learn.org/stable/auto_examples/applications/plot_time_series_lagged_features.html)
 - [Forecasting: Principles and Practice — damped Holt equations](https://otexts.com/fpp3/holt.html)

@@ -174,6 +174,28 @@ def test_dashboard_marks_old_latest_price_as_stale(empty_database):
     assert metric["is_stale"] is True
 
 
+def test_dashboard_uses_live_quote_timestamp_even_when_price_is_unchanged(empty_database):
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    source_date = now.date().isoformat()
+    live = empty_database.insert_observation({
+        **observation_payload("brent", 98.5, source_date, (now - timedelta(minutes=8)).isoformat()),
+        "source": "Yahoo Finance - Brent futures BZ=F",
+    })
+    empty_database.insert_observation({
+        **observation_payload("brent", 100.0, source_date, (now - timedelta(minutes=1)).isoformat()),
+        "source": "EIA/FRED - DCOILBRENTEU",
+    })
+    empty_database.update_source_health("live_brent", True, now.isoformat(), quote_at=(now - timedelta(minutes=1)).isoformat())
+
+    dashboard = empty_database.dashboard(days=30)
+    metric = dashboard["metrics"]["brent"]
+
+    assert metric["current"] == live["price"]
+    assert metric["is_live"] is True
+    assert metric["quote_at"] == (now - timedelta(minutes=1)).isoformat()
+    assert dashboard["latest"][0]["source"] == "Yahoo Finance - Brent futures BZ=F"
+
+
 def test_create_procurement_calculates_total_budget_variance_and_price_impact(empty_database):
     empty_database.insert_observation(
         observation_payload("gasoil", 2.5, "2026-09-14", "2026-09-14T12:00:00+00:00")
@@ -241,7 +263,10 @@ def test_market_benchmark_is_persisted_without_becoming_a_bitumen_quote(empty_da
 
     assert benchmark["value"] == 546.938
     assert empty_database.latest_benchmarks("bitume")[0]["code"] == "bls_wpu058"
-    assert empty_database.observations(product="bitume", days=3650) == []
+    readings = empty_database.observations(product="bitume", days=3650)
+    assert len(readings) == 1 and readings[0]["data_kind"] == "index"
+    assert readings[0]["currency"] == ""
+    assert empty_database.latest() == []
 
 
 def test_supplier_directory_supports_product_and_region_filters(empty_database):

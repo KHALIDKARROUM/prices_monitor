@@ -41,7 +41,9 @@ def test_bundled_real_snapshot_is_imported_into_empty_database(tmp_path, monkeyp
     assert all(row["source"].startswith("EIA/FRED - ") for row in observations)
     assert all("Historique réel EIA importé" in row["notes"] for row in observations)
     assert any(row["variation"] is not None for row in observations)
-    assert database.dashboard(days=10_000)["quality"]["observation_count"] == expected_rows
+    monthly_count = len(database.bitumen_series(days=10_000))
+    assert monthly_count == 60
+    assert database.dashboard(days=10_000)["quality"]["observation_count"] == expected_rows + monthly_count
 
 
 def test_bundled_snapshot_syncs_new_dates_into_an_existing_database(tmp_path, monkeypatch):

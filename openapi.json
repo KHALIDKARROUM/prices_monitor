@@ -14,11 +14,11 @@
   "tags": [
     {
       "name": "health",
-      "description": "Sondes de vie et de disponibilit\u00e9"
+      "description": "Sondes de vie et de disponibilité"
     },
     {
       "name": "market",
-      "description": "Donn\u00e9es et collectes de prix"
+      "description": "Données et collectes de prix"
     }
   ],
   "components": {
@@ -77,6 +77,18 @@
           "notes": {
             "type": "string",
             "maxLength": 500
+          },
+          "instrument": {
+            "type": "string",
+            "enum": [
+              "brent_spot",
+              "brent_futures",
+              "diesel_spot",
+              "heating_oil_futures",
+              "bitumen_quote",
+              "asphalt_index"
+            ],
+            "description": "Doit correspondre au produit, à la source et à la base. Les anciens seuils quotidiens utilisent le spot par défaut; stale utilise le flux à terme."
           }
         }
       },
@@ -123,7 +135,7 @@
           "exchange_rate": {
             "type": "number",
             "exclusiveMinimum": 0,
-            "description": "USD pour 1 unit\u00e9 de la devise"
+            "description": "USD pour 1 unité de la devise"
           },
           "transport_cost": {
             "type": "number",
@@ -164,12 +176,24 @@
             "type": "string",
             "enum": [
               "above",
-              "below"
-            ]
+              "below",
+              "stale"
+            ],
+            "description": "stale surveille l'âge de la cotation en direct (Brent ou gasoil)."
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "quote",
+              "index"
+            ],
+            "default": "quote",
+            "description": "index surveille uniquement le BLS WPU058 mensuel; quote utilise les prix et devis USD."
           },
           "threshold": {
             "type": "number",
-            "exclusiveMinimum": 0
+            "exclusiveMinimum": 0,
+            "description": "Prix pour above/below ; minutes entières de 2 à 1440 pour stale."
           },
           "channel": {
             "type": "string",
@@ -182,6 +206,18 @@
           "muted": {
             "type": "boolean",
             "default": false
+          },
+          "instrument": {
+            "type": "string",
+            "enum": [
+              "brent_spot",
+              "brent_futures",
+              "diesel_spot",
+              "heating_oil_futures",
+              "bitumen_quote",
+              "asphalt_index"
+            ],
+            "description": "Doit correspondre au produit, à la source et à la base. Les anciens seuils quotidiens utilisent le spot par défaut; stale utilise le flux à terme."
           }
         }
       },
@@ -245,6 +281,22 @@
           "maximum": 100,
           "default": 50
         }
+      },
+      "Instrument": {
+        "name": "instrument",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "brent_spot",
+            "brent_futures",
+            "diesel_spot",
+            "heating_oil_futures",
+            "bitumen_quote",
+            "asphalt_index"
+          ]
+        },
+        "description": "Série de marché précise; spot, contrat à terme, proxy, devis et indice restent séparés."
       }
     }
   },
@@ -257,10 +309,10 @@
         "summary": "Readiness probe",
         "responses": {
           "200": {
-            "description": "Service pr\u00eat"
+            "description": "Service prêt"
           },
           "503": {
-            "description": "D\u00e9pendance indisponible"
+            "description": "Dépendance indisponible"
           }
         }
       }
@@ -286,10 +338,10 @@
         "summary": "Readiness probe",
         "responses": {
           "200": {
-            "description": "D\u00e9pendances disponibles"
+            "description": "Dépendances disponibles"
           },
           "503": {
-            "description": "D\u00e9pendance indisponible"
+            "description": "Dépendance indisponible"
           }
         }
       }
@@ -299,10 +351,10 @@
         "tags": [
           "health"
         ],
-        "summary": "M\u00e9triques Prometheus",
+        "summary": "Métriques Prometheus",
         "responses": {
           "200": {
-            "description": "M\u00e9triques au format texte"
+            "description": "Métriques au format texte"
           }
         }
       }
@@ -312,10 +364,34 @@
         "tags": [
           "market"
         ],
-        "summary": "Indicateurs, s\u00e9ries et qualit\u00e9",
+        "summary": "Indicateurs, séries et qualité",
         "parameters": [
           {
             "$ref": "#/components/parameters/Days"
+          },
+          {
+            "name": "brent_instrument",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "brent_spot",
+                "brent_futures"
+              ]
+            },
+            "description": "Sélectionne la même série pour la carte, les statistiques et le graphique. Par défaut, contrat à terme enregistré, sinon spot."
+          },
+          {
+            "name": "gasoil_instrument",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "diesel_spot",
+                "heating_oil_futures"
+              ]
+            },
+            "description": "Sélectionne la même série pour la carte, les statistiques et le graphique. Par défaut, contrat à terme enregistré, sinon spot."
           }
         ],
         "responses": {
@@ -325,12 +401,38 @@
         }
       }
     },
+    "/api/source-comparison": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Prix par API et écarts entre séries équivalentes",
+        "responses": {
+          "200": {
+            "description": "Dernier relevé par fournisseur, date, unité, marché, disponibilité et comparaison. Seules les mêmes séries, dates, unités et devises permettent de signaler un écart suspect. Les sources absentes restent non vérifiées."
+          }
+        }
+      }
+    },
+    "/api/connectivity": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Connexion Internet vérifiée et résultat de la dernière collecte",
+        "responses": {
+          "200": {
+            "description": "État online, offline ou checking, horodatages et dernière collecte"
+          }
+        }
+      }
+    },
     "/api/forecast": {
       "get": {
         "tags": [
           "market"
         ],
-        "summary": "Pr\u00e9visions gasoil et Brent",
+        "summary": "Prévisions gasoil, Brent et indice Bitume",
         "parameters": [
           {
             "$ref": "#/components/parameters/HistoryDays"
@@ -338,12 +440,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Pr\u00e9visions \u00e0 7, 30 et 90 jours calendaires depuis la derni\u00e8re date source, bandes indicatives, comparaison au prix constant et couverture historique"
+            "description": "Prix à 7/30/90 jours; indice bitume BLS à 1/3/6 mois, depuis la dernière date source. Chaque produit expose son unité, fréquence, horizons, bandes indicatives, comparaison à la persistance et couverture historique."
           },
           "400": {
-            "description": "Param\u00e8tre invalide"
+            "description": "Paramètre invalide"
           }
-        }
+        },
+        "description": "Les prévisions Brent et diesel utilisent uniquement les séries spot avec priorité stable FRED, EIA, Alpha Vantage. Contrats à terme et proxy heating oil sont exclus de cet historique."
       }
     },
     "/api/alerts": {
@@ -351,10 +454,10 @@
         "tags": [
           "market"
         ],
-        "summary": "Lister les r\u00e8gles et leur \u00e9tat",
+        "summary": "Lister les règles et leur état",
         "responses": {
           "200": {
-            "description": "R\u00e8gles actives, r\u00e9tablies ou en pause"
+            "description": "Règles actives, rétablies ou en pause"
           }
         }
       },
@@ -362,7 +465,7 @@
         "tags": [
           "market"
         ],
-        "summary": "Cr\u00e9er une r\u00e8gle d'alerte",
+        "summary": "Créer une règle d'alerte",
         "security": [
           {
             "ApiKeyHeader": []
@@ -383,10 +486,10 @@
         },
         "responses": {
           "201": {
-            "description": "R\u00e8gle cr\u00e9\u00e9e"
+            "description": "Règle créée"
           },
           "400": {
-            "description": "R\u00e8gle invalide"
+            "description": "Règle invalide"
           }
         }
       }
@@ -396,7 +499,7 @@
         "tags": [
           "market"
         ],
-        "summary": "Modifier une r\u00e8gle d'alerte",
+        "summary": "Modifier une règle d'alerte",
         "security": [
           {
             "ApiKeyHeader": []
@@ -426,10 +529,10 @@
         },
         "responses": {
           "200": {
-            "description": "R\u00e8gle modifi\u00e9e"
+            "description": "Règle modifiée"
           },
           "400": {
-            "description": "R\u00e8gle invalide"
+            "description": "Règle invalide"
           }
         }
       },
@@ -437,7 +540,7 @@
         "tags": [
           "market"
         ],
-        "summary": "Supprimer une r\u00e8gle d'alerte",
+        "summary": "Supprimer une règle d'alerte",
         "security": [
           {
             "ApiKeyHeader": []
@@ -458,20 +561,21 @@
         ],
         "responses": {
           "200": {
-            "description": "R\u00e8gle supprim\u00e9e"
+            "description": "Règle supprimée"
           },
           "400": {
-            "description": "R\u00e8gle introuvable"
+            "description": "Règle introuvable"
           }
         }
       }
     },
     "/api/observations": {
+      "description": "Authentification par clé API. Exception en développement local sans clé configurée : serveur et client de boucle locale, requêtes du tableau de bord local uniquement.",
       "get": {
         "tags": [
           "market"
         ],
-        "summary": "Historique filtr\u00e9",
+        "summary": "Historique filtré",
         "security": [
           {
             "ApiKeyHeader": []
@@ -486,6 +590,9 @@
           },
           {
             "$ref": "#/components/parameters/Days"
+          },
+          {
+            "$ref": "#/components/parameters/Instrument"
           }
         ],
         "responses": {
@@ -522,10 +629,10 @@
         },
         "responses": {
           "201": {
-            "description": "Observation cr\u00e9\u00e9e"
+            "description": "Observation créée"
           },
           "400": {
-            "description": "Entr\u00e9e invalide",
+            "description": "Entrée invalide",
             "content": {
               "application/json": {
                 "schema": {
@@ -542,15 +649,7 @@
         "tags": [
           "market"
         ],
-        "summary": "Historique pagin\u00e9 avec filtres",
-        "security": [
-          {
-            "ApiKeyHeader": []
-          },
-          {
-            "BearerAuth": []
-          }
-        ],
+        "summary": "Historique public paginé avec filtres",
         "parameters": [
           {
             "$ref": "#/components/parameters/Product"
@@ -606,14 +705,26 @@
               "type": "number",
               "minimum": 0
             }
+          },
+          {
+            "name": "data_kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "quote",
+                "index"
+              ]
+            },
+            "description": "Filtrer prix/devis ou indice mensuel bitume; les unités restent distinctes."
+          },
+          {
+            "$ref": "#/components/parameters/Instrument"
           }
         ],
         "responses": {
           "200": {
-            "description": "Historique filtr\u00e9 et pagin\u00e9"
-          },
-          "401": {
-            "description": "Authentification requise"
+            "description": "Historique filtré et paginé"
           }
         }
       }
@@ -623,26 +734,20 @@
         "tags": [
           "market"
         ],
-        "summary": "Comparer deux p\u00e9riodes",
-        "security": [
-          {
-            "ApiKeyHeader": []
-          },
-          {
-            "BearerAuth": []
-          }
-        ],
+        "summary": "Comparer publiquement deux périodes",
         "responses": {
           "200": {
             "description": "Comparaison par produit"
           },
           "400": {
-            "description": "P\u00e9riodes invalides"
-          },
-          "401": {
-            "description": "Authentification requise"
+            "description": "Périodes invalides"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Instrument"
+          }
+        ]
       }
     },
     "/api/collect": {
@@ -650,7 +755,7 @@
         "tags": [
           "market"
         ],
-        "summary": "D\u00e9clencher une collecte imm\u00e9diate",
+        "summary": "Déclencher une collecte immédiate",
         "security": [
           {
             "ApiKeyHeader": []
@@ -661,7 +766,7 @@
         ],
         "responses": {
           "200": {
-            "description": "R\u00e9sultat de collecte"
+            "description": "Résultat de collecte avec source_comparison : statut de cohérence, message, avertissements et écarts entre les prix reçus dans cette collecte."
           },
           "401": {
             "description": "Authentification requise"
@@ -687,7 +792,7 @@
         "tags": [
           "market"
         ],
-        "summary": "Derniers indicateurs de march\u00e9 non ex\u00e9cutables",
+        "summary": "Derniers indicateurs de marché non exécutables",
         "parameters": [
           {
             "name": "product",
@@ -703,7 +808,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Benchmarks s\u00e9par\u00e9s des devis fournisseurs"
+            "description": "Benchmarks séparés des devis fournisseurs"
           }
         }
       }
@@ -736,7 +841,7 @@
         ],
         "responses": {
           "200": {
-            "description": "R\u00e9pertoire SQL des voies de contact"
+            "description": "Répertoire SQL des voies de contact"
           }
         }
       }
@@ -771,7 +876,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Contexte march\u00e9, fournisseurs, RFQ et \u00e9tapes de contr\u00f4le"
+            "description": "Contexte marché, fournisseurs, RFQ et étapes de contrôle"
           },
           "400": {
             "description": "Filtre invalide"
@@ -780,6 +885,7 @@
       }
     },
     "/api/procurements": {
+      "description": "Authentification par clé API. Exception pour la page Budget en développement local sans clé configurée : serveur et client de boucle locale, requêtes du tableau de bord local uniquement.",
       "get": {
         "tags": [
           "market"
@@ -795,7 +901,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Achats et impacts calcul\u00e9s"
+            "description": "Achats et impacts calculés"
           },
           "401": {
             "description": "Authentification requise"
@@ -806,7 +912,7 @@
         "tags": [
           "market"
         ],
-        "summary": "\u00c9valuer et enregistrer un achat",
+        "summary": "Évaluer et enregistrer un achat",
         "security": [
           {
             "ApiKeyHeader": []
@@ -827,10 +933,10 @@
         },
         "responses": {
           "201": {
-            "description": "Achat enregistr\u00e9"
+            "description": "Achat enregistré"
           },
           "400": {
-            "description": "Entr\u00e9e invalide",
+            "description": "Entrée invalide",
             "content": {
               "application/json": {
                 "schema": {
@@ -852,7 +958,12 @@
           "200": {
             "description": "Fichier CSV"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Instrument"
+          }
+        ]
       }
     },
     "/export.xlsx": {
@@ -865,7 +976,12 @@
           "200": {
             "description": "Fichier XLSX"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Instrument"
+          }
+        ]
       }
     }
   }

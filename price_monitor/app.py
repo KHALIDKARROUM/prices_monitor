@@ -15,8 +15,12 @@ from urllib.parse import parse_qs, urlparse
 from .config import (
     API_KEY,
     ALERT_EMAIL_TO,
+    ALERT_SMTP_FROM,
     ALERT_SMTP_HOST,
+    ALERT_SMTP_PASSWORD,
+    ALERT_SMTP_USER,
     ALERT_WEBHOOK_URL,
+    DEMO_MODE,
     ENVIRONMENT,
     HOST,
     PORT,
@@ -32,11 +36,13 @@ from .services.forecasting import build_forecast
 from .services.alerts import AlertManager
 from .services.procurement import build_procurement_guide
 from .services.scheduler import CollectionScheduler, run_collection
+from .services.connectivity import ConnectivityMonitor
 
 
 ROOT = Path(__file__).resolve().parent
 database = create_database()
 scheduler = CollectionScheduler(database)
+connectivity = ConnectivityMonitor()
 
 
 class RateLimiter:
@@ -102,12 +108,14 @@ def history_filters(query: dict[str, list[str]]) -> dict[str, object]:
         "date_to": query.get("date_to", [None])[0] or None,
         "min_price": query.get("min_price", [None])[0] or None,
         "max_price": query.get("max_price", [None])[0] or None,
+        "data_kind": query.get("data_kind", [None])[0] or None,
+        "instrument": query.get("instrument", [None])[0] or None,
     }
 
 
 def alert_channel_status() -> dict[str, bool]:
     webhook = bool(ALERT_WEBHOOK_URL)
-    email = bool(ALERT_EMAIL_TO and ALERT_SMTP_HOST)
+    email = bool(ALERT_EMAIL_TO and ALERT_SMTP_HOST and (ALERT_SMTP_FROM or ALERT_SMTP_USER) and (not ALERT_SMTP_USER or ALERT_SMTP_PASSWORD))
     return {"webhook": webhook, "email": email, "both": webhook and email}
 
 
@@ -120,10 +128,15 @@ def alert_rule_id(path: str) -> int | None:
 
 def refresh_alert_states() -> None:
     """Evaluate the newly saved rules against the latest known observations."""
-    latest = getattr(database, "latest", None)
+    latest = getattr(database, "latest_by_instrument", None) or getattr(database, "latest", None)
     if not callable(latest):
         return
-    AlertManager(database).evaluate_prices(latest())
+    manager = AlertManager(database)
+    manager.evaluate_prices(latest())
+    benchmarks = getattr(database, "latest_benchmarks", None)
+    if callable(benchmarks):
+        manager.evaluate_prices([dict(row, price=row["value"], data_kind="index") for row in benchmarks("bitume")])
+    manager.evaluate_live_freshness(database.source_health())
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -149,7 +162,9 @@ class Handler(BaseHTTPRequestHandler):
                 labels={"method": method, "path": path, "status": status},
             )
             metrics.observe_duration("price_monitor_http_request_duration_seconds", duration)
-            logger.info(
+            # Page refreshes and polling stay quiet; metrics still record every
+            # response and detailed request logs remain available at DEBUG.
+            logger.debug(
                 "HTTP request completed",
                 extra={
                     "event": "http_request",
@@ -214,6 +229,52 @@ class Handler(BaseHTTPRequestHandler):
     def _protect_api(self) -> bool:
         return self._authenticate_api()
 
+    def _protect_collection(self) -> bool:
+        """Let the local dashboard trigger its own refresh without a secret.
+
+        A collection only contacts configured data providers and writes their
+        responses to the local database.  It is safe to make that one action
+        convenient on a loopback-only development server. Public/production
+        deployments remain key-protected.
+        """
+        if not API_KEY and ENVIRONMENT in {"development", "dev", "local"} and _is_loopback_host(HOST):
+            return True
+        return self._protect_api()
+
+    def _protect_local_alerts(self) -> bool:
+        # The local dashboard can manage its own alert rules. Public and
+        # production deployments still require the configured API key.
+        if not API_KEY and ENVIRONMENT in {"development", "dev", "local"} and _is_loopback_host(HOST):
+            return True
+        return self._protect_api()
+
+    def _protect_local_records(self) -> bool:
+        """Allow the local dashboard to read and save quotes and estimates."""
+        if (
+            not API_KEY
+            and ENVIRONMENT in {"development", "dev", "local"}
+            and _is_loopback_host(HOST)
+            and _is_loopback_host(self.client_address[0])
+        ):
+            origin = self.headers.get("Origin", "")
+            if origin:
+                try:
+                    parsed_origin = urlparse(origin)
+                    same_origin = (
+                        parsed_origin.scheme == "http"
+                        and _is_loopback_host(parsed_origin.hostname or "")
+                        and (parsed_origin.port or 80) == self.server.server_port
+                    )
+                except ValueError:
+                    same_origin = False
+            else:
+                same_origin = True
+            if not same_origin or self.headers.get("Sec-Fetch-Site", "") not in {"", "same-origin", "none"}:
+                self.send_json({"error": "Accès réservé au tableau de bord local."}, HTTPStatus.FORBIDDEN)
+                return False
+            return True
+        return self._protect_api()
+
     def _health(self, live: bool = False) -> None:
         if live:
             return self.send_json({"status": "ok", "service": "price-monitor"})
@@ -260,20 +321,33 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/") and not self._rate_limit():
                 return
+            if parsed.path == "/api/connectivity":
+                payload = connectivity.snapshot()
+                logs = database.logs(limit=1)
+                payload["collection"] = (
+                    {"status": logs[0]["status"], "finished_at": logs[0]["finished_at"]}
+                    if logs else None
+                )
+                payload["demo_mode"] = DEMO_MODE
+                return self.send_json(payload)
             if parsed.path == "/api/dashboard":
                 days = max(1, min(1825, int(query.get("days", [30])[0])))
-                return self.send_json(database.dashboard(days))
+                instruments = {product: query[f"{product}_instrument"][0] for product in ("brent", "gasoil") if query.get(f"{product}_instrument")}
+                return self.send_json(database.dashboard(days, instruments=instruments))
+            if parsed.path == "/api/source-comparison":
+                return self.send_json(database.source_comparison())
             if parsed.path == "/api/forecast":
                 history_days = max(90, min(1825, int(query.get("history_days", [1825])[0])))
                 return self.send_json(build_forecast(database, history_days=history_days))
             if parsed.path == "/api/alerts":
                 return self.send_json({"alerts": database.alert_rules(), "channels": alert_channel_status()})
             if parsed.path == "/api/observations":
-                if not self._protect_api():
+                if not self._protect_local_records():
                     return
                 product = query.get("product", [None])[0]
                 days = max(1, min(1825, int(query.get("days", [30])[0])))
-                return self.send_json(database.observations(product, days))
+                instrument = query.get("instrument", [None])[0]
+                return self.send_json(database.observations(product, days, instrument=instrument)) if instrument else self.send_json(database.observations(product, days))
             if parsed.path == "/api/history":
                 filters = history_filters(query)
                 page = max(1, int(query.get("page", [1])[0]))
@@ -307,7 +381,7 @@ class Handler(BaseHTTPRequestHandler):
                 region = query.get("region", ["all"])[0]
                 return self.send_json(build_procurement_guide(database, product, region))
             if parsed.path == "/api/procurements":
-                if not self._protect_api():
+                if not self._protect_local_records():
                     return
                 limit = max(1, min(1000, int(query.get("limit", [100])[0])))
                 return self.send_json({"purchases": database.procurements(limit)})
@@ -329,7 +403,16 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/") and not self._rate_limit():
                 return
-            if parsed.path in {"/api/collect", "/api/observations", "/api/procurements", "/api/alerts"} and not self._protect_api():
+            if parsed.path == "/api/collect":
+                if not self._protect_collection():
+                    return
+            elif parsed.path == "/api/alerts":
+                if not self._protect_local_alerts():
+                    return
+            elif parsed.path == "/api/procurements":
+                if not self._protect_local_records():
+                    return
+            elif parsed.path == "/api/observations" and not self._protect_local_records():
                 return
             length = int(self.headers.get("Content-Length", 0))
             payload = json.loads(self.rfile.read(length) or b"{}")
@@ -357,7 +440,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/") and not self._rate_limit():
                 return
-            if alert_rule_id(parsed.path) is None or not self._protect_api():
+            if alert_rule_id(parsed.path) is None or not self._protect_local_alerts():
                 return self.send_json({"error": "Route introuvable"}, 404) if alert_rule_id(parsed.path) is None else None
             length = int(self.headers.get("Content-Length", 0))
             payload = json.loads(self.rfile.read(length) or b"{}")
@@ -378,7 +461,7 @@ class Handler(BaseHTTPRequestHandler):
             rule_id = alert_rule_id(parsed.path)
             if rule_id is None:
                 return self.send_json({"error": "Route introuvable"}, 404)
-            if not self._protect_api():
+            if not self._protect_local_alerts():
                 return
             database.delete_alert_rule(rule_id)
             return self.send_json({"status": "success", "deleted": rule_id})
@@ -396,6 +479,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     validate_security_configuration()
+    connectivity.start()
     scheduler.start()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     logger.info("Price Monitor started", extra={"event": "service_started", "host": HOST, "port": PORT})
@@ -404,6 +488,7 @@ def main() -> None:
     except KeyboardInterrupt:
         logger.info("Shutdown requested", extra={"event": "service_shutdown"})
     finally:
+        connectivity.stop()
         scheduler.stop()
         server.server_close()
 

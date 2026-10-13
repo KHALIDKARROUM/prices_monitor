@@ -16,11 +16,13 @@ STARTED_MONOTONIC = time.monotonic()
 
 
 class JsonFormatter(logging.Formatter):
-    """Render one JSON object per log line for container log collectors."""
+    """Render JSON diagnostics and plain website availability messages."""
 
     RESERVED = set(logging.LogRecord(None, 0, "", 0, "", (), None).__dict__)
 
     def format(self, record: logging.LogRecord) -> str:
+        if getattr(record, "event", None) == "website_status_changed":
+            return record.getMessage()
         payload: dict[str, Any] = {
             "timestamp": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
             "level": record.levelname,
@@ -37,7 +39,7 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging() -> None:
-    """Configure predictable JSON logs without duplicating handlers on reload."""
+    """Configure console logs without duplicating handlers on reload."""
     root = logging.getLogger()
     if not any(isinstance(handler.formatter, JsonFormatter) for handler in root.handlers):
         handler = logging.StreamHandler()

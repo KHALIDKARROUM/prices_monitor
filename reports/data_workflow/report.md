@@ -52,7 +52,7 @@ Calibration-set permutation importance is saved in [feature_importance.csv](feat
 - No ML model is automatically promoted to the live app. Review validation consistency, holdout skill, freshness and interval coverage before a separate deployment decision.
 - Historical provider publication timestamps and vintages are unavailable. Source-date causality prevents mechanical future leakage, but a true as-of backtest requires release timestamps/revision history. Data imported into SQL uses reconstructed collection times; those cannot establish actual availability.
 - Prices are market benchmarks. They omit executable quotes, transaction costs, freight, FX and supplier terms. No profitability or purchasing recommendation is inferred from forecast accuracy.
-- Bitumen is excluded: no comparable daily transaction-price history is supplied. The monthly BLS index is a separate quantity and must not be relabeled as USD/tonne.
+- Bitumen is covered by a separate monthly BLS/FRED WPU058 analysis, with 1/3/6-month forecasts and walk-forward checks: [monthly report](bitumen_report.md). The index keeps its published unit and is separate from the daily price ML experiments and supplier USD/tonne quotes.
 - Overlapping horizons and serial dependence mean fold errors are not independent. Calibration quantiles have a 95% nominal level; time-series dependence and regime changes remove exchangeability guarantees. Use measured holdout coverage.
 - Check fresh-data errors, missingness, feature ranges and interval coverage after deployment; reassess on new chronological data, not by repeatedly tuning to this holdout. Use block-bootstrap uncertainty or non-overlapping evaluation when more history is available.
 - Serialized models, if requested, are research artifacts fitted on development only, with their training cutoff in each model card. Never load untrusted pickle/joblib files. Baseline artifacts contain `model=None` and an explicit baseline name.
@@ -62,3 +62,10 @@ Calibration-set permutation importance is saved in [feature_importance.csv](feat
 - [scikit-learn: lagged features and time-series validation](https://scikit-learn.org/stable/auto_examples/applications/plot_time_series_lagged_features.html)
 - [Forecasting: Principles and Practice — damped Holt equations](https://otexts.com/fpp3/holt.html)
 - [scikit-learn: permutation importance](https://scikit-learn.org/stable/modules/generated/sklearn.inspection.permutation_importance.html)
+
+
+## Bitume monthly index
+
+The project includes 60 observed months from September 2021 to August 2026, with zero missing months and zero differences from the bundled raw FRED WPU058 series. See the [monthly report](bitumen_report.md), [audit](bitumen_data_quality.json), [statistics](bitumen_statistics.csv), [forecasts](bitumen_forecast.json) and [walk-forward scores](bitumen_backtest.csv). These results retain their own source hash and monthly frequency.
+
+![Bitume index and monthly changes](eda_bitumen_index.png)

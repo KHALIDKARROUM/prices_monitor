@@ -26,10 +26,13 @@ from ..config import (
     ALERT_WEBHOOK_URL,
 )
 from ..database import DatabaseBackend, PRODUCTS
+from ..bitumen import INDEX_LABEL, INDEX_UNIT
 from ..observability import logger, metrics
+from ..instruments import INSTRUMENTS, DEFAULT_INSTRUMENTS, canonical_latest, row_instrument, price_alert_key
 
 
 FRESHNESS_WINDOWS = {
+    "temps réel": timedelta(minutes=5),
     "quotidienne": timedelta(days=2),
     "daily": timedelta(days=2),
     "hebdomadaire": timedelta(days=8),
@@ -52,6 +55,7 @@ class AlertEvent:
     value: float | None = None
     threshold: float | None = None
     channel: str | None = None
+    instrument: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -90,7 +94,11 @@ class NotificationDispatcher:
 
     @property
     def enabled(self) -> bool:
-        return bool(self.webhook_url or (self.email_to and self.smtp_host))
+        return bool(self.webhook_url or self.email_ready)
+
+    @property
+    def email_ready(self) -> bool:
+        return bool(self.email_to and self.smtp_host and self.smtp_from and (not self.smtp_user or self.smtp_password))
 
     def send(self, events: list[AlertEvent]) -> bool:
         if not events or not self.enabled:
@@ -136,7 +144,7 @@ class NotificationDispatcher:
                 metrics.increment("price_monitor_alert_notifications_total", labels={"channel": "webhook", "status": "error"})
                 logger.error("Alert webhook delivery failed", extra={"event": "alert_notification_failed", "channel": "webhook", "error": str(exc)})
 
-        if channel in {"email", "both"} and self.email_to and self.smtp_host:
+        if channel in {"email", "both"} and self.email_ready:
             try:
                 message = EmailMessage()
                 message["Subject"] = f"Price Monitor - {len(events)} alerte(s)"
@@ -175,7 +183,12 @@ class AlertManager:
             list_rules = getattr(database, "alert_rules", None)
             if callable(list_rules):
                 stored_rules = list_rules(include_disabled=False)
-        self.thresholds = thresholds if thresholds is not None else (self._thresholds_from_rules(stored_rules) or ALERT_THRESHOLDS)
+        self.thresholds = thresholds if thresholds is not None else (self._thresholds_from_rules(stored_rules) if stored_rules else ALERT_THRESHOLDS)
+        self.thresholds = {
+            DEFAULT_INSTRUMENTS.get(key, "asphalt_index" if key == "bitume:index" else key): value
+            for key, value in self.thresholds.items()
+        }
+        self.freshness_rules = [rule for rule in stored_rules if rule.get("direction") == "stale"]
         self.now = now or (lambda: datetime.now(timezone.utc))
 
     @staticmethod
@@ -186,7 +199,8 @@ class AlertManager:
             direction = str(rule.get("direction", ""))
             if product not in PRODUCTS or direction not in {"above", "below"}:
                 continue
-            thresholds.setdefault(product, {})[direction] = {
+            rule_product = rule.get("instrument") or ("asphalt_index" if rule.get("basis") == "index" else DEFAULT_INSTRUMENTS[product])
+            thresholds.setdefault(rule_product, {})[direction] = {
                 "threshold": rule.get("threshold"),
                 "channel": "none" if rule.get("muted") else rule.get("channel", "webhook"),
             }
@@ -199,7 +213,63 @@ class AlertManager:
     ) -> list[AlertEvent]:
         events = self.evaluate_prices(observations, dispatch=False)
         events.extend(self.evaluate_sources(source_health, dispatch=False))
+        events.extend(self.evaluate_live_freshness(source_health, dispatch=False))
         self._dispatch(events)
+        return events
+
+    def evaluate_live_freshness(
+        self,
+        sources: list[dict[str, Any]],
+        dispatch: bool = True,
+    ) -> list[AlertEvent]:
+        """Alert on the exchange quote time, not the time our poll succeeded."""
+        now = self.now().astimezone(timezone.utc)
+        occurred_at = now.replace(microsecond=0).isoformat()
+        by_code = {str(row.get("code")): row for row in sources}
+        source_codes = {"gasoil": "live_gasoil_proxy", "brent": "live_brent"}
+        events: list[AlertEvent] = []
+        for rule in self.freshness_rules:
+            product = str(rule["product"])
+            source = by_code.get(source_codes.get(product, ""), {})
+            if not source or not source.get("active", 1):
+                continue
+            threshold = float(rule["threshold"])
+            quote_at = source.get("last_quote_at")
+            try:
+                anchor = self._parse_datetime(quote_at or rule["created_at"])
+            except (TypeError, ValueError, KeyError):
+                continue
+            age_minutes = max(0.0, (now - anchor).total_seconds() / 60)
+            stale = age_minutes >= threshold
+            key = f"live_stale:{product}:{threshold:g}"
+            previous = self.database.get_alert_state(key)
+
+            def make_event(status: str) -> AlertEvent:
+                label = PRODUCTS[product]["label"]
+                quote_description = f"Dernière cotation : {anchor.isoformat()}" if quote_at else "Aucune cotation reçue"
+                return AlertEvent(
+                    key=key, kind="live_quote_stale", status=status,
+                    title=f"Cotation en direct — {label}",
+                    message=(
+                        f"{label} sans nouvelle cotation depuis {age_minutes:.0f} min "
+                        f"(limite {threshold:g} min). {quote_description}."
+                        if status == "triggered"
+                        else f"Une cotation récente est à nouveau disponible pour {label}. {quote_description}."
+                    ),
+                    occurred_at=occurred_at, product=product,
+                    source_code=source_codes[product], value=age_minutes,
+                    threshold=threshold, channel="none" if rule.get("muted") else rule["channel"],
+                )
+
+            event = self._transition(key, stale, age_minutes, occurred_at, make_event)
+            if event:
+                events.append(event)
+            elif stale and previous and previous.get("active") and not previous.get("last_notified_at"):
+                # A missing SMTP setup or temporary delivery error must not
+                # permanently lose the first stale notification.
+                events.append(make_event("triggered"))
+        if dispatch:
+            self._dispatch(events)
         return events
 
     def evaluate_prices(
@@ -210,7 +280,8 @@ class AlertManager:
         events: list[AlertEvent] = []
         now = self.now().astimezone(timezone.utc)
         occurred_at = now.replace(microsecond=0).isoformat()
-        for observation in observations:
+        eligible = [row for row in observations if row.get("product") in PRODUCTS]
+        for observation in canonical_latest(eligible):
             product = str(observation.get("product", ""))
             if product not in PRODUCTS:
                 continue
@@ -220,10 +291,14 @@ class AlertManager:
                 continue
             if not isfinite(price):
                 continue
-            for direction, rule in self._rules_for(product).items():
+            is_index = observation.get("data_kind") == "index"
+            rule_product = row_instrument(observation)
+            label = INSTRUMENTS[rule_product]["label"]
+            unit = INDEX_UNIT if is_index else PRODUCTS[product]["unit"]
+            for direction, rule in self._rules_for(rule_product).items():
                 threshold = rule["threshold"]
                 active = price >= threshold if direction == "above" else price <= threshold
-                key = f"price:{product}:{direction}:{threshold:g}"
+                key = price_alert_key(product, rule_product, direction, threshold)
                 event = self._transition(
                     key=key,
                     active=active,
@@ -231,20 +306,21 @@ class AlertManager:
                     occurred_at=occurred_at,
                     event_factory=lambda status, direction=direction, threshold=threshold, product=product, price=price: AlertEvent(
                         key=key,
-                        kind="price_threshold",
+                        kind="index_threshold" if is_index else "price_threshold",
                         status=status,
-                        title=f"{PRODUCTS[product]['label']} — seuil {direction}",
+                        title=f"{label} — seuil {direction}",
                         message=(
-                            f"Le prix est de {price:g} {PRODUCTS[product]['unit']} "
+                            f"{'L’indice' if is_index else 'Le prix'} est de {price:g} {unit} "
                             f"({'au-dessus' if direction == 'above' else 'en-dessous'} du seuil {threshold:g})."
                             if status == "triggered"
-                            else f"Le prix est revenu à {price:g} {PRODUCTS[product]['unit']} ; le seuil {threshold:g} n'est plus atteint."
+                            else f"{'L’indice' if is_index else 'Le prix'} est revenu à {price:g} {unit} ; le seuil {threshold:g} n'est plus atteint."
                         ),
                         occurred_at=occurred_at,
                         product=product,
                         value=price,
                         threshold=threshold,
                         channel=rule.get("channel"),
+                        instrument=rule_product,
                     ),
                 )
                 if event:
@@ -371,6 +447,7 @@ class AlertManager:
             value,
             occurred_at,
             last_status=transition_status if active != was_active else None,
+            clear_notified=active and active != was_active,
         )
         if active == was_active:
             return None

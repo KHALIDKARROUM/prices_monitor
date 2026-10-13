@@ -1,9 +1,8 @@
-"""Download and normalize the real EIA/FRED market snapshot used by the project."""
-
 from __future__ import annotations
 
 import argparse
 import csv
+import math
 from datetime import date, timedelta
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -12,6 +11,11 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = ROOT / "data" / "raw"
 OUTPUT_PATH = ROOT / "data" / "processed" / "market_prices.csv"
+BITUMEN_OUTPUT_PATH = ROOT / "data" / "processed" / "bitumen_index.csv"
+BITUMEN_SERIES = {
+    "file": "FRED_WPU058.csv",
+    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=WPU058",
+}
 
 SERIES = {
     "brent": {
@@ -52,7 +56,9 @@ def read_series(path):
             if raw_value in (None, "", "."):
                 continue
             try:
-                values[period] = float(str(raw_value).replace(",", "."))
+                value = float(str(raw_value).replace(",", "."))
+                if math.isfinite(value) and value > 0:
+                    values[period] = value
             except ValueError:
                 continue
     return values
@@ -87,6 +93,27 @@ def build_dataset(years, refresh) :
     return len(dates), dates[0], dates[-1]
 
 
+def build_bitumen_dataset(years: int = 5, refresh: bool = False):
+    """Keep real monthly index observations in a separate, traceable file."""
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    BITUMEN_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    raw_path = RAW_DIR / BITUMEN_SERIES["file"]
+    if refresh or not raw_path.exists():
+        download(BITUMEN_SERIES["url"], raw_path)
+    values = read_series(raw_path)
+    if not values:
+        raise RuntimeError("Aucun indice bitume valide dans le fichier source.")
+    last = max(values)
+    cutoff = date.fromisoformat(last) - timedelta(days=365 * years)
+    dates = sorted(day for day in values if date.fromisoformat(day) >= cutoff)
+    with BITUMEN_OUTPUT_PATH.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["date", "bitume", "series", "unit"])
+        writer.writeheader()
+        for day in dates:
+            writer.writerow({"date": day, "bitume": values[day], "series": "WPU058", "unit": "Index Dec 1984=100"})
+    return len(dates), dates[0], dates[-1]
+
+
 def main() :
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--years", type=int, choices=range(2, 6), default=5, help="Fenêtre historique à conserver (2 à 5 ans).")
@@ -94,6 +121,8 @@ def main() :
     args = parser.parse_args()
     count, first, last = build_dataset(args.years, args.refresh)
     print(f"{count} dates ecrites dans {OUTPUT_PATH.relative_to(ROOT)} ({first} -> {last}).")
+    count, first, last = build_bitumen_dataset(args.years, args.refresh)
+    print(f"{count} indices mensuels dans {BITUMEN_OUTPUT_PATH.relative_to(ROOT)} ({first} -> {last}).")
 
 
 if __name__ == "__main__":

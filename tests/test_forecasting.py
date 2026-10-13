@@ -51,7 +51,7 @@ def test_forecast_marks_short_history_as_insufficient():
 
 
 class ForecastDatabase:
-    def observations(self, product=None, days=30, limit=600):
+    def observations(self, product=None, days=30, limit=600, instrument=None):
         rows = synthetic_rows()
         for row in rows:
             row["product"] = product
@@ -62,7 +62,8 @@ def test_build_forecast_returns_both_market_products():
     result = build_forecast(ForecastDatabase())
 
     assert result["horizons"] == [7, 30, 90]
-    assert set(result["products"]) == {"gasoil", "brent"}
+    assert set(result["products"]) == {"gasoil", "brent", "bitume"}
+    assert result["products"]["bitume"]["status"] == "insufficient_data"
     assert result["products"]["gasoil"]["status"] == "ready"
 
 

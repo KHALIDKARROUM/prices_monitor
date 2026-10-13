@@ -47,7 +47,7 @@ def test_excel_export_creates_readable_workbook_with_frozen_header():
     assert [cell.value for cell in sheet[1]] == [
         "ID",
         "Produit",
-        "Prix",
+        "Prix / indice",
         "Unité",
         "Devise",
         "Source",
@@ -58,6 +58,9 @@ def test_excel_export_creates_readable_workbook_with_frozen_header():
         "Variation %",
         "Inchangée",
         "Remarque",
+        "Type de donnée",
+        "Code indicateur",
+        "Instrument",
     ]
-    assert [cell.value for cell in sheet[2]] == list(sample_row().values())
+    assert [cell.value for cell in sheet[2]] == list(sample_row().values()) + [None, None, None]
     assert sheet[1][0].font.bold is True

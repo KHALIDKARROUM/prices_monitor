@@ -1,0 +1,13 @@
+{
+  "series": "WPU058",
+  "unit": "indice (déc. 1984 = 100)",
+  "frequency": "monthly",
+  "sha256": "4805cbb27ca7cd86b0fe1978cbd10a6166b602776cdba1b225bf4444a5d1ce71",
+  "observations": 60,
+  "start": "2021-09-01",
+  "end": "2026-08-01",
+  "missing_months": 0,
+  "publication_time_available": false,
+  "raw_mismatches": 0,
+  "raw_sha256": "5c33fedaf100d00eafafbdbda1a2771fa8a04b1e6007c7c1680099089c748407"
+}

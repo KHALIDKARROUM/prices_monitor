@@ -72,9 +72,9 @@ def test_mysql_migrations_are_tracked_and_idempotent():
     first_run = run_mysql_migrations(connection)
     second_run = run_mysql_migrations(connection)
 
-    assert first_run == ["001", "002", "003", "004", "005", "006", "007"]
+    assert first_run == ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"]
     assert second_run == []
-    assert connection.versions == {"001", "002", "003", "004", "005", "006", "007"}
+    assert connection.versions == {"001", "002", "003", "004", "005", "006", "007", "008", "009", "010"}
     assert sum("idx_collection_logs_status" in statement for statement in connection.executed) == 1
 
 
@@ -131,4 +131,4 @@ def test_mysql_backend_applies_schema_and_migrations(monkeypatch):
         }
 
     assert {"price_observations", "data_sources", "collection_logs", "schema_migrations", "alert_rules", "procurement_purchases", "market_benchmarks", "supplier_channels"} <= tables
-    assert versions == {"001", "002", "003", "004", "005", "006", "007"}
+    assert versions == {"001", "002", "003", "004", "005", "006", "007", "008", "009", "010"}

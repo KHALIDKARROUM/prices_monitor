@@ -4,6 +4,13 @@ import pytest
 
 from price_monitor import database as database_module
 from price_monitor.database import Database
+from price_monitor.services import collectors
+
+
+@pytest.fixture(autouse=True)
+def isolate_bls_retry_window(monkeypatch):
+    monkeypatch.setattr(collectors, "_bls_next_check", 0.0)
+    monkeypatch.setattr(collectors, "_bls_defer_reason", "")
 
 
 @pytest.fixture

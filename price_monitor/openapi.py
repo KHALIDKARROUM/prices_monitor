@@ -57,8 +57,9 @@ OPENAPI_SPEC = {
                 "required": ["product", "direction", "threshold", "channel"],
                 "properties": {
                     "product": {"type": "string", "enum": ["gasoil", "brent", "bitume"]},
-                    "direction": {"type": "string", "enum": ["above", "below"]},
-                    "threshold": {"type": "number", "exclusiveMinimum": 0},
+                    "direction": {"type": "string", "enum": ["above", "below", "stale"], "description": "stale surveille l'âge de la cotation en direct (Brent ou gasoil)."},
+                    "basis": {"type": "string", "enum": ["quote", "index"], "default": "quote", "description": "index surveille uniquement le BLS WPU058 mensuel; quote utilise les prix et devis USD."},
+                    "threshold": {"type": "number", "exclusiveMinimum": 0, "description": "Prix pour above/below ; minutes entières de 2 à 1440 pour stale."},
                     "channel": {"type": "string", "enum": ["webhook", "email", "both"]},
                     "muted": {"type": "boolean", "default": False},
                 },
@@ -82,8 +83,14 @@ OPENAPI_SPEC = {
         "/api/dashboard": {
             "get": {"tags": ["market"], "summary": "Indicateurs, séries et qualité", "parameters": [{"$ref": "#/components/parameters/Days"}], "responses": {"200": {"description": "Tableau de bord"}}}
         },
+        "/api/source-comparison": {
+            "get": {"tags": ["market"], "summary": "Prix par API et écarts entre séries équivalentes", "responses": {"200": {"description": "Dernier relevé par fournisseur, date, unité, marché, disponibilité et comparaison. Seules les mêmes séries, dates, unités et devises permettent de signaler un écart suspect. Les sources absentes restent non vérifiées."}}}
+        },
+        "/api/connectivity": {
+            "get": {"tags": ["health"], "summary": "Connexion Internet vérifiée et résultat de la dernière collecte", "responses": {"200": {"description": "État online, offline ou checking, horodatages et dernière collecte"}}}
+        },
         "/api/forecast": {
-            "get": {"tags": ["market"], "summary": "Prévisions gasoil et Brent", "parameters": [{"$ref": "#/components/parameters/HistoryDays"}], "responses": {"200": {"description": "Prévisions à 7, 30 et 90 jours calendaires depuis la dernière date source, bandes indicatives, comparaison au prix constant et couverture historique"}, "400": {"description": "Paramètre invalide"}}}
+            "get": {"tags": ["market"], "summary": "Prévisions gasoil, Brent et indice Bitume", "parameters": [{"$ref": "#/components/parameters/HistoryDays"}], "responses": {"200": {"description": "Prix à 7/30/90 jours; indice bitume BLS à 1/3/6 mois, depuis la dernière date source. Chaque produit expose son unité, fréquence, horizons, bandes indicatives, comparaison à la persistance et couverture historique."}, "400": {"description": "Paramètre invalide"}}}
         },
         "/api/alerts": {
             "get": {"tags": ["market"], "summary": "Lister les règles et leur état", "responses": {"200": {"description": "Règles actives, rétablies ou en pause"}}},
@@ -94,6 +101,7 @@ OPENAPI_SPEC = {
             "delete": {"tags": ["market"], "summary": "Supprimer une règle d'alerte", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "parameters": [{"name": "id", "in": "path", "required": True, "schema": {"type": "integer"}}], "responses": {"200": {"description": "Règle supprimée"}, "400": {"description": "Règle introuvable"}}},
         },
         "/api/observations": {
+            "description": "Authentification par clé API. Exception en développement local sans clé configurée : serveur et client de boucle locale, requêtes du tableau de bord local uniquement.",
             "get": {"tags": ["market"], "summary": "Historique filtré", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Product"}, {"$ref": "#/components/parameters/Days"}], "responses": {"200": {"description": "Observations"}, "401": {"description": "Authentification requise"}}},
             "post": {"tags": ["market"], "summary": "Ajouter une observation", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ObservationInput"}}}}, "responses": {"201": {"description": "Observation créée"}, "400": {"description": "Entrée invalide", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}}},
         },
@@ -108,13 +116,14 @@ OPENAPI_SPEC = {
                 {"name": "date_to", "in": "query", "schema": {"type": "string", "format": "date"}},
                 {"name": "min_price", "in": "query", "schema": {"type": "number", "minimum": 0}},
                 {"name": "max_price", "in": "query", "schema": {"type": "number", "minimum": 0}},
+                {"name": "data_kind", "in": "query", "schema": {"type": "string", "enum": ["quote", "index"]}, "description": "Filtrer prix/devis ou indice mensuel bitume; les unités restent distinctes."},
             ], "responses": {"200": {"description": "Historique filtré et paginé"}}}
         },
         "/api/history/compare": {
             "get": {"tags": ["market"], "summary": "Comparer publiquement deux périodes", "responses": {"200": {"description": "Comparaison par produit"}, "400": {"description": "Périodes invalides"}}}
         },
         "/api/collect": {
-            "post": {"tags": ["market"], "summary": "Déclencher une collecte immédiate", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "responses": {"200": {"description": "Résultat de collecte"}, "401": {"description": "Authentification requise"}}}
+            "post": {"tags": ["market"], "summary": "Déclencher une collecte immédiate", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "responses": {"200": {"description": "Résultat de collecte avec source_comparison : statut de cohérence, message, avertissements et écarts entre les prix reçus dans cette collecte."}, "401": {"description": "Authentification requise"}}}
         },
         "/api/logs": {"get": {"tags": ["market"], "summary": "Derniers journaux de collecte", "responses": {"200": {"description": "Journaux"}}}},
         "/api/benchmarks": {
@@ -127,6 +136,7 @@ OPENAPI_SPEC = {
             "get": {"tags": ["market"], "summary": "Guide de sourcing et processus d'achat", "parameters": [{"name": "product", "in": "query", "schema": {"type": "string", "enum": ["gasoil", "bitume"], "default": "gasoil"}}, {"name": "region", "in": "query", "schema": {"type": "string", "default": "all"}}], "responses": {"200": {"description": "Contexte marché, fournisseurs, RFQ et étapes de contrôle"}, "400": {"description": "Filtre invalide"}}}
         },
         "/api/procurements": {
+            "description": "Authentification par clé API. Exception pour la page Budget en développement local sans clé configurée : serveur et client de boucle locale, requêtes du tableau de bord local uniquement.",
             "get": {"tags": ["market"], "summary": "Historique des achats", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "responses": {"200": {"description": "Achats et impacts calculés"}, "401": {"description": "Authentification requise"}}},
             "post": {"tags": ["market"], "summary": "Évaluer et enregistrer un achat", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProcurementInput"}}}}, "responses": {"201": {"description": "Achat enregistré"}, "400": {"description": "Entrée invalide", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}}},
         },
@@ -142,3 +152,24 @@ OPENAPI_SPEC["components"]["parameters"] = {
     "Page": {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "default": 1}},
     "PageSize": {"name": "page_size", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}},
 }
+
+from .instruments import INSTRUMENTS
+
+instrument_schema = {"type": "string", "enum": list(INSTRUMENTS)}
+OPENAPI_SPEC["components"]["parameters"]["Instrument"] = {
+    "name": "instrument", "in": "query", "schema": instrument_schema,
+    "description": "Série de marché précise; spot, contrat à terme, proxy, devis et indice restent séparés.",
+}
+for name in ("ObservationInput", "AlertRuleInput"):
+    OPENAPI_SPEC["components"]["schemas"][name]["properties"]["instrument"] = {
+        **instrument_schema,
+        "description": "Doit correspondre au produit, à la source et à la base. Les anciens seuils quotidiens utilisent le spot par défaut; stale utilise le flux à terme.",
+    }
+for path in ("/api/history", "/api/history/compare", "/api/observations", "/export.csv", "/export.xlsx"):
+    OPENAPI_SPEC["paths"][path]["get"].setdefault("parameters", []).append({"$ref": "#/components/parameters/Instrument"})
+for product, choices in (("brent", ["brent_spot", "brent_futures"]), ("gasoil", ["diesel_spot", "heating_oil_futures"])):
+    OPENAPI_SPEC["paths"]["/api/dashboard"]["get"]["parameters"].append({
+        "name": f"{product}_instrument", "in": "query", "schema": {"type": "string", "enum": choices},
+        "description": "Sélectionne la même série pour la carte, les statistiques et le graphique. Par défaut, contrat à terme enregistré, sinon spot.",
+    })
+OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] = "Les prévisions Brent et diesel utilisent uniquement les séries spot avec priorité stable FRED, EIA, Alpha Vantage. Contrats à terme et proxy heating oil sont exclus de cet historique."

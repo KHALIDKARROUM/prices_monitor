@@ -1,4 +1,3 @@
-"""Strict snapshot validation and reproducible, local provenance checks."""
 from __future__ import annotations
 
 import hashlib
@@ -9,6 +8,25 @@ import pandas as pd
 
 PRODUCTS = ("brent", "gasoil")
 UNITS = {"brent": "USD/barrel", "gasoil": "USD/gallon"}
+
+
+def load_bitumen_data(path: Path) -> pd.Series:
+    """Validate monthly index observations without filling daily price rows."""
+    raw = pd.read_csv(path, na_values=["."])
+    if not {"date", "bitume", "series", "unit"}.issubset(raw.columns):
+        raise ValueError("Required columns: date, bitume, series, unit")
+    dates = pd.to_datetime(raw["date"], format="%Y-%m-%d", errors="raise")
+    values = pd.to_numeric(raw["bitume"], errors="raise")
+    if dates.isna().any() or dates.duplicated().any() or not dates.dt.is_month_start.all():
+        raise ValueError("Missing, duplicate or non-monthly Bitume dates")
+    if values.isna().any() or not np.isfinite(values).all() or (values <= 0).any():
+        raise ValueError("Bitume indices must be positive and finite")
+    if not raw["series"].eq("WPU058").all() or not raw["unit"].eq("Index Dec 1984=100").all():
+        raise ValueError("Bitume data must retain the BLS WPU058 index and its published unit")
+    series = pd.Series(values.to_numpy(), index=pd.DatetimeIndex(dates, name="date"), name="bitume").sort_index()
+    if series.empty or series.index[-1].date() > pd.Timestamp.now(tz="UTC").date():
+        raise ValueError("Empty or future Bitume index history")
+    return series
 
 
 def load_market_data(path: Path) -> pd.DataFrame:

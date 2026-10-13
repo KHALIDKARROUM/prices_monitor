@@ -104,6 +104,7 @@ class MySQLSettings:
 DB_PATH = Path(os.getenv("PRICE_MONITOR_DB", STORAGE_DIR / "price_monitor.db"))
 DEFAULT_DATA_PATH = (PROJECT_DIR / "data" / "processed" / "market_prices.csv") if SOURCE_CHECKOUT else (RUNTIME_DIR / "data" / "processed" / "market_prices.csv")
 REAL_DATA_PATH = Path(os.getenv("PRICE_MONITOR_DATA", DEFAULT_DATA_PATH))
+BITUMEN_DATA_PATH = Path(os.getenv("PRICE_MONITOR_BITUMEN_DATA", REAL_DATA_PATH.parent / "bitumen_index.csv"))
 DB_BACKEND = os.getenv("PRICE_MONITOR_DB_BACKEND", "sqlite").strip().lower()
 MYSQL_SETTINGS = MySQLSettings(
     host=os.getenv("MYSQL_HOST", "127.0.0.1"),
@@ -127,7 +128,12 @@ RATE_LIMIT_ENABLED = (
 DEMO_MODE = os.getenv("PRICE_MONITOR_DEMO", "false").lower() in {"1", "true", "yes", "on"}
 FRED_API_KEY = os.getenv("FRED_API_KEY", "")
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
-COLLECTION_TIMES = ("08:00", "11:00", "14:00", "17:00", "20:00")
+EIA_API_KEY = os.getenv("EIA_API_KEY", "").strip()
+LIVE_QUOTES_ENABLED = _env_bool("PRICE_MONITOR_LIVE_QUOTES_ENABLED", True)
+# Fetch once when the service starts, then keep the newest published prices in
+# the local database.  Sources may publish at different cadences; an unchanged
+# value is intentionally kept as an auditable collection event.
+COLLECTION_INTERVAL_MINUTES = _env_positive_int("PRICE_MONITOR_COLLECTION_INTERVAL_MINUTES", 1)
 SERVICE_NAME = os.getenv("PRICE_MONITOR_SERVICE_NAME", "price-monitor")
 LOG_LEVEL = os.getenv("PRICE_MONITOR_LOG_LEVEL", "INFO").strip().upper()
 
@@ -148,3 +154,12 @@ ALERT_SMTP_PASSWORD = os.getenv("PRICE_MONITOR_ALERT_SMTP_PASSWORD", "")
 ALERT_SMTP_FROM = os.getenv("PRICE_MONITOR_ALERT_SMTP_FROM", "").strip()
 ALERT_SMTP_USE_TLS = _env_bool("PRICE_MONITOR_ALERT_SMTP_USE_TLS", True)
 ALERT_NOTIFY_RECOVERY = _env_bool("PRICE_MONITOR_ALERT_NOTIFY_RECOVERY", True)
+
+# Operational email reports use the same SMTP account as price alerts, but
+# have their own recipient and cadence.
+DIGEST_EMAIL_TO = tuple(
+    address.strip()
+    for address in os.getenv("PRICE_MONITOR_DIGEST_EMAIL_TO", "").split(",")
+    if address.strip()
+)
+DIGEST_INTERVAL_HOURS = _env_positive_int("PRICE_MONITOR_DIGEST_INTERVAL_HOURS", 5)

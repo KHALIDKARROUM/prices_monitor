@@ -17,7 +17,14 @@ from .config import (
     DEMO_MODE,
     MYSQL_SETTINGS,
     REAL_DATA_PATH,
+    BITUMEN_DATA_PATH,
     MySQLSettings,
+)
+from .bitumen import INDEX_CODE, INDEX_LABEL, INDEX_UNIT, benchmark_payload
+from .services.comparison import SOURCE_CODE_BY_LABEL, compare_api_prices
+from .instruments import (
+    INSTRUMENTS, DEFAULT_INSTRUMENTS, LIVE_INSTRUMENTS,
+    resolve_instrument, canonical_daily_rows, canonical_latest, price_alert_key,
 )
 
 
@@ -34,6 +41,31 @@ PURCHASE_UNITS = {
 }
 
 PROCUREMENT_PRODUCTS = {"gasoil", "bitume"}
+
+# A read model only: indices remain physically separate from supplier prices.
+# Revisions replace older values for a given index month in market displays.
+MARKET_READINGS_SQL = """
+    SELECT id, product, price, unit, currency, source, supplier, source_date,
+           collected_at, variation, variation_pct, is_unchanged, notes,
+           'quote' AS data_kind, NULL AS benchmark_code, instrument
+    FROM price_observations
+    UNION ALL
+    SELECT -id AS id, product, value AS price, unit, '' AS currency, source,
+           '' AS supplier, source_date, collected_at,
+           ROUND(value-previous_value, 6) AS variation,
+           ROUND((value-previous_value)/previous_value*100, 4) AS variation_pct,
+           CASE WHEN value=previous_value THEN 1 ELSE 0 END AS is_unchanged,
+           notes, 'index' AS data_kind, code AS benchmark_code, 'asphalt_index' AS instrument
+    FROM (
+        SELECT revised.*, LAG(value) OVER (ORDER BY source_date) AS previous_value
+        FROM (
+            SELECT b.*, ROW_NUMBER() OVER (
+                PARTITION BY code, source_date ORDER BY collected_at DESC, id DESC
+            ) AS revision_rank FROM market_benchmarks b
+            WHERE code='bls_wpu058' AND product='bitume'
+        ) revised WHERE revision_rank=1
+    ) sequenced
+"""
 
 SUPPLIER_CHANNEL_ROWS = [
     (
@@ -242,17 +274,23 @@ class DatabaseBackend(Protocol):
 
     def log_collection(self, status: str, rows: int, message: str, started_at: str, finished_at: str) -> None: ...
 
-    def update_source_health(self, source_code: str, success: bool, at: str, error: str | None = None) -> None: ...
+    def update_source_health(self, source_code: str, success: bool, at: str, error: str | None = None, quote_at: str | None = None) -> None: ...
 
     def source_health(self) -> list[dict[str, Any]]: ...
 
     def latest(self) -> list[dict[str, Any]]: ...
 
-    def observations(self, product: str | None = None, days: int = 30, limit: int = 600) -> list[dict[str, Any]]: ...
+    def latest_by_instrument(self) -> list[dict[str, Any]]: ...
 
-    def dashboard(self, days: int = 30) -> dict[str, Any]: ...
+    def observations(self, product: str | None = None, days: int = 30, limit: int = 600, instrument: str | None = None) -> list[dict[str, Any]]: ...
+
+    def dashboard(self, days: int = 30, instruments: dict[str, str] | None = None) -> dict[str, Any]: ...
+
+    def source_comparison(self) -> dict[str, Any]: ...
 
     def logs(self, limit: int = 12) -> list[dict[str, Any]]: ...
+
+    def collection_logs_after(self, last_id: int) -> list[dict[str, Any]]: ...
 
     def get_alert_state(self, alert_key: str) -> dict[str, Any] | None: ...
 
@@ -264,6 +302,7 @@ class DatabaseBackend(Protocol):
         updated_at: str,
         last_notified_at: str | None = None,
         last_status: str | None = None,
+        clear_notified: bool = False,
     ) -> None: ...
 
     def alert_rules(self, include_disabled: bool = True) -> list[dict[str, Any]]: ...
@@ -282,6 +321,8 @@ class DatabaseBackend(Protocol):
 
     def latest_benchmarks(self, product: str | None = None, limit: int = 20) -> list[dict[str, Any]]: ...
 
+    def bitumen_series(self, days: int = 1825, include_anchor: bool = False) -> list[dict[str, Any]]: ...
+
     def supplier_channels(self, product: str | None = None, region: str | None = None) -> list[dict[str, Any]]: ...
 
     def history(
@@ -295,6 +336,8 @@ class DatabaseBackend(Protocol):
         max_price: float | None = None,
         page: int = 1,
         page_size: int = 50,
+        data_kind: str | None = None,
+        instrument: str | None = None,
     ) -> dict[str, Any]: ...
 
     def compare_periods(
@@ -308,6 +351,8 @@ class DatabaseBackend(Protocol):
         source: str | None = None,
         min_price: float | None = None,
         max_price: float | None = None,
+        data_kind: str | None = None,
+        instrument: str | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -427,7 +472,7 @@ class SQLiteDatabase:
             WHERE id NOT IN (
                 SELECT MIN(id)
                 FROM price_observations
-                GROUP BY product, source, source_date, price
+                GROUP BY product, instrument, source, source_date, price
             )"""
         )
 
@@ -435,7 +480,7 @@ class SQLiteDatabase:
     def _ensure_observation_identity(connection: Any) -> None:
         connection.execute(
             """CREATE UNIQUE INDEX IF NOT EXISTS uq_observation_identity
-            ON price_observations(product, source, source_date, price)"""
+            ON price_observations(product, instrument, source, source_date, price)"""
         )
 
     def initialize(self) -> None:
@@ -451,6 +496,7 @@ class SQLiteDatabase:
             # FRED/EIA snapshot. The import is idempotent, so refreshing the
             # bundled CSV adds missing market dates without duplicating rows.
             imported = self._seed_real_data(conn)
+            self._seed_bitumen_data(conn)
             if count == 0 and imported == 0 and DEMO_MODE:
                 self._seed_demo(conn)
 
@@ -465,6 +511,10 @@ class SQLiteDatabase:
             ("fred_diesel", "Gasoil / diesel", "EIA/FRED - DDFUELNYH", "quotidienne"),
             ("fred_brent", "Pétrole Brent", "EIA/FRED - DCOILBRENTEU", "quotidienne"),
             ("alpha_brent", "Pétrole Brent", "Alpha Vantage - BRENT", "quotidienne"),
+            ("eia_diesel", "Gasoil / diesel", "U.S. EIA - PET.DDFUELNYH.D", "quotidienne"),
+            ("eia_brent", "Pétrole Brent", "U.S. EIA - PET.RBRTE.D", "quotidienne"),
+            ("live_gasoil_proxy", "Gasoil / diesel", "Yahoo Finance - Heating Oil HO=F (proxy temps réel)", "temps réel"),
+            ("live_brent", "Pétrole Brent", "Yahoo Finance - Brent futures BZ=F", "temps réel"),
             ("internal_bitumen", "Bitume", "Devis et factures internes", "à la demande"),
             ("bls_asphalt_ppi", "Indice bitume/asphalte (proxy)", "U.S. BLS - WPU058", "mensuelle"),
         ]
@@ -525,16 +575,58 @@ class SQLiteDatabase:
                         continue
                     conn.execute(
                         """INSERT INTO price_observations
-                        (product, price, unit, currency, source, source_date, collected_at,
+                        (product, instrument, price, unit, currency, source, source_date, collected_at,
                          variation, variation_pct, is_unchanged, notes)
-                        VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-                        (product, price, unit, "USD", source, source_date,
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (product, DEFAULT_INSTRUMENTS[product], price, unit, "USD", source, source_date,
                          self._datetime_value(f"{source_date}T12:00:00+00:00"), variation, variation_pct, 0,
                          "Historique réel EIA importé depuis FRED; horodatage de collecte approximé pour le backfill."),
                     )
                     existing.add(identity)
                     previous[product] = price
                     imported += 1
+        return imported
+
+    def _seed_bitumen_data(self, conn: Any) -> int:
+        """Idempotently import the real monthly BLS/FRED index, including revisions."""
+        path = BITUMEN_DATA_PATH if os.getenv("PRICE_MONITOR_BITUMEN_DATA") else REAL_DATA_PATH.parent / "bitumen_index.csv"
+        if not path.exists() or DEMO_MODE:
+            return 0
+        imported = 0
+        now = self._datetime_value(datetime.now(timezone.utc).isoformat())
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            rows = sorted(csv.DictReader(handle), key=lambda row: row["date"])
+        for row in rows:
+            source_date = self._source_date_value(row["date"])
+            if row.get("series") != "WPU058":
+                raise ValueError("L'historique bitume doit utiliser la série BLS WPU058.")
+            value = float(row["bitume"])
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError("Indice bitume invalide dans le snapshot.")
+            existing = conn.execute(
+                "SELECT id FROM market_benchmarks WHERE code=? AND source_date=? AND value=?",
+                (INDEX_CODE, source_date, value),
+            ).fetchone()
+            if existing:
+                continue
+            payload = benchmark_payload(source_date, value, mirror=True)
+            prior = conn.execute(
+                "SELECT value FROM market_benchmarks WHERE code=? AND source_date<? ORDER BY source_date DESC, collected_at DESC, id DESC LIMIT 1",
+                (INDEX_CODE, source_date),
+            ).fetchone()
+            delta = value - float(prior["value"]) if prior else None
+            conn.execute(
+                """INSERT INTO market_benchmarks
+                (code, product, label, value, unit, geography, source, source_date,
+                 collected_at, source_url, notes, variation, variation_pct)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (INDEX_CODE, "bitume", payload["label"], value, INDEX_UNIT, payload["geography"],
+                 payload["source"], source_date, now, payload["source_url"],
+                 payload["notes"] + " Historique BLS/FRED importé; date de publication historique inconnue.",
+                 round(delta, 6) if delta is not None else None,
+                 round(delta / float(prior["value"]) * 100, 4) if prior else None),
+            )
+            imported += 1
         return imported
 
     def _seed_demo(self, conn: Any) -> None:
@@ -551,10 +643,10 @@ class SQLiteDatabase:
                 collected_at = self._datetime_value((now - timedelta(days=days_ago)).isoformat())
                 conn.execute(
                     """INSERT INTO price_observations
-                    (product, price, unit, currency, source, source_date, collected_at,
+                    (product, instrument, price, unit, currency, source, source_date, collected_at,
                      variation, variation_pct, is_unchanged, notes)
-                    VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-                    (product, price, units[product], "USD", labels[product], source_date,
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (product, DEFAULT_INSTRUMENTS[product], price, units[product], "USD", labels[product], source_date,
                      collected_at, None, None, 0, "Donnée de démonstration à remplacer par une source configurée."),
                 )
 
@@ -593,6 +685,7 @@ class SQLiteDatabase:
             raise ValueError(f"Unité invalide pour {product}. Utilisez {PRODUCTS[product]['unit']}.")
         unit = unit.strip()
         source = str(payload.get("source") or "Saisie validée")[:150]
+        instrument = resolve_instrument(product, source, payload.get("instrument"))
         supplier = str(payload.get("supplier") or "").strip()[:150]
         if not supplier and product == "bitume":
             supplier = source
@@ -600,15 +693,27 @@ class SQLiteDatabase:
         with self._lock, self.connect() as conn:
             existing = conn.execute(
                 """SELECT * FROM price_observations
-                WHERE product=? AND source=? AND source_date=? AND price=?
+                WHERE product=? AND instrument=? AND source=? AND source_date=? AND price=?
                 ORDER BY id LIMIT 1""",
-                (product, source, source_date, price),
+                (product, instrument, source, source_date, price),
             ).fetchone()
             if existing:
+                if source in SOURCE_CODE_BY_LABEL:
+                    # A provider can revise a quote back to an earlier value.
+                    # Keep its identity, but rank it by the latest receipt so
+                    # the comparison can recover when the APIs agree again.
+                    conn.execute(
+                        "UPDATE price_observations SET collected_at=? WHERE id=? AND collected_at<?",
+                        (collected_at, existing["id"], collected_at),
+                    )
+                    existing = conn.execute("SELECT * FROM price_observations WHERE id=?", (existing["id"],)).fetchone()
                 return dict(existing)
             previous = conn.execute(
-                "SELECT price, source_date FROM price_observations WHERE product=? ORDER BY collected_at DESC LIMIT 1",
-                (product,),
+                """SELECT price, source_date FROM price_observations
+                WHERE product=? AND instrument=? AND source=?
+                  AND (source_date<? OR (source_date=? AND collected_at<?))
+                ORDER BY source_date DESC, collected_at DESC, id DESC LIMIT 1""",
+                (product, instrument, source, source_date, source_date, collected_at),
             ).fetchone()
             previous_price = float(previous["price"]) if previous else None
             variation = round(price - previous_price, 6) if previous_price is not None else None
@@ -622,10 +727,10 @@ class SQLiteDatabase:
             try:
                 cur = conn.execute(
                     """INSERT INTO price_observations
-                    (product, price, unit, currency, source, supplier, source_date, collected_at,
+                    (product, instrument, price, unit, currency, source, supplier, source_date, collected_at,
                      variation, variation_pct, is_unchanged, notes)
-                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (product, price, unit, "USD", source, supplier, source_date, collected_at,
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (product, instrument, price, unit, "USD", source, supplier, source_date, collected_at,
                      variation, variation_pct, unchanged, notes),
                 )
             except Exception:
@@ -633,9 +738,9 @@ class SQLiteDatabase:
                 # pre-insert lookup. The unique identity index makes that race safe.
                 existing = conn.execute(
                     """SELECT * FROM price_observations
-                    WHERE product=? AND source=? AND source_date=? AND price=?
+                    WHERE product=? AND instrument=? AND source=? AND source_date=? AND price=?
                     ORDER BY id LIMIT 1""",
-                    (product, source, source_date, price),
+                    (product, instrument, source, source_date, price),
                 ).fetchone()
                 if existing:
                     return dict(existing)
@@ -663,6 +768,8 @@ class SQLiteDatabase:
         if not label or not unit or not source:
             raise ValueError("Le libellé, l'unité et la source de l'indicateur sont obligatoires.")
         source_date = self._source_date_value(payload.get("source_date"))
+        if code == INDEX_CODE and (product != "bitume" or unit != INDEX_UNIT or not source_date.endswith("-01")):
+            raise ValueError("WPU058 doit garder son unité d'indice et une date mensuelle (premier jour du mois).")
         collected_at = self._collected_at_value(
             payload.get("collected_at")
             or datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -678,10 +785,18 @@ class SQLiteDatabase:
                 (code, source_date, value),
             ).fetchone()
             if existing:
+                if code == INDEX_CODE and str(existing["source"]) != source:
+                    # The series identity stays the same when its delivery
+                    # switches between BLS and FRED; retain the current route.
+                    conn.execute(
+                        "UPDATE market_benchmarks SET source=?, notes=?, collected_at=? WHERE id=?",
+                        (source, notes, self._datetime_value(collected_at), existing["id"]),
+                    )
+                    return dict(conn.execute("SELECT * FROM market_benchmarks WHERE id=?", (existing["id"],)).fetchone())
                 return dict(existing)
             previous = conn.execute(
-                "SELECT value FROM market_benchmarks WHERE code=? ORDER BY source_date DESC, id DESC LIMIT 1",
-                (code,),
+                "SELECT value FROM market_benchmarks WHERE code=? AND source_date<? ORDER BY source_date DESC, collected_at DESC, id DESC LIMIT 1",
+                (code, source_date),
             ).fetchone()
             previous_value = float(previous["value"]) if previous else None
             variation = round(value - previous_value, 6) if previous_value is not None else None
@@ -734,6 +849,13 @@ class SQLiteDatabase:
             latest_by_code.setdefault(str(item["code"]), item)
             if len(latest_by_code) >= safe_limit:
                 break
+        if INDEX_CODE in latest_by_code:
+            series = self.bitumen_series(days=100_000)
+            if series:
+                current = series[-1]
+                latest_by_code[INDEX_CODE].update(
+                    variation=current["variation"], variation_pct=current["variation_pct"],
+                )
         return list(latest_by_code.values())
 
     def supplier_channels(
@@ -833,12 +955,8 @@ class SQLiteDatabase:
         budget_variance = round(total_cost - budget_amount, 6) if budget_amount is not None else None
         budget_variance_usd = round(budget_variance * exchange_rate, 6) if budget_variance is not None else None
 
+        market_row = next((row for row in self.latest_by_instrument() if row["instrument"] == DEFAULT_INSTRUMENTS[product]), None)
         with self._lock, self.connect() as conn:
-            market_row = conn.execute(
-                """SELECT price FROM price_observations
-                WHERE product=? ORDER BY collected_at DESC LIMIT 1""",
-                (product,),
-            ).fetchone()
             market_price_usd = float(market_row["price"]) if market_row else None
             unit_price_usd = unit_price * exchange_rate
             price_impact_unit_usd = (
@@ -895,20 +1013,32 @@ class SQLiteDatabase:
         max_price: float | None = None,
         page: int = 1,
         page_size: int = 50,
+        data_kind: str | None = None,
+        instrument: str | None = None,
     ) -> dict[str, Any]:
         clauses, params = self._history_filters(
             product, supplier, source, date_from, date_to, min_price, max_price
         )
+        if data_kind:
+            if data_kind not in {"quote", "index"}:
+                raise ValueError("Le type de donnée doit être quote ou index.")
+            clauses.append("data_kind=?")
+            params.append(data_kind)
+        if instrument:
+            if instrument not in INSTRUMENTS or (product and INSTRUMENTS[instrument]["product"] != product):
+                raise ValueError("Instrument incompatible avec le produit.")
+            clauses.append("instrument=?")
+            params.append(instrument)
         page = max(1, int(page))
         page_size = max(1, min(int(page_size), 10_000))
         where = " AND ".join(clauses) if clauses else "1=1"
         offset = (page - 1) * page_size
         with self.connect() as conn:
             total_row = conn.execute(
-                f"SELECT COUNT(*) AS count FROM price_observations WHERE {where}", params
+                f"SELECT COUNT(*) AS count FROM ({MARKET_READINGS_SQL}) readings WHERE {where}", params
             ).fetchone()
             rows = conn.execute(
-                f"""SELECT * FROM price_observations WHERE {where}
+                f"""SELECT * FROM ({MARKET_READINGS_SQL}) readings WHERE {where}
                 ORDER BY source_date DESC, collected_at DESC, id DESC LIMIT ? OFFSET ?""",
                 [*params, page_size, offset],
             ).fetchall()
@@ -932,6 +1062,8 @@ class SQLiteDatabase:
         source: str | None = None,
         min_price: float | None = None,
         max_price: float | None = None,
+        data_kind: str | None = None,
+        instrument: str | None = None,
     ) -> dict[str, Any]:
         period_a_from = self._source_date_value(period_a_from)
         period_a_to = self._source_date_value(period_a_to)
@@ -942,38 +1074,36 @@ class SQLiteDatabase:
 
         first = self.history(
             product, supplier, source, period_a_from, period_a_to, min_price, max_price,
-            page=1, page_size=10_000,
+            page=1, page_size=10_000, data_kind=data_kind, instrument=instrument,
         )["items"]
         second = self.history(
             product, supplier, source, period_b_from, period_b_to, min_price, max_price,
-            page=1, page_size=10_000,
+            page=1, page_size=10_000, data_kind=data_kind, instrument=instrument,
         )["items"]
 
-        def summarize(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-            result: dict[str, dict[str, Any]] = {}
-            for key in PRODUCTS:
-                values = [float(row["price"]) for row in rows if row["product"] == key]
-                result[key] = {
-                    "count": len(values),
-                    "average": round(sum(values) / len(values), 6) if values else None,
-                    "min": min(values) if values else None,
-                    "max": max(values) if values else None,
-                }
-            return result
+        first = canonical_daily_rows([r for r in first if r["product"] != "bitume"]) + [r for r in first if r["product"] == "bitume"]
+        second = canonical_daily_rows([r for r in second if r["product"] != "bitume"]) + [r for r in second if r["product"] == "bitume"]
+        has_index = any(row.get("data_kind") == "index" for row in first + second)
+        identities = {"gasoil": "diesel_spot", "brent": "brent_spot", "bitume": "asphalt_index" if has_index else "bitumen_quote"}
+        for row in first + second:
+            identity = row["instrument"]
+            if identity not in identities.values():
+                identities["bitume_quotes" if identity == "bitumen_quote" else identity] = identity
 
-        first_summary = summarize(first)
-        second_summary = summarize(second)
-        products: dict[str, dict[str, Any]] = {}
-        for key in PRODUCTS:
-            a_average = first_summary[key]["average"]
-            b_average = second_summary[key]["average"]
-            change = round(b_average - a_average, 6) if a_average is not None and b_average is not None else None
-            change_pct = round((change / a_average) * 100, 4) if change is not None and a_average else None
+        def summarize(rows, identity):
+            values = [float(row["price"]) for row in rows if row["instrument"] == identity]
+            return {"count": len(values), "average": round(sum(values) / len(values), 6) if values else None,
+                    "min": min(values) if values else None, "max": max(values) if values else None}
+
+        products = {}
+        for key, identity in identities.items():
+            a, b = summarize(first, identity), summarize(second, identity)
+            change = round(b["average"] - a["average"], 6) if a["average"] is not None and b["average"] is not None else None
             products[key] = {
-                "period_a": first_summary[key],
-                "period_b": second_summary[key],
-                "average_change": change,
-                "average_change_pct": change_pct,
+                "label": INSTRUMENTS[identity]["label"], "unit": INSTRUMENTS[identity]["unit"],
+                "instrument": identity, "data_kind": "index" if identity == "asphalt_index" else "quote",
+                "period_a": a, "period_b": b, "average_change": change,
+                "average_change_pct": round(change / a["average"] * 100, 4) if change is not None and a["average"] else None,
             }
         return {
             "period_a": {"from": period_a_from, "to": period_a_to},
@@ -1043,13 +1173,17 @@ class SQLiteDatabase:
         success: bool,
         at: str,
         error: str | None = None,
+        quote_at: str | None = None,
     ) -> None:
         """Persist the latest outcome for one configured source."""
         with self._lock, self.connect() as conn:
             if success:
+                quote_value = self._datetime_value(quote_at) if quote_at else None
                 conn.execute(
-                    "UPDATE data_sources SET last_success_at=?, last_error=NULL WHERE code=?",
-                    (self._datetime_value(at), source_code),
+                    """UPDATE data_sources SET last_success_at=?, last_error=NULL,
+                    last_quote_at=CASE WHEN ? IS NOT NULL AND (last_quote_at IS NULL OR last_quote_at < ?)
+                        THEN ? ELSE last_quote_at END WHERE code=?""",
+                    (self._datetime_value(at), quote_value, quote_value, quote_value, source_code),
                 )
             else:
                 conn.execute(
@@ -1060,22 +1194,18 @@ class SQLiteDatabase:
     def source_health(self) -> list[dict[str, Any]]:
         with self.connect() as conn:
             rows = conn.execute(
-                """SELECT code, label, provider, frequency, active, last_success_at, last_error
+                """SELECT code, label, provider, frequency, active, last_success_at, last_error, last_quote_at
                 FROM data_sources WHERE active=1 ORDER BY id"""
             ).fetchall()
             return [dict(row) for row in rows]
 
     def latest(self) -> list[dict[str, Any]]:
-        with self.connect() as conn:
-            rows = conn.execute(
-                """SELECT p.* FROM price_observations p
-                JOIN (SELECT product, MAX(collected_at) max_at FROM price_observations GROUP BY product) latest
-                ON p.product=latest.product AND p.collected_at=latest.max_at
-                ORDER BY CASE p.product WHEN 'gasoil' THEN 1 WHEN 'brent' THEN 2 ELSE 3 END"""
-            ).fetchall()
-            return [dict(r) for r in rows]
+        """Latest spot benchmarks and supplier quote; never substitute a proxy."""
+        rows = {row["product"]: row for row in self.latest_by_instrument()
+                if row["instrument"] == DEFAULT_INSTRUMENTS[row["product"]]}
+        return [rows[product] for product in PRODUCTS if product in rows]
 
-    def observations(self, product: str | None = None, days: int = 30, limit: int = 600) -> list[dict[str, Any]]:
+    def observations(self, product: str | None = None, days: int = 30, limit: int = 600, instrument: str | None = None) -> list[dict[str, Any]]:
         # A price belongs on the chart when it was published by the market
         # source, not when this application happened to collect it.
         clauses = ["source_date >= ?"]
@@ -1085,19 +1215,98 @@ class SQLiteDatabase:
         if product in PRODUCTS:
             clauses.append("product = ?")
             params.append(product)
+        if instrument:
+            if instrument not in INSTRUMENTS or (product and INSTRUMENTS[instrument]["product"] != product):
+                raise ValueError("Instrument incompatible avec le produit.")
+            clauses.append("instrument = ?")
+            params.append(instrument)
         params.append(limit)
         with self.connect() as conn:
             rows = conn.execute(
-                f"""SELECT * FROM price_observations
+                f"""SELECT * FROM ({MARKET_READINGS_SQL}) readings
                 WHERE {' AND '.join(clauses)}
                 ORDER BY source_date ASC, collected_at ASC LIMIT ?""",
                 params,
             ).fetchall()
             return [dict(r) for r in rows]
 
-    def dashboard(self, days: int = 30) -> dict[str, Any]:
-        rows = self.observations(days=days, limit=100_000)
-        latest = self.latest()
+    def bitumen_series(self, days: int = 1825, include_anchor: bool = False) -> list[dict[str, Any]]:
+        cutoff = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
+        date_filter = "source_date>=?"
+        params = [cutoff]
+        if include_anchor:
+            date_filter += " OR source_date=(SELECT MAX(source_date) FROM market_benchmarks WHERE code=? AND source_date<?)"
+            params.extend([INDEX_CODE, cutoff])
+        with self.connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM ({MARKET_READINGS_SQL}) readings WHERE data_kind='index' AND ({date_filter}) ORDER BY source_date, collected_at",
+                params,
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def latest_by_instrument(self) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT ranked.* FROM (
+                    SELECT p.*, ROW_NUMBER() OVER (
+                        PARTITION BY instrument, source
+                        ORDER BY source_date DESC, collected_at DESC, id DESC
+                    ) AS source_rank FROM price_observations p
+                ) ranked WHERE source_rank=1"""
+            ).fetchall()
+        return canonical_latest([dict(row) for row in rows])
+
+    def source_comparison(self) -> dict[str, Any]:
+        """Read one latest quote per API, independently of chart filters.
+
+        Sorting by publication date first prevents a later fetch of an older
+        daily observation from replacing a newer recorded market value.
+        ROW_NUMBER is supported by both SQLite and the MySQL 8 backend.
+        """
+        labels = tuple(SOURCE_CODE_BY_LABEL)
+        placeholders = ",".join("?" for _ in labels)
+        with self.connect() as conn:
+            rows = conn.execute(
+                f"""SELECT ranked.* FROM (
+                    SELECT p.*, ROW_NUMBER() OVER (
+                        PARTITION BY product, source
+                        ORDER BY source_date DESC, collected_at DESC, id DESC
+                    ) AS source_rank
+                    FROM price_observations p WHERE source IN ({placeholders})
+                ) ranked WHERE source_rank=1""",
+                labels,
+            ).fetchall()
+        return compare_api_prices(
+            [dict(row) for row in rows], self.latest_benchmarks(), self.source_health(),
+        )
+
+    def dashboard(self, days: int = 30, instruments: dict[str, str] | None = None) -> dict[str, Any]:
+        latest = self.latest_by_instrument()
+        selected = {}
+        for product in ("gasoil", "brent"):
+            requested = (instruments or {}).get(product)
+            if requested:
+                selected[product] = resolve_instrument(product, instrument=requested)
+            else:
+                live = LIVE_INSTRUMENTS[product]
+                selected[product] = live if any(r["instrument"] == live for r in latest) else DEFAULT_INSTRUMENTS[product]
+        rows = canonical_daily_rows([
+            row for product, instrument in selected.items()
+            for row in self.observations(product, days=days, limit=100_000, instrument=instrument)
+        ]) + self.observations("bitume", days=days, limit=100_000, instrument="bitumen_quote")
+        latest = [r for r in latest if r["product"] == "bitume" or r["instrument"] == selected.get(r["product"])]
+        supplier_quote = next((row for row in latest if row["product"] == "bitume"), None)
+        index_rows = self.bitumen_series(days, include_anchor=True)
+        cutoff = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
+        for row in index_rows:
+            if str(row["source_date"])[:10] < cutoff:
+                row["chart_date"] = cutoff
+                row["is_period_anchor"] = True
+        if index_rows:
+            rows = [row for row in rows if row["product"] != "bitume"] + index_rows
+            latest = [row for row in latest if row["product"] != "bitume"] + [index_rows[-1]]
+        source_health = self.source_health()
+        live_sources = {row["code"]: row for row in source_health}
         by_product: dict[str, list[dict[str, Any]]] = {p: [] for p in PRODUCTS}
         for row in rows:
             by_product.setdefault(row["product"], []).append(row)
@@ -1111,12 +1320,37 @@ class SQLiteDatabase:
                 if current_source_date
                 else None
             )
-            freshness_days = 45 if product == "bitume" else 7
+            freshness_days = 75 if current and current.get("data_kind") == "index" else 45 if product == "bitume" else 7
+            live_code = {"gasoil": "live_gasoil_proxy", "brent": "live_brent"}.get(product)
+            live_quote_at = live_sources.get(live_code, {}).get("last_quote_at") if live_code else None
+            current_is_live_feed = bool(current and str(current["source"]).startswith("Yahoo Finance - "))
+            normalized_quote_at = None
+            try:
+                if current_is_live_feed and live_quote_at:
+                    parsed_quote_at = live_quote_at if isinstance(live_quote_at, datetime) else datetime.fromisoformat(str(live_quote_at).replace("Z", "+00:00"))
+                    if parsed_quote_at.tzinfo is None:
+                        parsed_quote_at = parsed_quote_at.replace(tzinfo=timezone.utc)
+                    normalized_quote_at = parsed_quote_at.astimezone(timezone.utc).isoformat()
+                    quote_age = (datetime.now(timezone.utc) - parsed_quote_at.astimezone(timezone.utc)).total_seconds() / 60
+                else:
+                    quote_age = None
+            except (TypeError, ValueError, OverflowError):
+                quote_age = None
             metrics[product] = {
-                "label": meta["label"], "unit": meta["unit"], "color": meta["color"],
+                "label": INSTRUMENTS[current["instrument"]]["label"] if current else INSTRUMENTS[selected[product]]["label"] if product in selected else meta["label"],
+                "instrument": current["instrument"] if current else selected.get(product, "bitumen_quote"),
+                "unit": current["unit"] if current else meta["unit"], "color": meta["color"],
+                "data_kind": current.get("data_kind", "quote") if current else "quote",
+                "frequency": "monthly" if current and current.get("data_kind") == "index" else "daily",
+                "supplier_quote": supplier_quote if product == "bitume" else None,
                 "current": float(current["price"]) if current else None,
                 "variation": float(current["variation_pct"]) if current and current["variation_pct"] is not None else None,
                 "source_date": current_source_date,
+                "source": str(current["source"]) if current else None,
+                "collected_at": current["collected_at"] if current else None,
+                "quote_at": normalized_quote_at,
+                "is_live": bool(quote_age is not None and 0 <= quote_age <= 5),
+                "quote_age_minutes": quote_age,
                 "age_days": age_days,
                 "is_stale": age_days is not None and age_days > freshness_days,
                 "min": min(values) if values else None,
@@ -1125,10 +1359,11 @@ class SQLiteDatabase:
                 "count": len(values),
             }
         active_sources = {row["source"] for row in rows if row.get("source")}
-        source_health = self.source_health()
         quality_score = self._quality_score(rows, source_health)
         return {
             "days": days,
+            "instruments": INSTRUMENTS,
+            "selected_instruments": selected,
             "metrics": metrics,
             "latest": latest,
             "series": by_product,
@@ -1138,6 +1373,7 @@ class SQLiteDatabase:
                 "observation_count": len(rows),
             },
             "source_health": source_health,
+            "source_comparison": self.source_comparison(),
             "demo_mode": DEMO_MODE,
         }
 
@@ -1171,6 +1407,8 @@ class SQLiteDatabase:
     @staticmethod
     def _observation_is_valid(row: dict[str, Any]) -> bool:
         required = ("product", "price", "unit", "currency", "source", "source_date", "collected_at")
+        if row.get("data_kind") == "index":
+            required = tuple(field for field in required if field != "currency")
         if any(row.get(field) in (None, "") for field in required):
             return False
         try:
@@ -1202,7 +1440,7 @@ class SQLiteDatabase:
                 if success_at.tzinfo is None:
                     success_at = success_at.replace(tzinfo=timezone.utc)
             age = datetime.now(timezone.utc) - success_at.astimezone(timezone.utc)
-            freshness_window = {"quotidienne": timedelta(days=2), "mensuelle": timedelta(days=62)}.get(
+            freshness_window = {"temps réel": timedelta(minutes=5), "quotidienne": timedelta(days=2), "mensuelle": timedelta(days=62)}.get(
                 str(source.get("frequency", "")).lower(), timedelta(days=365)
             )
             return age <= freshness_window
@@ -1212,6 +1450,12 @@ class SQLiteDatabase:
     def logs(self, limit: int = 12) -> list[dict[str, Any]]:
         with self.connect() as conn:
             return [dict(r) for r in conn.execute("SELECT * FROM collection_logs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()]
+
+    def collection_logs_after(self, last_id: int) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            return [dict(r) for r in conn.execute(
+                "SELECT * FROM collection_logs WHERE id > ? ORDER BY id ASC", (last_id,)
+            ).fetchall()]
 
     def get_alert_state(self, alert_key: str) -> dict[str, Any] | None:
         with self.connect() as conn:
@@ -1229,6 +1473,7 @@ class SQLiteDatabase:
         updated_at: str,
         last_notified_at: str | None = None,
         last_status: str | None = None,
+        clear_notified: bool = False,
     ) -> None:
         with self._lock, self.connect() as conn:
             notified_value = self._datetime_value(last_notified_at) if last_notified_at else None
@@ -1238,10 +1483,10 @@ class SQLiteDatabase:
             if existing:
                 conn.execute(
                     """UPDATE alert_states
-                    SET active=?, last_value=?, last_notified_at=COALESCE(?, last_notified_at),
+                    SET active=?, last_value=?, last_notified_at=CASE WHEN ? THEN NULL ELSE COALESCE(?, last_notified_at) END,
                         updated_at=?, last_status=COALESCE(?, last_status)
                     WHERE alert_key=?""",
-                    (int(active), last_value, notified_value, self._datetime_value(updated_at), last_status, alert_key),
+                    (int(active), last_value, int(clear_notified), notified_value, self._datetime_value(updated_at), last_status, alert_key),
                 )
             else:
                 conn.execute(
@@ -1272,8 +1517,21 @@ class SQLiteDatabase:
         if product not in PRODUCTS:
             raise ValueError("Produit inconnu. Utilisez gasoil, brent ou bitume.")
         direction = str(payload.get("direction", current.get("direction", ""))).strip().lower()
-        if direction not in {"above", "below"}:
-            raise ValueError("La direction doit être above ou below.")
+        if direction not in {"above", "below", "stale"}:
+            raise ValueError("La condition doit être above, below ou stale.")
+        if direction == "stale" and product not in {"gasoil", "brent"}:
+            raise ValueError("La surveillance du flux en direct concerne le gasoil et le Brent.")
+        basis = str(payload.get("basis", current.get("basis", "quote"))).strip().lower()
+        if basis not in {"quote", "index"} or (basis == "index" and (product != "bitume" or direction == "stale")):
+            raise ValueError("La base index concerne uniquement les seuils de l'indice bitume.")
+        same_basis = product == current.get("product") and basis == current.get("basis", "quote") and (direction == "stale") == (current.get("direction") == "stale")
+        default_instrument = LIVE_INSTRUMENTS[product] if direction == "stale" else "asphalt_index" if basis == "index" else DEFAULT_INSTRUMENTS[product]
+        instrument = resolve_instrument(
+            product, instrument=payload.get("instrument") or (current.get("instrument") if same_basis else None) or default_instrument,
+            index=basis == "index",
+        )
+        if direction == "stale" and instrument != LIVE_INSTRUMENTS[product]:
+            raise ValueError("La fraîcheur doit suivre le contrat à terme en direct.")
         threshold_input = payload.get("threshold", current.get("threshold"))
         try:
             threshold = float(threshold_input)
@@ -1281,11 +1539,17 @@ class SQLiteDatabase:
             raise ValueError("Le seuil doit être numérique.") from None
         if not math.isfinite(threshold) or threshold <= 0 or threshold > 1_000_000:
             raise ValueError("Le seuil doit être compris entre 0 et 1 000 000.")
+        if direction == "stale" and (threshold < 2 or threshold > 1440 or not threshold.is_integer()):
+            raise ValueError("Le délai sans nouvelle cotation doit être un entier de 2 à 1440 minutes.")
         channel = str(payload.get("channel", current.get("channel", "webhook"))).strip().lower()
         if channel not in {"webhook", "email", "both"}:
             raise ValueError("Le canal doit être webhook, email ou both.")
+        if direction == "stale" and channel not in {"email", "both"}:
+            raise ValueError("Une règle de fraîcheur doit inclure la notification par email.")
         return {
             "product": product,
+            "basis": basis,
+            "instrument": instrument,
             "direction": direction,
             "threshold": threshold,
             "channel": channel,
@@ -1294,19 +1558,22 @@ class SQLiteDatabase:
         }
 
     @staticmethod
-    def _alert_key(product: str, direction: str, threshold: float) -> str:
-        return f"price:{product}:{direction}:{threshold:g}"
+    def _alert_key(product: str, direction: str, threshold: float, basis: str = "quote", instrument: str | None = None) -> str:
+        if direction == "stale":
+            return f"live_stale:{product}:{threshold:g}"
+        identity = instrument or ("asphalt_index" if basis == "index" else DEFAULT_INSTRUMENTS[product])
+        return price_alert_key(product, identity, direction, threshold)
 
     def alert_rules(self, include_disabled: bool = True) -> list[dict[str, Any]]:
         where = "" if include_disabled else " WHERE r.enabled=1"
         with self.connect() as conn:
             rows = conn.execute(
-                f"SELECT r.* FROM alert_rules r{where} ORDER BY r.product, CASE r.direction WHEN 'above' THEN 1 ELSE 2 END, r.id"
+                f"SELECT r.* FROM alert_rules r{where} ORDER BY r.product, CASE r.direction WHEN 'above' THEN 1 WHEN 'below' THEN 2 ELSE 3 END, r.id"
             ).fetchall()
             result: list[dict[str, Any]] = []
             for raw in rows:
                 row = dict(raw)
-                key = self._alert_key(row["product"], row["direction"], float(row["threshold"]))
+                key = self._alert_key(row["product"], row["direction"], float(row["threshold"]), row["basis"], row["instrument"])
                 state_row = conn.execute(
                     "SELECT active, last_value, last_notified_at, updated_at, last_status FROM alert_states WHERE alert_key=?",
                     (key,),
@@ -1336,16 +1603,16 @@ class SQLiteDatabase:
         now = self._datetime_value(datetime.now(timezone.utc).replace(microsecond=0).isoformat())
         with self._lock, self.connect() as conn:
             duplicate = conn.execute(
-                "SELECT id FROM alert_rules WHERE product=? AND direction=?",
-                (rule["product"], rule["direction"]),
+                "SELECT id FROM alert_rules WHERE product=? AND instrument=? AND direction=? AND basis=?",
+                (rule["product"], rule["instrument"], rule["direction"], rule["basis"]),
             ).fetchone()
             if duplicate:
                 raise ValueError("Une règle existe déjà pour ce produit et cette direction.")
             cursor = conn.execute(
                 """INSERT INTO alert_rules
-                (product, direction, threshold, channel, muted, enabled, created_at, updated_at)
-                VALUES(?,?,?,?,?,?,?,?)""",
-                (rule["product"], rule["direction"], rule["threshold"], rule["channel"], int(rule["muted"]), int(rule["enabled"]), now, now),
+                (product, instrument, direction, threshold, channel, muted, enabled, created_at, updated_at, basis)
+                VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                (rule["product"], rule["instrument"], rule["direction"], rule["threshold"], rule["channel"], int(rule["muted"]), int(rule["enabled"]), now, now, rule["basis"]),
             )
             rule_id = getattr(cursor, "lastrowid", None)
             if not rule_id:
@@ -1365,15 +1632,15 @@ class SQLiteDatabase:
             existing = dict(existing_row)
             rule = self._validate_alert_rule(payload, existing)
             duplicate = conn.execute(
-                "SELECT id FROM alert_rules WHERE product=? AND direction=? AND id<>?",
-                (rule["product"], rule["direction"], rule_id),
+                "SELECT id FROM alert_rules WHERE product=? AND instrument=? AND direction=? AND basis=? AND id<>?",
+                (rule["product"], rule["instrument"], rule["direction"], rule["basis"], rule_id),
             ).fetchone()
             if duplicate:
                 raise ValueError("Une règle existe déjà pour ce produit et cette direction.")
             conn.execute(
-                """UPDATE alert_rules SET product=?, direction=?, threshold=?, channel=?, muted=?, enabled=?, updated_at=?
+                """UPDATE alert_rules SET product=?, instrument=?, direction=?, threshold=?, channel=?, muted=?, enabled=?, updated_at=?, basis=?
                 WHERE id=?""",
-                (rule["product"], rule["direction"], rule["threshold"], rule["channel"], int(rule["muted"]), int(rule["enabled"]), now, rule_id),
+                (rule["product"], rule["instrument"], rule["direction"], rule["threshold"], rule["channel"], int(rule["muted"]), int(rule["enabled"]), now, rule["basis"], rule_id),
             )
         return next(item for item in self.alert_rules() if item["id"] == rule_id)
 
@@ -1481,6 +1748,7 @@ class MySQLDatabase(SQLiteDatabase):
             self._seed_supplier_channels(connection)
             count = connection.execute("SELECT COUNT(*) AS count FROM price_observations").fetchone()["count"]
             imported = self._seed_real_data(connection)
+            self._seed_bitumen_data(connection)
             if count == 0 and imported == 0 and DEMO_MODE:
                 self._seed_demo(connection)
 
@@ -1489,6 +1757,10 @@ class MySQLDatabase(SQLiteDatabase):
             ("fred_diesel", "Gasoil / diesel", "EIA/FRED - DDFUELNYH", "quotidienne"),
             ("fred_brent", "Pétrole Brent", "EIA/FRED - DCOILBRENTEU", "quotidienne"),
             ("alpha_brent", "Pétrole Brent", "Alpha Vantage - BRENT", "quotidienne"),
+            ("eia_diesel", "Gasoil / diesel", "U.S. EIA - PET.DDFUELNYH.D", "quotidienne"),
+            ("eia_brent", "Pétrole Brent", "U.S. EIA - PET.RBRTE.D", "quotidienne"),
+            ("live_gasoil_proxy", "Gasoil / diesel", "Yahoo Finance - Heating Oil HO=F (proxy temps réel)", "temps réel"),
+            ("live_brent", "Pétrole Brent", "Yahoo Finance - Brent futures BZ=F", "temps réel"),
             ("internal_bitumen", "Bitume", "Devis et factures internes", "à la demande"),
             ("bls_asphalt_ppi", "Indice bitume/asphalte (proxy)", "U.S. BLS - WPU058", "mensuelle"),
         ]
@@ -1513,6 +1785,7 @@ class MySQLDatabase(SQLiteDatabase):
             INNER JOIN price_observations AS older
               ON older.product = newer.product
              AND older.source = newer.source
+             AND older.instrument = newer.instrument
              AND older.source_date = newer.source_date
              AND older.price = newer.price
              AND older.id < newer.id"""
@@ -1527,7 +1800,7 @@ class MySQLDatabase(SQLiteDatabase):
         if not indexes:
             connection.execute(
                 """ALTER TABLE price_observations
-                ADD UNIQUE KEY uq_observation_identity(product, source, source_date, price)"""
+                ADD UNIQUE KEY uq_observation_identity(product, instrument, source, source_date, price)"""
             )
 
 

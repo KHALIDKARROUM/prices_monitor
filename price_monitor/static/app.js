@@ -348,6 +348,8 @@ function renderProcurementSummary(purchase) {
   const impactClass = purchase.price_impact_unit_usd == null ? '' : purchase.price_impact_unit_usd > 0 ? 'up' : 'down';
   summary.innerHTML = `<div class="purchase-stat"><span>Coût total</span><strong>${formatMoney(purchase.total_cost, purchase.currency)}</strong><small>${formatMoney(purchase.total_cost_usd, 'USD')}</small></div><div class="purchase-stat"><span>Écart au budget</span><strong class="${budgetClass}">${formatMoney(purchase.budget_variance, purchase.currency)}</strong><small>${purchase.budget_variance_usd == null ? 'Budget non renseigné' : formatMoney(purchase.budget_variance_usd, 'USD')}</small></div><div class="purchase-stat"><span>Prix marché de référence</span><strong>${formatMoney(purchase.market_price_usd, 'USD')}</strong><small>Dernier relevé ${PRODUCT_META[purchase.product]?.purchaseUnit || ''}</small></div><div class="purchase-stat"><span>Impact du prix</span><strong class="${impactClass}">${formatMoney(purchase.price_impact_unit_usd, 'USD')} / ${PRODUCT_META[purchase.product]?.purchaseUnit || 'unité'}</strong><small>${purchase.price_impact_pct == null ? 'Référence indisponible' : `${formatPct(purchase.price_impact_pct)} · ${formatMoney(purchase.price_impact_total_usd, 'USD')} au total`}</small></div>`;
   summary.hidden = false;
+  $('#procurement-breakdown').innerHTML = `<h3>Détail du coût rendu</h3>${costBreakdownHtml(purchase)}<p class="field-help">Coût rendu par unité : ${formatNumber(purchase.landed_unit_cost_usd, 6)} USD/${escapeHtml(PRODUCT_META[purchase.product]?.purchaseUnit || purchase.unit)}.${purchase.quote_id ? ` Devis #${purchase.quote_id}, version ${purchase.quote_version}, conservé avec cette estimation.` : ''} La comparaison au relevé de marché reste indicative : grade, origine et livraison ne sont pas vérifiés.</p>`;
+  $('#procurement-breakdown').hidden = false;
 }
 
 function setProcurementHistoryMessage(message, error = false) {
@@ -371,7 +373,8 @@ function renderProcurements(rows) {
     const varianceClass = row.budget_variance == null ? '' : row.budget_variance > 0 ? 'negative' : 'positive';
     const impactClass = row.price_impact_pct == null ? '' : row.price_impact_pct > 0 ? 'negative' : 'positive';
     const budgetPct = row.budget_amount > 0 ? ` (${formatPct(row.budget_variance / row.budget_amount * 100)})` : '';
-    return `<tr><td>${formatDate(row.purchase_date)}</td><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}</strong></div></td><td>${escapeHtml(row.supplier)}</td><td>${formatNumber(row.quantity, 2)} ${meta.purchaseUnit}</td><td class="price-cell">${formatMoney(row.total_cost, row.currency)}<br><span class="source-cell">${formatMoney(row.total_cost_usd, 'USD')}</span></td><td class="${varianceClass}">${row.budget_variance == null ? '—' : `${formatMoney(row.budget_variance, row.currency)}${budgetPct}`}</td><td class="${impactClass}">${row.price_impact_pct == null ? '—' : `${formatPct(row.price_impact_pct)}<br><span class="source-cell">${formatMoney(row.price_impact_total_usd, 'USD')}</span>`}</td></tr>`;
+    const detail = (row.cost_breakdown || []).filter(item => item.key !== 'merchandise' && item.amount > 0).map(item => `<div>${escapeHtml(item.label)} : ${formatMoney(item.amount, row.currency)}</div>`).join('');
+    return `<tr><td>${formatDate(row.purchase_date)}</td><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}</strong></div></td><td>${escapeHtml(row.supplier)}${row.quote_id ? `<br><small>Devis #${row.quote_id} · v${row.quote_version}</small>` : ''}</td><td>${formatNumber(row.quantity, 2)} ${meta.purchaseUnit}</td><td class="price-cell">${formatMoney(row.total_cost, row.currency)}<br><span class="source-cell">${formatMoney(row.total_cost_usd, 'USD')}</span>${detail ? `<details><summary>Voir les frais</summary>${detail}</details>` : ''}</td><td class="${varianceClass}">${row.budget_variance == null ? '—' : `${formatMoney(row.budget_variance, row.currency)}${budgetPct}`}</td><td class="${impactClass}">${row.price_impact_pct == null ? '—' : `${formatPct(row.price_impact_pct)}<br><span class="source-cell">${formatMoney(row.price_impact_total_usd, 'USD')}</span>`}</td></tr>`;
   }).join('') : '<tr><td colspan="7" class="empty">Aucun achat enregistré.</td></tr>';
 }
 
@@ -444,6 +447,7 @@ function updateProcurementUnits() {
   const meta = PRODUCT_META[product];
   $('#quantity-unit').textContent = meta.purchaseUnit;
   $('#unit-price-unit').textContent = `${currency}/${meta.purchaseUnit}`;
+  $('#procurement-cost-currency').textContent = currency;
 }
 
 let historyPage = 1;
@@ -801,12 +805,19 @@ $('#procurement-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.target));
   try {
+    if (typeof quoteOptions === 'undefined' || !quoteOptions) {
+      if (typeof initialiseQuotes === 'function') await initialiseQuotes();
+      if (typeof quoteOptions === 'undefined' || !quoteOptions) throw new Error('Le calcul complet est indisponible. Redémarrez l’application après sa mise à jour, puis réessayez.');
+    }
+    data.other_costs = readCostItems($('#procurement-other-costs'));
     const response = await protectedFetch('/api/procurements', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Impossible d’évaluer cet achat.');
     renderProcurementSummary(result.purchase);
     showToast('Impact d’achat calculé et enregistré.');
     event.target.reset();
+    resetProcurementQuoteLink();
+    setCostItems($('#procurement-other-costs'));
     event.target.purchase_date.value = new Date().toISOString().slice(0, 10);
     event.target.exchange_rate.value = '1';
     updateProcurementUnits();

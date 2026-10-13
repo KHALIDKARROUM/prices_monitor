@@ -151,10 +151,49 @@
       </div>
 
       <div class="page-view" id="nouveau-prix" data-page="nouveau-prix" aria-label="Nouveau prix">
-        <article class="panel form-panel" id="manual"><div class="panel-heading"><div><p class="eyebrow">DONNÉE INTERNE</p><h2>Nouveau prix du bitume</h2></div><span class="form-icon">＋</span></div><p class="panel-intro">Enregistrez un devis, une commande ou une facture validée pour enrichir l'historique.</p><form id="bitumen-form"><div class="form-grid"><label>Prix <div class="input-wrap"><input type="number" min="0.01" step="0.01" name="price" required placeholder="520.00"><span>USD/t</span></div></label><label>Date source<input type="date" name="source_date" required></label></div><label>Source / fournisseur<input type="text" name="source" required placeholder="Ex. Devis Fournisseur ABC · Q3 2026"></label><label>Remarque <textarea name="notes" rows="2" placeholder="Référence, incoterm, qualité…"></textarea></label><button class="primary-btn full" type="submit">Enregistrer le relevé <span>→</span></button></form></article>
+        <article class="panel form-panel" id="manual"><div class="panel-heading"><div><p class="eyebrow">DONNÉE INTERNE</p><h2>Nouveau prix du bitume</h2></div><span class="form-icon">＋</span></div><p class="panel-intro">Enregistrez un prix pour enrichir l'historique. Pour gérer les conditions, justificatifs et corrections d’un devis, ouvrez <a href="#fournisseurs">Gérer les devis</a>.</p><form id="bitumen-form"><div class="form-grid"><label>Prix <div class="input-wrap"><input type="number" min="0.01" step="0.01" name="price" required placeholder="520.00"><span>USD/t</span></div></label><label>Date source<input type="date" name="source_date" required></label></div><label>Source / fournisseur<input type="text" name="source" required placeholder="Ex. Devis Fournisseur ABC · Q3 2026"></label><label>Remarque <textarea name="notes" rows="2" placeholder="Référence, incoterm, qualité…"></textarea></label><button class="primary-btn full" type="submit">Enregistrer le relevé <span>→</span></button></form></article>
       </div>
 
       <div class="page-view" id="fournisseurs" data-page="fournisseurs" aria-label="Fournisseurs">
+      <section class="panel quote-panel" id="quote-management" aria-labelledby="quote-title">
+        <div class="panel-heading"><div><p class="eyebrow">DOSSIERS FOURNISSEURS</p><h2 id="quote-title">Gérer les devis</h2></div><button type="button" class="primary-btn" id="quote-new">＋ Nouveau devis</button></div>
+        <p class="panel-intro">Qualité, livraison, validité, justificatifs et corrections réunis dans un dossier. Comparez des offres portant sur les mêmes conditions.</p>
+        <form id="quote-filters" class="quote-toolbar"><label>Produit<select name="product"><option value="">Tous</option><option value="gasoil">Gasoil / diesel</option><option value="brent">Brent</option><option value="bitume">Bitume</option></select></label><label>Fournisseur<input name="supplier" maxlength="150" placeholder="Rechercher un fournisseur"></label><button type="submit" class="text-btn">Filtrer</button></form>
+        <p id="quote-list-status" role="status">Chargement des devis…</p>
+        <div class="table-scroll"><table><thead><tr><th>Comparer</th><th>Devis / fournisseur</th><th>Produit / grade</th><th>Livraison</th><th>Validité</th><th>Coût rendu USD</th><th></th></tr></thead><tbody id="quote-list"></tbody></table></div>
+        <div class="quote-toolbar"><button type="button" class="text-btn" id="quote-prev" disabled>← Précédents</button><span id="quote-page"></span><button type="button" class="text-btn" id="quote-next" disabled>Suivants →</button><label>Comparer à la date du<input type="date" id="quote-compare-date" required></label><button type="button" class="primary-btn" id="quote-compare" disabled>Comparer les devis sélectionnés</button><button type="button" class="text-btn" id="quote-clear-selection">Vider la sélection</button></div>
+        <div id="quote-comparison" hidden aria-live="polite"></div>
+        <form id="quote-editor" hidden>
+          <div class="panel-heading"><h3 id="quote-editor-title">Nouveau devis</h3><button type="button" class="text-btn" id="quote-cancel">Fermer</button></div>
+          <input type="hidden" name="expected_version">
+          <fieldset><legend>Produit et qualité</legend><div class="form-grid">
+            <label>Produit<select name="product" id="quote-product"><option value="gasoil">Gasoil / diesel</option><option value="brent">Brent</option><option value="bitume">Bitume</option></select></label>
+            <label>Fournisseur<input name="supplier" maxlength="150" required></label><label>Référence du devis<input name="reference" maxlength="100"></label>
+            <label>Grade<input name="grade" maxlength="100" required placeholder="50/70, diesel 10 ppm…"></label><label>Norme / spécification<input name="specification" maxlength="150" required placeholder="EN 12591, EN 590…"></label><label>Origine<input name="origin" maxlength="100" required placeholder="Pays / raffinerie"></label>
+            <label>Type de pièce commerciale<select name="document_type"><option value="quotation">Devis</option><option value="proforma">Facture pro forma</option><option value="invoice">Facture</option><option value="purchase_order">Bon de commande</option></select></label>
+            <label>Conditionnement<select name="packaging" id="quote-packaging"></select></label><label>Détail du conditionnement<input name="packaging_detail" maxlength="150" placeholder="Obligatoire pour Autre"></label>
+          </div></fieldset>
+          <fieldset><legend>Livraison et validité</legend><div class="form-grid">
+            <label>Incoterm<select name="incoterm" id="quote-incoterm"></select></label><label>Lieu nommé de l’Incoterm<input name="incoterm_place" maxlength="200" required placeholder="Port, dépôt ou adresse"></label><label>Destination<input name="destination" maxlength="200" required></label>
+            <label>Date du devis<input type="date" name="quote_date" required></label><label>Valable jusqu’au<input type="date" name="valid_until" required></label><label>Livraison prévue<input type="date" name="delivery_date" required></label><label>Conditions de paiement<input name="payment_terms" maxlength="200" required placeholder="30 jours, crédit documentaire…"></label>
+          </div></fieldset>
+          <fieldset><legend>Prix et coût rendu</legend><div class="form-grid">
+            <label>Quantité <span id="quote-unit">gallon</span><input type="number" name="quantity" min="0.000001" step="0.000001" required></label>
+            <label>Prix unitaire<input type="number" name="unit_price" min="0.000001" step="0.000001" required></label><label>Devise<input name="currency" id="quote-currency" maxlength="3" pattern="[A-Za-z]{3}" value="USD" required></label><label>USD pour 1 unité de la devise<input type="number" name="exchange_rate" min="0.00000001" step="0.00000001" value="1" required></label>
+          </div><p class="field-help">Suppléments hors prix proposé : montants totaux dans la devise du devis. Saisissez uniquement les frais qui ne sont pas déjà inclus.</p><div class="form-grid" id="quote-cost-fields"></div>
+          <div id="quote-other-costs" class="other-costs"></div><button type="button" class="text-btn" id="quote-add-cost">＋ Ajouter un autre frais</button></fieldset>
+          <div class="form-grid"><label>Statut<select name="status"><option value="active">Actif</option><option value="withdrawn">Retiré</option></select></label><label>Auteur<input name="actor" maxlength="100" value="Équipe achats" required></label><label id="quote-reason-field" hidden>Motif de la correction<input name="change_reason" maxlength="1000"></label></div>
+          <label>Remarques<textarea name="notes" maxlength="2000" rows="2"></textarea></label><p id="quote-editor-message" class="error-note" role="status"></p><button class="primary-btn" type="submit" id="quote-save">Enregistrer le devis</button>
+        </form>
+        <article id="quote-detail" hidden>
+          <div class="panel-heading"><h3 id="quote-detail-title"></h3><div class="export-actions"><button type="button" class="text-btn" id="quote-edit">Corriger</button><button type="button" class="primary-btn" id="quote-budget">Préparer le budget</button><button type="button" class="text-btn" id="quote-detail-close">Fermer</button></div></div>
+          <div id="quote-detail-content"></div>
+          <h3>Justificatifs</h3><div id="quote-documents"></div>
+          <form id="quote-document-form"><div class="form-grid"><label>Fichier<input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.xlsx" required></label><label>Type de document<select name="document_type" id="quote-document-type"></select></label><label>Auteur<input name="actor" maxlength="100" value="Équipe achats" required></label><label>Motif de l’ajout ou du retrait<input name="change_reason" maxlength="1000" required></label></div><p class="field-help">PDF, images, TXT, DOCX ou XLSX sans macros · 5 Mo par document. Les pièces retirées restent dans l’historique.</p><button type="submit" class="text-btn" id="quote-upload">Joindre le justificatif</button><p id="quote-document-message" class="error-note" role="status"></p></form>
+          <h3>Historique des corrections</h3><div id="quote-revisions"></div>
+        </article>
+      </section>
+
       <section class="panel buying-panel" id="buying-guide">
         <div class="panel-heading buying-heading">
           <div><p class="eyebrow">SOURCING & ACHAT</p><h2>Trouver un fournisseur</h2></div>
@@ -187,7 +226,8 @@
       <section class="panel procurement-panel" id="procurement">
         <div class="panel-heading"><div><p class="eyebrow">DÉCISION D'ACHAT</p><h2>Préparer un budget</h2></div><span class="form-icon">▣</span></div>
         <p class="panel-intro">Calculez le coût total, l'écart au budget et l'impact du prix par rapport au dernier relevé de marché.</p>
-        <form id="procurement-form">
+        <p id="procurement-quote-link" hidden role="status"></p><button type="button" class="text-btn" id="procurement-unlink-quote" hidden>Passer à un budget libre</button><form id="procurement-form">
+          <input type="hidden" name="quote_id"><input type="hidden" name="quote_version">
           <div class="form-grid">
             <label>Produit<select name="product" id="procurement-product"><option value="gasoil">Gasoil / diesel</option><option value="brent">Pétrole Brent</option><option value="bitume">Bitume</option></select></label>
             <label>Fournisseur<input type="text" name="supplier" required maxlength="150" placeholder="Ex. Fournisseur ABC"></label>
@@ -197,12 +237,14 @@
             <label>Prix unitaire <div class="input-wrap"><input type="number" name="unit_price" min="0.000001" step="0.0001" required placeholder="81.40"><span id="unit-price-unit">USD/gallon</span></div></label>
             <label>Taux de change <input type="number" name="exchange_rate" id="exchange-rate" min="0.000001" step="0.000001" value="1" required><small class="field-help">USD pour 1 unité de la devise</small></label>
             <label>Transport <input type="number" name="transport_cost" min="0" step="0.01" value="0" placeholder="0"></label>
+          </div><details class="budget-cost-details" open><summary>Suppléments de coût rendu</summary><p class="field-help">Montants totaux dans la devise du budget, hors frais déjà inclus dans le prix unitaire. Devise : <span id="procurement-cost-currency">USD</span>.</p><div class="form-grid">
+<label>Assurance<input type="number" name="insurance_cost" min="0" step="0.000001" value="0"></label><label>Inspection<input type="number" name="inspection_cost" min="0" step="0.000001" value="0"></label><label>Droits de douane<input type="number" name="duties_cost" min="0" step="0.000001" value="0"></label><label>Taxes<input type="number" name="taxes_cost" min="0" step="0.000001" value="0"></label><label>Stockage<input type="number" name="storage_cost" min="0" step="0.000001" value="0"></label><label>Chauffage<input type="number" name="heating_cost" min="0" step="0.000001" value="0"></label><label>Frais financiers<input type="number" name="finance_cost" min="0" step="0.000001" value="0"></label></div><div id="procurement-other-costs" class="other-costs"></div><button type="button" class="text-btn" id="procurement-add-cost">＋ Ajouter un autre frais</button></details><div class="form-grid">
             <label>Budget prévu <input type="number" name="budget_amount" min="0" step="0.01" placeholder="Optionnel"></label>
           </div>
-          <label>Remarque<textarea name="notes" rows="2" maxlength="500" placeholder="Incoterm, référence de commande, conditions…"></textarea></label>
+          <label>Remarque<textarea name="notes" rows="2" maxlength="500" placeholder="Précisions sur l’estimation…"></textarea></label>
           <button class="primary-btn" type="submit">Calculer l'impact d'achat <span>→</span></button>
         </form>
-        <div id="procurement-summary" class="purchase-summary" hidden></div>
+        <div id="procurement-summary" class="purchase-summary" hidden></div><div id="procurement-breakdown" hidden></div>
         <div class="procurement-history-state" id="procurement-history-state" role="status"><p id="procurement-history-message">Chargement de l'historique des achats…</p><button class="text-btn" type="button" id="procurement-history-retry" hidden>Réessayer</button></div>
         <div class="table-scroll procurement-history" id="procurement-history-table" hidden><table><thead><tr><th>Date</th><th>Produit</th><th>Fournisseur</th><th>Quantité</th><th>Total</th><th>Écart budget</th><th>Impact prix</th></tr></thead><tbody id="procurement-table"></tbody></table></div>
       </section>
@@ -224,5 +266,6 @@
   </div>
   <script src="/static/connectivity.js"></script>
   <script src="/static/app.js"></script>
+  <script src="/static/quotes.js"></script>
 </body>
 </html>

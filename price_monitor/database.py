@@ -21,6 +21,9 @@ from .config import (
     MySQLSettings,
 )
 from .bitumen import INDEX_CODE, INDEX_LABEL, INDEX_UNIT, benchmark_payload
+from .quote_store import QuoteStoreMixin, json_text
+from .quotes import QuoteConflict
+from .quotes import COST_FIELDS, EXTRA_COST_FIELDS, landed_costs
 from .services.comparison import SOURCE_CODE_BY_LABEL, compare_api_prices
 from .instruments import (
     INSTRUMENTS, DEFAULT_INSTRUMENTS, LIVE_INSTRUMENTS,
@@ -329,6 +332,16 @@ class DatabaseBackend(Protocol):
 
     def procurements(self, limit: int = 100) -> list[dict[str, Any]]: ...
 
+    def quotes(self, *, page: int = 1, page_size: int = 20, product: str | None = None, supplier: str = "") -> dict: ...
+    def quote(self, quote_id: int) -> dict: ...
+    def create_quote(self, payload: dict) -> dict: ...
+    def update_quote(self, quote_id: int, payload: dict) -> dict: ...
+    def quote_history(self, quote_id: int) -> list[dict]: ...
+    def attach_quote_document(self, quote_id: int, payload: dict) -> dict: ...
+    def remove_quote_document(self, quote_id: int, document_id: int, payload: dict) -> dict: ...
+    def quote_document(self, quote_id: int, document_id: int) -> dict: ...
+    def compare_quotes(self, quote_ids: list[int], as_of: str | None = None) -> dict: ...
+
     def insert_benchmark(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
     def latest_benchmarks(self, product: str | None = None, limit: int = 20) -> list[dict[str, Any]]: ...
@@ -430,7 +443,7 @@ def run_sqlite_migrations(connection: sqlite3.Connection, migrations_dir: Path =
     return newly_applied
 
 
-class SQLiteDatabase:
+class SQLiteDatabase(QuoteStoreMixin):
     """SQLite persistence backend used locally and by default."""
 
     _lock = threading.RLock()
@@ -899,6 +912,13 @@ class SQLiteDatabase:
 
     def create_procurement(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Create a purchase estimate and compare it with the latest USD market price."""
+        linked_quote = None
+        if payload.get("quote_id") not in (None, ""):
+            linked_quote = self.quote(int(payload["quote_id"]))
+            if str(payload.get("quote_version")) != str(linked_quote["version"]):
+                raise QuoteConflict("Ce devis a changé. Rechargez-le avant de préparer le budget.")
+            payload = {**payload, **{key: linked_quote[key] for key in
+                       ("product", "supplier", "quantity", "unit", "currency", "unit_price", "exchange_rate", *COST_FIELDS, "other_costs")}}
         product = str(payload.get("product", "")).lower().strip()
         if product not in PRODUCTS:
             raise ValueError("Produit inconnu. Utilisez gasoil, brent ou bitume.")
@@ -937,12 +957,9 @@ class SQLiteDatabase:
         if not math.isfinite(exchange_rate) or exchange_rate <= 0:
             raise ValueError("Le taux de change doit être supérieur à zéro.")
 
-        try:
-            transport_cost = float(payload.get("transport_cost") or 0)
-        except (TypeError, ValueError):
-            raise ValueError("Le transport doit être numérique.") from None
-        if not math.isfinite(transport_cost) or transport_cost < 0:
-            raise ValueError("Le transport doit être positif ou nul.")
+        costs = landed_costs(payload)
+        quantity, unit_price, exchange_rate = costs["quantity"], costs["unit_price"], costs["exchange_rate"]
+        transport_cost = costs["transport_cost"]
 
         budget_raw = payload.get("budget_amount")
         budget_amount: float | None
@@ -962,13 +979,19 @@ class SQLiteDatabase:
             else payload.get("purchase_date")
         )
         notes = str(payload.get("notes") or "")[:500]
-        total_cost = round(quantity * unit_price + transport_cost, 6)
-        total_cost_usd = round(total_cost * exchange_rate, 6)
+        if linked_quote and (linked_quote["status"] != "active" or not linked_quote["quote_date"] <= purchase_date <= linked_quote["valid_until"]):
+            raise ValueError("Le devis doit être actif et valide à la date d’achat prévue.")
+        total_cost = costs["total_cost"]
+        total_cost_usd = costs["total_cost_usd"]
         budget_variance = round(total_cost - budget_amount, 6) if budget_amount is not None else None
         budget_variance_usd = round(budget_variance * exchange_rate, 6) if budget_variance is not None else None
 
         market_row = next((row for row in self.latest_by_instrument() if row["instrument"] == DEFAULT_INSTRUMENTS[product]), None)
         with self._lock, self.connect() as conn:
+            if linked_quote:
+                current = conn.execute("SELECT version FROM supplier_quotes WHERE id=?", (linked_quote["id"],)).fetchone()
+                if current is None or dict(current)["version"] != linked_quote["version"]:
+                    raise QuoteConflict("Ce devis a changé. Rechargez-le avant de préparer le budget.")
             market_price_usd = float(market_row["price"]) if market_row else None
             unit_price_usd = unit_price * exchange_rate
             price_impact_unit_usd = (
@@ -985,24 +1008,37 @@ class SQLiteDatabase:
                 else None
             )
             created_at = self._datetime_value(datetime.now(timezone.utc).replace(microsecond=0).isoformat())
-            cur = conn.execute(
-                """INSERT INTO procurement_purchases
-                (product, supplier, quantity, unit, currency, unit_price, exchange_rate,
-                 transport_cost, budget_amount, purchase_date, total_cost, total_cost_usd,
-                 budget_variance, budget_variance_usd, market_price_usd, price_impact_unit_usd,
-                 price_impact_total_usd, price_impact_pct, notes, created_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    product, supplier, quantity, unit, currency, unit_price, exchange_rate,
-                    transport_cost, budget_amount, purchase_date, total_cost, total_cost_usd,
-                    budget_variance, budget_variance_usd, market_price_usd, price_impact_unit_usd,
-                    price_impact_total_usd, price_impact_pct, notes, created_at,
-                ),
-            )
-            record = conn.execute(
-                "SELECT * FROM procurement_purchases WHERE id=?", (cur.lastrowid,)
-            ).fetchone()
-            return dict(record)
+            columns = ("product", "supplier", "quantity", "unit", "currency", "unit_price", "exchange_rate",
+                       "transport_cost", "budget_amount", "purchase_date", "total_cost", "total_cost_usd",
+                       "budget_variance", "budget_variance_usd", "market_price_usd", "price_impact_unit_usd",
+                       "price_impact_total_usd", "price_impact_pct", "notes", "created_at",
+                       *EXTRA_COST_FIELDS, "other_costs_json", "quote_id", "quote_version", "quote_snapshot_json")
+            values = (product, supplier, quantity, unit, currency, unit_price, exchange_rate,
+                      transport_cost, budget_amount, purchase_date, total_cost, total_cost_usd,
+                      budget_variance, budget_variance_usd, market_price_usd, price_impact_unit_usd,
+                      price_impact_total_usd, price_impact_pct, notes, created_at,
+                      *[costs[key] for key in EXTRA_COST_FIELDS], json_text(costs["other_costs"]),
+                      linked_quote["id"] if linked_quote else None, linked_quote["version"] if linked_quote else None,
+                      json_text(linked_quote) if linked_quote else None)
+            cur = conn.execute(f"INSERT INTO procurement_purchases({','.join(columns)}) VALUES({','.join('?' for _ in columns)})", values)
+            record = conn.execute("SELECT * FROM procurement_purchases WHERE id=?", (cur.lastrowid,)).fetchone()
+            return self._procurement_record(record)
+
+    @staticmethod
+    def _procurement_record(record) -> dict:
+        row = dict(record)
+        row["other_costs"] = json.loads(row.pop("other_costs_json", None) or "[]")
+        row["quote_snapshot"] = json.loads(row.pop("quote_snapshot_json", None) or "null")
+        quantity, price, rate = float(row["quantity"]), float(row["unit_price"]), float(row["exchange_rate"])
+        breakdown = [{"key": "merchandise", "label": "Marchandise", "amount": round(quantity * price, 6)}]
+        breakdown += [{"key": key, "label": label, "amount": float(row.get(key) or 0)} for key, label in COST_FIELDS.items()]
+        breakdown += [{"key": "other", **item} for item in row["other_costs"]]
+        for item in breakdown:
+            item["amount_usd"] = round(item["amount"] * rate, 6)
+        row.update({"cost_breakdown": breakdown, "merchandise_cost": breakdown[0]["amount"],
+                    "additional_cost": round(sum(item["amount"] for item in breakdown[1:]), 6),
+                    "landed_unit_cost_usd": round(float(row["total_cost_usd"]) / quantity, 6)})
+        return row
 
     def procurements(self, limit: int = 100) -> list[dict[str, Any]]:
         safe_limit = max(1, min(int(limit), 1000))
@@ -1012,7 +1048,7 @@ class SQLiteDatabase:
                 ORDER BY purchase_date DESC, id DESC LIMIT ?""",
                 (safe_limit,),
             ).fetchall()
-            return [dict(row) for row in rows]
+            return [self._procurement_record(row) for row in rows]
 
     def history(
         self,

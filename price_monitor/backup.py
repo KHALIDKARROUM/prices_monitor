@@ -50,6 +50,7 @@ def backup_mysql(destination: Path) -> Path:
         f"--port={MYSQL_SETTINGS.port}",
         f"--user={MYSQL_SETTINGS.user}",
         "--single-transaction",
+        "--hex-blob",
         "--routines",
         "--events",
         "--set-gtid-purged=OFF",

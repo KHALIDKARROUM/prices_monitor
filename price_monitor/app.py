@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hmac
 import mimetypes
+import re
 import threading
 import time
 import uuid
@@ -10,7 +11,7 @@ from collections import deque
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, quote as url_quote
 
 from .config import (
     API_KEY,
@@ -37,12 +38,18 @@ from .services.alerts import AlertManager
 from .services.procurement import build_procurement_guide
 from .services.scheduler import CollectionScheduler, run_collection
 from .services.connectivity import ConnectivityMonitor
+from .quotes import INCOTERMS, DOCUMENT_TYPES, PACKAGING, COST_FIELDS, QuoteConflict, QuoteNotFound
+from .quote_store import MAX_DOCUMENT_BYTES, DOCUMENT_FORMATS
 
 
 ROOT = Path(__file__).resolve().parent
 database = create_database()
 scheduler = CollectionScheduler(database)
 connectivity = ConnectivityMonitor()
+
+
+class QuotePayloadTooLarge(ValueError):
+    pass
 
 
 class RateLimiter:
@@ -275,6 +282,45 @@ class Handler(BaseHTTPRequestHandler):
             return True
         return self._protect_api()
 
+    def _quote_payload(self) -> dict:
+        length = int(self.headers.get("Content-Length", "0"))
+        if length < 0 or length > 8 * 1024 * 1024:
+            self.close_connection = True
+            raise QuotePayloadTooLarge("La requête est trop volumineuse. Un document est limité à 5 Mo.")
+        if self.headers.get("Content-Type", "").split(";", 1)[0] != "application/json":
+            raise ValueError("Envoyez un objet JSON.")
+        payload = json.loads(self.rfile.read(length) or b"{}")
+        if not isinstance(payload, dict):
+            raise ValueError("Envoyez un objet JSON.")
+        return payload
+
+    def _quote_get(self, path: str, query: dict) -> None:
+        if not self._protect_local_records():
+            return
+        if path == "/api/quotes/options":
+            return self.send_json({"incoterms": INCOTERMS, "document_types": DOCUMENT_TYPES, "packaging": PACKAGING,
+                                   "cost_fields": COST_FIELDS, "max_document_bytes": MAX_DOCUMENT_BYTES,
+                                   "document_formats": list(DOCUMENT_FORMATS)})
+        if path == "/api/quotes":
+            return self.send_json(database.quotes(page=int(query.get("page", [1])[0]), page_size=int(query.get("page_size", [20])[0]),
+                                                   product=query.get("product", [None])[0] or None, supplier=query.get("supplier", [""])[0]))
+        if path == "/api/quotes/compare":
+            ids = [int(value) for value in query.get("ids", [""])[0].split(",") if value]
+            return self.send_json(database.compare_quotes(ids, query.get("as_of", [None])[0]))
+        match = re.fullmatch(r"/api/quotes/([1-9]\d*)(?:/(history|documents)/?([1-9]\d*)?)?", path)
+        if match:
+            quote_id, action, document_id = match.groups()
+            if action == "history" and not document_id:
+                return self.send_json({"revisions": database.quote_history(int(quote_id))})
+            if action == "documents" and document_id:
+                document = database.quote_document(int(quote_id), int(document_id))
+                return self.send_data(bytes(document["content"]), document["content_type"], headers={
+                    "Content-Disposition": "attachment; filename=\"document\"; filename*=UTF-8''" + url_quote(document["filename"], safe=""),
+                    "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+            if action is None:
+                return self.send_json({"quote": database.quote(int(quote_id))})
+        return self.send_json({"error": "Route introuvable"}, 404)
+
     def _health(self, live: bool = False) -> None:
         if live:
             return self.send_json({"status": "ok", "service": "price-monitor"})
@@ -321,6 +367,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/") and not self._rate_limit():
                 return
+            if parsed.path == "/api/quotes" or parsed.path.startswith("/api/quotes/"):
+                return self._quote_get(parsed.path, query)
             if parsed.path == "/api/connectivity":
                 payload = connectivity.snapshot()
                 logs = database.logs(limit=1)
@@ -392,6 +440,10 @@ class Handler(BaseHTTPRequestHandler):
                 body = xlsx_bytes(database.iter_history(**history_filters(query)))
                 return self.send_data(body, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=price-observations.xlsx"})
             return self.send_json({"error": "Route introuvable"}, 404)
+        except QuoteNotFound as exc:
+            return self.send_json({"error": str(exc)}, 404)
+        except QuoteConflict as exc:
+            return self.send_json({"error": str(exc)}, 409)
         except ValueError as exc:
             return self.send_json({"error": str(exc)}, 400)
         except Exception as exc:
@@ -403,6 +455,16 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/") and not self._rate_limit():
                 return
+            if parsed.path == "/api/quotes" or parsed.path.startswith("/api/quotes/"):
+                if not self._protect_local_records():
+                    return
+                payload = self._quote_payload()
+                if parsed.path == "/api/quotes":
+                    return self.send_json({"quote": database.create_quote(payload)}, 201)
+                match = re.fullmatch(r"/api/quotes/([1-9]\d*)/documents", parsed.path)
+                if match:
+                    return self.send_json({"quote": database.attach_quote_document(int(match[1]), payload)}, 201)
+                return self.send_json({"error": "Route introuvable"}, 404)
             if parsed.path == "/api/collect":
                 if not self._protect_collection():
                     return
@@ -429,6 +491,12 @@ class Handler(BaseHTTPRequestHandler):
                 refresh_alert_states()
                 return self.send_json({"status": "success", "alert": record}, 201)
             return self.send_json({"error": "Route introuvable"}, 404)
+        except QuotePayloadTooLarge as exc:
+            return self.send_json({"error": str(exc)}, 413)
+        except QuoteNotFound as exc:
+            return self.send_json({"error": str(exc)}, 404)
+        except QuoteConflict as exc:
+            return self.send_json({"error": str(exc)}, 409)
         except ValueError as exc:
             return self.send_json({"error": str(exc)}, 400)
         except Exception as exc:
@@ -440,6 +508,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/") and not self._rate_limit():
                 return
+            match = re.fullmatch(r"/api/quotes/([1-9]\d*)", parsed.path)
+            if match:
+                if not self._protect_local_records():
+                    return
+                return self.send_json({"quote": database.update_quote(int(match[1]), self._quote_payload())})
             if alert_rule_id(parsed.path) is None or not self._protect_local_alerts():
                 return self.send_json({"error": "Route introuvable"}, 404) if alert_rule_id(parsed.path) is None else None
             length = int(self.headers.get("Content-Length", 0))
@@ -447,6 +520,12 @@ class Handler(BaseHTTPRequestHandler):
             record = database.update_alert_rule(alert_rule_id(parsed.path), payload)
             refresh_alert_states()
             return self.send_json({"status": "success", "alert": record})
+        except QuotePayloadTooLarge as exc:
+            return self.send_json({"error": str(exc)}, 413)
+        except QuoteNotFound as exc:
+            return self.send_json({"error": str(exc)}, 404)
+        except QuoteConflict as exc:
+            return self.send_json({"error": str(exc)}, 409)
         except ValueError as exc:
             return self.send_json({"error": str(exc)}, 400)
         except Exception as exc:
@@ -458,6 +537,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/") and not self._rate_limit():
                 return
+            match = re.fullmatch(r"/api/quotes/([1-9]\d*)/documents/([1-9]\d*)", parsed.path)
+            if match:
+                if not self._protect_local_records():
+                    return
+                return self.send_json({"quote": database.remove_quote_document(int(match[1]), int(match[2]), self._quote_payload())})
             rule_id = alert_rule_id(parsed.path)
             if rule_id is None:
                 return self.send_json({"error": "Route introuvable"}, 404)
@@ -465,6 +549,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             database.delete_alert_rule(rule_id)
             return self.send_json({"status": "success", "deleted": rule_id})
+        except QuotePayloadTooLarge as exc:
+            return self.send_json({"error": str(exc)}, 413)
+        except QuoteNotFound as exc:
+            return self.send_json({"error": str(exc)}, 404)
+        except QuoteConflict as exc:
+            return self.send_json({"error": str(exc)}, 409)
         except ValueError as exc:
             return self.send_json({"error": str(exc)}, 400)
         except Exception as exc:

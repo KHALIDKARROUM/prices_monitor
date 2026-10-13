@@ -126,6 +126,22 @@ Pour le bitume, 30 observations mensuelles sont nécessaires. Le même protocole
 
 Dans Veille, choisissez « Bitume », puis « Indice mensuel BLS » ou « Devis fournisseur ». Le champ `basis=index` surveille uniquement l'indice; `basis=quote` conserve les seuils USD/tonne existants. Les budgets et achats utilisent uniquement les devis, jamais l'indice. Le notebook et les rapports incluent une analyse mensuelle distincte (`bitumen_statistics.csv`, `bitumen_forecast.json`, `bitumen_backtest.csv`, `eda_bitumen_index.png`).
 
+## Devis fournisseurs et coûts rendus
+
+Dans **Fournisseurs → Gérer les devis**, créez un dossier avec fournisseur, référence, grade, norme, origine, Incoterm et lieu nommé, destination, quantité/unité, conditionnement, livraison, paiement, date de devis, validité et type de pièce commerciale. Les dossiers sont distincts des relevés publics de marché et des indices BLS. Les anciens relevés et budgets sont conservés; les conditions commerciales manquantes ne sont pas devinées à partir de leurs notes.
+
+**Corriger** exige un motif et conserve une nouvelle version avec valeurs avant/après, auteur déclaré et horodatage UTC. Un numéro de version attendu empêche une correction ancienne d’écraser une modification concurrente (réponse `409`). L’auteur est une indication saisie par l’équipe, pas une identité individuelle authentifiée : l’application conserve son contrôle d’accès existant par clé API et son exception de développement local.
+
+Joignez PDF, PNG/JPEG, TXT UTF-8, DOCX ou XLSX sans macros : **5 Mo par pièce**, **50 Mo par dossier**, historique compris. Chaque pièce conserve son type, nom, taille et empreinte SHA-256. Les téléchargements passent par les routes privées du dossier, avec disposition pièce jointe. **Retirer** demande un motif et masque la pièce des justificatifs actifs; ses octets restent consultables dans l’historique. Les documents sont stockés dans la base : la sauvegarde SQLite et le dump MySQL (avec `--hex-blob`) les incluent.
+
+Sélectionnez **2 à 6 devis** pour une comparaison côte à côte. Le classement utilise le coût rendu total en USD, avec le taux enregistré de chaque offre. Il n’est affiché que si produit, grade, norme, origine, Incoterm/lieu, destination, quantité/unité, conditionnement, livraison, paiement et type commercial correspondent et si toutes les offres sont actives et valides à la date choisie. Les différences restent visibles sans faux gagnant. La comparaison lit les versions actuelles; le choix de date contrôle leur validité et ne reconstruit pas une ancienne version du dossier.
+
+Le budget comprend **marchandise + transport + assurance + inspection + droits + taxes + stockage + chauffage + frais financiers + autres frais nommés**. Tous les frais sont des montants totaux dans la devise du budget, ajoutés hors prix unitaire; un coût déjà inclus ne doit pas être ajouté une seconde fois. Les taux, taxes et frais sont saisis par l’utilisateur, sans estimation réglementaire automatique. Le détail, la conversion USD, le coût rendu par unité et l’écart au budget sont enregistrés.
+
+**Préparer le budget** depuis un dossier reprend ses montants et conserve une copie de cette version, y compris les conditions et métadonnées des justificatifs. Une correction ultérieure ne modifie jamais l’estimation déjà enregistrée. **Passer à un budget libre** permet de préparer une autre estimation sans lien avec le devis.
+
+La migration **011**, exécutée au démarrage dans SQLite et MySQL, ajoute les tables et champs sans modifier les montants historiques. Redémarrez l’application après la mise à jour. Les nouveaux coûts des anciens budgets valent zéro. Les routes `/api/quotes`, `/api/quotes/{id}/history`, `/api/quotes/compare` et les routes documentaires sont décrites dans `/openapi.json`; elles utilisent la protection des données locales existante.
+
 ## API locale
 
 Les routes d'écriture sont protégées par une clé API. L'historique détaillé et sa comparaison restent publics en lecture seule afin que le tableau de bord fonctionne sans transmettre de secret. Définissez `PRICE_MONITOR_API_KEY` dans `.env` avec une valeur longue et aléatoire, puis envoyez-la avec `X-API-Key` ou `Authorization: Bearer <clé>` pour collecter, ajouter ou modifier des données. La clé n'est jamais acceptée dans l'URL.

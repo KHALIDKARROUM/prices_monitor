@@ -182,3 +182,61 @@ for path in ("/export.csv", "/export.xlsx"):
         OPENAPI_SPEC["paths"][path]["get"]["description"] += " Les données continuent sur une nouvelle feuille après 1 048 575 lignes, avec un en-tête sur chaque feuille."
     history_parameters = OPENAPI_SPEC["paths"]["/api/history"]["get"]["parameters"]
     OPENAPI_SPEC["paths"][path]["get"]["parameters"] = [parameter for parameter in history_parameters if parameter.get("$ref") not in {"#/components/parameters/Page", "#/components/parameters/PageSize"}]
+
+# Structured supplier quotes and their private evidence.
+from .quotes import COST_FIELDS, QUOTE_TEXT_FIELDS, INCOTERMS, PACKAGING, DOCUMENT_TYPES
+quote_properties = {key: {"type": "string", "maxLength": maximum} for key, maximum in QUOTE_TEXT_FIELDS.items()}
+quote_properties.update({
+    "product": {"type": "string", "enum": ["gasoil", "brent", "bitume"]},
+    "unit": {"type": "string", "enum": ["gallon", "baril", "tonne"]},
+    "incoterm": {"type": "string", "enum": list(INCOTERMS)},
+    "document_type": {"type": "string", "enum": ["quotation", "proforma", "invoice", "purchase_order"]},
+    "packaging": {"type": "string", "enum": list(PACKAGING)},
+    "status": {"type": "string", "enum": ["active", "withdrawn"]},
+    **{key: {"type": "string", "format": "date"} for key in ("quote_date", "valid_until", "delivery_date")},
+    **{key: {"type": "number", "exclusiveMinimum": 0} for key in ("quantity", "unit_price", "exchange_rate")},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    **{key: {"type": "number", "minimum": 0, "description": label + " : montant total hors prix unitaire, dans la devise du devis."} for key, label in COST_FIELDS.items()},
+    "other_costs": {"type": "array", "maxItems": 20, "items": {"type": "object", "required": ["label", "amount"], "properties": {"label": {"type": "string", "maxLength": 100}, "amount": {"type": "number", "minimum": 0}}}},
+    "actor": {"type": "string", "maxLength": 100, "description": "Auteur déclaré de la modification."},
+    "change_reason": {"type": "string", "maxLength": 1000},
+    "expected_version": {"type": "integer", "minimum": 1},
+})
+OPENAPI_SPEC["components"]["schemas"]["QuoteInput"] = {"type": "object", "properties": quote_properties,
+    "required": ["product", "supplier", "grade", "specification", "origin", "incoterm", "incoterm_place", "destination", "payment_terms", "quote_date", "valid_until", "delivery_date", "quantity", "unit_price"]}
+OPENAPI_SPEC["components"]["schemas"]["QuoteCorrection"] = {"type": "object", "properties": quote_properties, "required": ["expected_version", "change_reason"]}
+OPENAPI_SPEC["components"]["schemas"]["QuoteDocumentInput"] = {"type": "object", "required": ["filename", "document_type", "content_base64", "expected_version"], "properties": {
+    "filename": {"type": "string", "maxLength": 180}, "document_type": {"type": "string", "enum": list(DOCUMENT_TYPES)},
+    "content_base64": {"type": "string", "format": "byte", "description": "PDF, PNG, JPEG, TXT UTF-8, DOCX ou XLSX sans macros; 5 Mo de contenu maximum."},
+    "expected_version": {"type": "integer", "minimum": 1}, "actor": {"type": "string", "maxLength": 100}, "change_reason": {"type": "string", "maxLength": 1000}}}
+quote_security = [{"ApiKeyHeader": []}, {"BearerAuth": []}]
+quote_id_parameter = {"name": "id", "in": "path", "required": True, "schema": {"type": "integer", "minimum": 1}}
+quote_document_parameter = {"name": "document_id", "in": "path", "required": True, "schema": {"type": "integer", "minimum": 1}}
+quote_responses = {"400": {"description": "Champs invalides"}, "401": {"description": "Authentification requise"}, "404": {"description": "Devis ou document introuvable"}, "409": {"description": "Version modifiée : recharger avant correction"}, "413": {"description": "Document ou requête trop volumineux"}}
+def quote_operation(summary, success="200", schema=None, parameters=None):
+    operation = {"tags": ["procurement"], "summary": summary, "security": quote_security, "responses": {success: {"description": summary}, **quote_responses}}
+    if schema:
+        operation["requestBody"] = {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/" + schema}}}}
+    if parameters:
+        operation["parameters"] = parameters
+    return operation
+OPENAPI_SPEC["paths"].update({
+    "/api/quotes": {"description": "Devis privés, distincts des relevés de marché. Même exception de développement local que /api/procurements.",
+        "get": quote_operation("Devis paginés", parameters=[{"$ref": "#/components/parameters/Page"}, {"$ref": "#/components/parameters/PageSize"}, {"$ref": "#/components/parameters/Product"}, {"name": "supplier", "in": "query", "schema": {"type": "string"}}]),
+        "post": quote_operation("Créer un devis et sa première version", "201", "QuoteInput")},
+    "/api/quotes/options": {"get": quote_operation("Listes de choix, coûts et limites documentaires")},
+    "/api/quotes/compare": {"get": quote_operation("Comparer 2 à 6 devis équivalents; aucun classement si les conditions ou la validité diffèrent", parameters=[{"name": "ids", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Identifiants distincts séparés par des virgules"}, {"name": "as_of", "in": "query", "schema": {"type": "string", "format": "date"}}])},
+    "/api/quotes/{id}": {"get": quote_operation("Lire les conditions, coûts et pièces du devis", parameters=[quote_id_parameter]), "put": quote_operation("Corriger sans écraser une modification concurrente", schema="QuoteCorrection", parameters=[quote_id_parameter])},
+    "/api/quotes/{id}/history": {"get": quote_operation("Historique des versions avec auteur déclaré, motif et snapshots avant/après", parameters=[quote_id_parameter])},
+    "/api/quotes/{id}/documents": {"post": quote_operation("Joindre un justificatif et créer une version", "201", "QuoteDocumentInput", [quote_id_parameter])},
+    "/api/quotes/{id}/documents/{document_id}": {"get": quote_operation("Télécharger une pièce, y compris une pièce retirée conservée dans l’historique", parameters=[quote_id_parameter, quote_document_parameter]), "delete": quote_operation("Retirer une pièce tout en conservant ses octets et son historique", schema="QuoteCorrection", parameters=[quote_id_parameter, quote_document_parameter])},
+})
+OPENAPI_SPEC["components"]["schemas"]["ProcurementInput"]["properties"].update({
+    **{key: quote_properties[key] for key in COST_FIELDS}, "other_costs": quote_properties["other_costs"],
+    "quote_id": {"type": "integer", "minimum": 1, "description": "Utilise les montants et conditions du devis; seuls date d’achat, budget et notes restent personnalisables."},
+    "quote_version": {"type": "integer", "minimum": 1, "description": "Version actuelle attendue; sa copie reste attachée au budget après les corrections futures."},
+})
+# A quote-linked estimate supplies commercial fields from its versioned source.
+OPENAPI_SPEC["components"]["schemas"]["ProcurementInput"]["required"] = []
+OPENAPI_SPEC["components"]["schemas"]["ProcurementInput"]["anyOf"] = [
+    {"required": ["quote_id", "quote_version"]}, {"required": ["product", "supplier", "quantity", "unit_price", "currency", "exchange_rate"]}]

@@ -72,9 +72,9 @@ def test_mysql_migrations_are_tracked_and_idempotent():
     first_run = run_mysql_migrations(connection)
     second_run = run_mysql_migrations(connection)
 
-    assert first_run == ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"]
+    assert first_run == ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011"]
     assert second_run == []
-    assert connection.versions == {"001", "002", "003", "004", "005", "006", "007", "008", "009", "010"}
+    assert connection.versions == {"001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011"}
     assert sum("idx_collection_logs_status" in statement for statement in connection.executed) == 1
 
 

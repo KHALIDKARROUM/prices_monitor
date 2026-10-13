@@ -127,6 +127,24 @@ textarea { resize: vertical; }
 .forecast-quality strong { display: block; font-size: 12px; }
 .forecast-quality p { margin: 7px 0 0; line-height: 1.5; }
 .forecast-quality.has-warning { color: #f5c678; background: rgba(245,198,120,.06); border-color: rgba(245,198,120,.4); }
+.quote-toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 14px; margin: 16px 0; }
+.quote-toolbar label { margin: 0; min-width: 160px; }
+.quote-panel fieldset { margin: 20px 0; padding: 16px; border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
+.quote-panel legend { padding: 0 8px; font-size: 13px; }
+#quote-editor, #quote-detail, #quote-comparison { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.other-cost-row { display: grid; grid-template-columns: minmax(140px,2fr) minmax(90px,1fr) auto; align-items: end; gap: 12px; margin: 12px 0; }
+.quote-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 14px; padding: 16px 0; }
+.quote-fields dt { color: var(--muted); font-size: 11px; }
+.quote-fields dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.quote-document { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.quote-document .retired { color: var(--muted); }
+.quote-revision, .budget-cost-details { margin: 14px 0; padding: 12px; border: 1px solid var(--line); border-radius: 5px; }
+.quote-revision summary, .budget-cost-details summary { cursor: pointer; }
+.quote-comparison-table td, .quote-comparison-table th { white-space: normal; min-width: 160px; vertical-align: top; }
+.quote-comparison-table .non-equivalent { color: #f5c678; background: rgba(245,198,120,.06); }
+.quote-comparison-table .best-quote { background: rgba(94,234,212,.06); }
+#procurement-breakdown { margin: 18px 0; }
+@media (max-width: 600px) { .other-cost-row { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } .other-cost-row button { grid-column: span 2; } }
 .forecast-chart-wrap { height: 230px; margin-top: 14px; }
 .forecast-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
 .forecast-stats span, .purchase-stat span { display: block; color: var(--muted); font-size: 10px; margin-bottom: 6px; }

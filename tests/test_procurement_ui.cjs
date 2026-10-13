@@ -13,6 +13,7 @@ function budget(fetch) {
       const classes = new Set();
       elements.set(selector, {
         hidden: false, innerHTML: '', textContent: '',
+        addEventListener(type, listener) { this.listener = listener; },
         classList: { toggle(name, enabled) { enabled ? classes.add(name) : classes.delete(name); }, contains: name => classes.has(name) }
       });
     }
@@ -60,4 +61,20 @@ test('saved estimates show the history table and calculated amounts', async () =
   assert.match($('#procurement-table').innerHTML, /Bitume/);
   assert.match($('#procurement-table').innerHTML, /10 tonne/);
   assert.match($('#procurement-table').innerHTML, /100 USD/);
+});
+
+test('an older server cannot silently save a budget while dropping the new charges', async () => {
+  let saved = false;
+  const { $, context } = budget(async () => { saved = true; return { ok: true, json: async () => ({}) }; });
+  let message = '';
+  context.FormData = function () { return [['product', 'bitume'], ['insurance_cost', '50']]; };
+  context.showToast = text => { message = text; };
+  context.quoteOptions = null;
+  context.initialiseQuotes = async () => {};
+  const start = source.indexOf("$('#procurement-form').addEventListener('submit'");
+  const end = source.indexOf("$('#history-filters').addEventListener", start);
+  vm.runInContext(source.slice(start, end), context);
+  await $('#procurement-form').listener({ preventDefault() {}, target: {} });
+  assert.equal(saved, false);
+  assert.match(message, /calcul complet est indisponible/);
 });

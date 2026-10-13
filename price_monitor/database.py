@@ -1551,7 +1551,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
     def get_alert_state(self, alert_key: str) -> dict[str, Any] | None:
         with self.connect() as conn:
             row = conn.execute(
-                "SELECT alert_key, active, last_value, last_notified_at, updated_at, last_status FROM alert_states WHERE alert_key=?",
+                "SELECT alert_key, active, `last_value`, last_notified_at, updated_at, last_status FROM alert_states WHERE alert_key=?",
                 (alert_key,),
             ).fetchone()
             return dict(row) if row else None
@@ -1574,7 +1574,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             if existing:
                 conn.execute(
                     """UPDATE alert_states
-                    SET active=?, last_value=?, last_notified_at=CASE WHEN ? THEN NULL ELSE COALESCE(?, last_notified_at) END,
+                    SET active=?, `last_value`=?, last_notified_at=CASE WHEN ? THEN NULL ELSE COALESCE(?, last_notified_at) END,
                         updated_at=?, last_status=COALESCE(?, last_status)
                     WHERE alert_key=?""",
                     (int(active), last_value, int(clear_notified), notified_value, self._datetime_value(updated_at), last_status, alert_key),
@@ -1582,7 +1582,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             else:
                 conn.execute(
                     """INSERT INTO alert_states
-                    (alert_key, active, last_value, last_notified_at, updated_at, last_status)
+                    (alert_key, active, `last_value`, last_notified_at, updated_at, last_status)
                     VALUES(?,?,?,?,?,?)""",
                     (alert_key, int(active), last_value, notified_value, self._datetime_value(updated_at), last_status or "normal"),
                 )
@@ -1666,7 +1666,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                 row = dict(raw)
                 key = self._alert_key(row["product"], row["direction"], float(row["threshold"]), row["basis"], row["instrument"])
                 state_row = conn.execute(
-                    "SELECT active, last_value, last_notified_at, updated_at, last_status FROM alert_states WHERE alert_key=?",
+                    "SELECT active, `last_value`, last_notified_at, updated_at, last_status FROM alert_states WHERE alert_key=?",
                     (key,),
                 ).fetchone()
                 state = dict(state_row) if state_row else {}

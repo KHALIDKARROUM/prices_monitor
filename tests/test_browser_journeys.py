@@ -73,7 +73,8 @@ def journey(browser_app, request):
 
 def login(page, base, name='owner'):
     from playwright.sync_api import expect
-    page.goto(base)
+    if not page.locator('#sign-in').is_visible():
+        page.goto(base)
     page.locator('#sign-in').wait_for(state='visible')
     form = page.locator('#sign-in-form')
     form.locator('[name=username]').fill(name)
@@ -196,6 +197,7 @@ def test_editor_quote_correction_document_budget_alerts_and_admin_audit(journey,
     expect(page.locator('#user-form')).to_be_hidden()
     page.locator('nav').get_by_role('link',name='Mon compte / Équipe',exact=True).click()
     page.locator('#logout-button').click()
+    expect(page.locator('#sign-in')).to_be_visible()
     login(page,base,'owner')
     page.locator('nav').get_by_role('link',name='Mon compte / Équipe',exact=True).click()
     expect(page.locator('#audit-body')).to_contain_text('editor')

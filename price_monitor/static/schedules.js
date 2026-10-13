@@ -20,6 +20,7 @@
       const response = await fetch('/api/collection-schedules');
       if (!response.ok) throw new Error('Schedules unavailable');
       const data = await response.json();
+      globalThis.PriceMonitorAttention?.update('schedules', data.providers || []);
       body.innerHTML = scheduleRows(data.providers || []) || '<tr><td colspan="5">Aucun fournisseur configuré.</td></tr>';
     } catch {
       body.innerHTML = '<tr><td colspan="5">Calendrier temporairement indisponible.</td></tr>';

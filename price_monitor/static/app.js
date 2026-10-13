@@ -43,6 +43,7 @@ async function protectedFetch(url, options = {}, allowPrompt = true, overrideApi
 }
 
 function setSystemStatus(message, kind = '') {
+  globalThis.PriceMonitorAttention?.update('connection', { message, kind });
   const status = $('#system-status');
   status.classList.remove('warning', 'error');
   if (kind) status.classList.add(kind);
@@ -98,10 +99,13 @@ function renderForecastProduct(key) {
   const quality = $(`#forecast-${key}-quality`);
   if (forecastCharts[key]) { forecastCharts[key].destroy(); delete forecastCharts[key]; }
   if (!product || product.status !== 'ready') {
+    globalThis.PriceMonitorAttention?.update(`forecast-${key}`, { product });
     canvas.hidden = true;
     quality.hidden = true;
     quality.innerHTML = '';
     stats.innerHTML = `<span class="error-note">${escapeHtml(product?.message || 'Prévision indisponible.')}</span>`;
+    const summary = $(`#forecast-${key}-summary`);
+    if (summary) summary.textContent = product?.message || 'Prévision indisponible.';
     return;
   }
   const horizon = $(key === 'bitume' ? '#forecast-bitume-horizon' : '#forecast-horizon').value;
@@ -109,6 +113,7 @@ function renderForecastProduct(key) {
   const selectedModel = selection.selected_model || (product.model === 'damped_holt' ? 'holt' : product.model);
   const modelLabel = selectedModel === 'holt' ? 'Holt amorti' : selectedModel === 'naive' ? 'Dernier prix connu' : 'Modèle non renseigné';
   const warnings = selection.warnings || [{ message: 'Comparaison des modèles indisponible pour cette projection.' }];
+  globalThis.PriceMonitorAttention?.update(`forecast-${key}`, { product, warnings });
   const bandLabel = product.interval_method === 'chronological_absolute_log_error_quantile' ? 'Bande calibrée · 95 % nominal' : 'Bande indicative';
   quality.hidden = false;
   quality.classList.toggle('has-warning', warnings.length > 0);
@@ -123,9 +128,16 @@ function renderForecastProduct(key) {
   const upper = bridge(future.map(row => row.upper == null ? null : Number(row.upper)));
   const forecast = bridge(future.map(row => Number(row.value)));
   const actualSeries = [...actualValues, ...Array(future.length).fill(null)];
+  const lastActual = actual.at(-1);
+  const finalForecast = future.at(-1);
+  const backtest = product.backtest?.[horizon] || {};
+  const change = lastActual?.value && finalForecast ? ((finalForecast.value - lastActual.value) / lastActual.value) * 100 : null;
+  const summary = $(`#forecast-${key}-summary`);
+  if (summary) summary.textContent = `Dernière valeur publiée : ${formatNumber(lastActual?.value)} ${product.unit}, le ${formatDate(lastActual?.date)}. Projection à ${horizon} ${key === 'bitume' ? 'mois' : 'jours'} : ${finalForecast ? formatNumber(finalForecast.value) : 'indisponible'} ${product.unit}. ${modelLabel}. ${finalForecast?.lower == null || finalForecast?.upper == null ? 'Bande à 95 % indisponible.' : `Bande à 95 % nominal : ${formatNumber(finalForecast.lower)} à ${formatNumber(finalForecast.upper)} ${product.unit}.`} ${warnings.map(warning => warning.message).join(' ')}`;
+  stats.innerHTML = `<div><span>Dernier réel</span><strong>${formatNumber(lastActual?.value, lastActual?.value < 10 ? 3 : 2)}</strong></div><div><span>${key === 'bitume' ? 'À M+' : 'À J+'}${horizon}</span><strong>${finalForecast ? formatNumber(finalForecast.value, finalForecast.value < 10 ? 3 : 2) : '—'}</strong><em class="${change >= 0 ? 'up' : 'down'}">${formatPct(change)}</em></div><div><span>MAPE · test final (${backtest.samples || 0} prévisions)</span><strong>${backtest.mape == null ? '—' : `${formatNumber(backtest.mape, 1)} %`}</strong></div><div><span>Gain MAE vs prix constant</span><strong>${backtest.mae_skill_vs_naive == null ? '—' : `${formatNumber(100 * backtest.mae_skill_vs_naive, 1)} %`}</strong></div><div><span>Couverture · test final / 95 % nominal</span><strong>${backtest.interval_coverage == null ? '—' : `${formatNumber(100 * backtest.interval_coverage, 1)} %`}</strong></div><div><span>Origine de la prévision</span><strong>${formatDate(product.forecast_origin || lastActual?.date)}</strong></div>`;
   canvas.hidden = false;
   if (!window.Chart) {
-    stats.innerHTML = '<span class="error-note">Chart.js est indisponible.</span>';
+    canvas.hidden = true;
     return;
   }
   const chartContext = canvas.getContext('2d');
@@ -139,11 +151,6 @@ function renderForecastProduct(key) {
     ] },
     options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#202020', padding: 10, callbacks: { label: item => ` ${item.dataset.label}: ${formatNumber(item.raw, item.raw < 10 ? 3 : 2)} ${escapeHtml(product.unit)}` } } }, scales: { x: { grid: { display: false }, ticks: { color: '#a0a0a0', maxTicksLimit: 8, font: { size: 10 } } }, y: { grid: { color: 'rgba(255,255,255,.07)' }, ticks: { color: '#a0a0a0', font: { size: 10 }, callback: value => formatNumber(value, value < 10 ? 3 : 0) }, border: { display: false } } } }
   });
-  const lastActual = actual.at(-1);
-  const finalForecast = future.at(-1);
-  const backtest = product.backtest?.[horizon] || {};
-  const change = lastActual?.value ? ((finalForecast.value - lastActual.value) / lastActual.value) * 100 : null;
-  stats.innerHTML = `<div><span>Dernier réel</span><strong>${formatNumber(lastActual?.value, lastActual?.value < 10 ? 3 : 2)}</strong></div><div><span>${key === 'bitume' ? 'À M+' : 'À J+'}${horizon}</span><strong>${formatNumber(finalForecast?.value, finalForecast?.value < 10 ? 3 : 2)}</strong><em class="${change >= 0 ? 'up' : 'down'}">${formatPct(change)}</em></div><div><span>MAPE · test final (${backtest.samples || 0} prévisions)</span><strong>${backtest.mape == null ? '—' : `${formatNumber(backtest.mape, 1)} %`}</strong></div><div><span>Gain MAE vs prix constant</span><strong>${backtest.mae_skill_vs_naive == null ? '—' : `${formatNumber(100 * backtest.mae_skill_vs_naive, 1)} %`}</strong></div><div><span>Couverture · test final / 95 % nominal</span><strong>${backtest.interval_coverage == null ? '—' : `${formatNumber(100 * backtest.interval_coverage, 1)} %`}</strong></div><div><span>Origine de la prévision</span><strong>${formatDate(product.forecast_origin || lastActual?.date)}</strong></div>`;
 }
 
 function renderForecast() {
@@ -221,8 +228,9 @@ function renderAlertRules() {
     const condition = freshness ? 'Cotation non actualisée depuis' : rule.direction === 'above' ? 'au-dessus de' : 'en-dessous de';
     const threshold = freshness ? `${formatNumber(rule.threshold, 0)} min` : `${formatNumber(rule.threshold, rule.threshold < 10 ? 3 : 2)} ${rule.basis === 'index' ? 'indice (déc. 1984 = 100)' : ALERT_UNITS[rule.product]}`;
     const lastValue = rule.last_value == null ? 'Pas encore évaluée' : freshness ? `Âge de la cotation : ${formatNumber(rule.last_value, 0)} min` : `${rule.basis === 'index' ? 'Dernier indice' : 'Dernier prix'} : ${formatNumber(rule.last_value, rule.last_value < 10 ? 3 : 2)} ${rule.basis === 'index' ? 'indice (déc. 1984 = 100)' : ALERT_UNITS[rule.product]}`;
-    return `<article class="alert-rule ${rule.status}"><div class="alert-rule-main"><span class="alert-dot"></span><div><strong>${escapeHtml(meta.label)}</strong><p>${condition} <b>${threshold}</b></p><small>${lastValue} · ${escapeHtml(ALERT_CHANNEL_LABELS[rule.channel] || rule.channel)}</small></div></div><div class="alert-rule-actions"><span class="alert-status ${rule.status}">${status}</span><button class="text-btn" type="button" data-alert-action="edit" data-alert-id="${rule.id}">Modifier</button><button class="text-btn" type="button" data-alert-action="mute" data-alert-id="${rule.id}">${rule.muted ? 'Réactiver' : 'Mettre en pause'}</button><button class="text-btn danger-btn" type="button" data-alert-action="delete" data-alert-id="${rule.id}">Supprimer</button></div></article>`;
+    return `<article class="alert-rule ${rule.status}"><div class="alert-rule-main"><span class="alert-dot"></span><div><strong>${escapeHtml(meta.label)}</strong><p>${condition} <b>${threshold}</b></p><small>${lastValue} · ${escapeHtml(ALERT_CHANNEL_LABELS[rule.channel] || rule.channel)}</small></div></div><div class="alert-rule-actions"><span class="alert-status ${rule.status}">${status}</span><button class="text-btn" type="button" data-permission="editor" data-alert-action="edit" data-alert-id="${rule.id}">Modifier</button><button class="text-btn" type="button" data-permission="editor" data-alert-action="mute" data-alert-id="${rule.id}">${rule.muted ? 'Réactiver' : 'Mettre en pause'}</button><button class="text-btn danger-btn" type="button" data-permission="editor" data-alert-action="delete" data-alert-id="${rule.id}">Supprimer</button></div></article>`;
   }).join('') : '<div class="empty">Aucune règle configurée. Créez un seuil pour commencer la surveillance.</div>';
+  globalThis.PriceMonitorAuth?.applyPermissions();
 }
 
 function renderAlertChannels(channels = {}) {
@@ -237,6 +245,7 @@ async function loadAlerts() {
     if (!response.ok) throw new Error('Impossible de charger les alertes.');
     const data = await response.json();
     alertRules = data.alerts || [];
+    globalThis.PriceMonitorAttention?.update('alerts', alertRules);
     renderAlertChannels(data.channels);
     renderAlertRules();
   } catch (error) {
@@ -282,6 +291,7 @@ function renderChart(series) {
   labels.sort();
   const ctx = $('#price-chart');
   const empty = $('#chart-empty');
+  const summary = $('#price-chart-summary');
   if (chart) { chart.destroy(); chart = null; }
   ctx.parentElement.querySelector('.chart-fallback')?.remove();
   if (!labels.length) {
@@ -290,6 +300,7 @@ function renderChart(series) {
     empty.innerHTML = '<strong>Aucun relevé pour cette période</strong><span>Choisissez 12 mois ou 5 ans, ou lancez une nouvelle collecte.</span>';
     $('#legend').innerHTML = '';
     $('#chart-note').textContent = 'Le graphique apparaîtra dès qu’un relevé daté de cette période sera disponible.';
+    if (summary) summary.textContent = 'Aucun relevé daté pour la période sélectionnée.';
     return;
   }
   empty.hidden = true;
@@ -321,21 +332,35 @@ function renderChart(series) {
         pointRadius: 0,
         tension: 0,
         spanGaps: true,
-        unit: latest.unit || '', isLatestCarryForward: true
+        unit: latest.unit || '', isLatestCarryForward: true, yAxisID: chartMode === 'indexed' ? 'y' : `y_${key}`
       });
     }
-    return { label: key === 'bitume' && rows.some(row => row.data_kind === 'index') ? 'Bitume · indice BLS' : ALERT_INSTRUMENTS[key]?.find(([id]) => id === rows[0]?.instrument)?.[1] || meta.short, unit: rows[0]?.unit || '', data, actualData: labels.map(date => byDate[date] ?? null), borderColor: meta.color, backgroundColor: meta.color, borderWidth: 2, pointRadius: 0, tension: .35, spanGaps: true };
+    return { label: key === 'bitume' && rows.some(row => row.data_kind === 'index') ? 'Bitume · indice BLS' : ALERT_INSTRUMENTS[key]?.find(([id]) => id === rows[0]?.instrument)?.[1] || meta.short, unit: rows[0]?.unit || '', yAxisID: chartMode === 'indexed' ? 'y' : `y_${key}`, data, actualData: labels.map(date => byDate[date] ?? null), borderColor: meta.color, backgroundColor: meta.color, borderWidth: 2, pointRadius: 0, tension: .35, spanGaps: true };
   });
   $('#legend').innerHTML = datasets.map(d => `<span><i style="background:${d.borderColor}"></i>${d.label}</span>`).join('');
   datasets.push(...latestSegments);
   const bitumenNote = (series.bitume || []).some(row => row.data_kind === 'index') ? ' Bitume : indice BLS mensuel; le dernier mois connu sert de point de départ si la période commence après sa publication.' : '';
-  const chartDescription = (chartMode === 'indexed' ? 'Évolution relative depuis le premier relevé de la période.' : 'Valeurs brutes : chaque série conserve son unité d’origine.') + bitumenNote;
+  const chartDescription = (chartMode === 'indexed' ? 'Évolution relative depuis le premier relevé disponible de chaque série ; leurs dates de départ peuvent différer.' : 'Valeurs brutes sur des axes indépendants, avec l’unité de chaque série. Les hauteurs des courbes ne comparent pas des prix de même unité.') + bitumenNote;
+  if (summary) summary.innerHTML = `<ul>${Object.entries(PRODUCT_META).map(([key, meta]) => {
+    const rows = [...(series[key] || [])].sort((a, b) => marketDate(a).localeCompare(marketDate(b)) || String(a.collected_at || '').localeCompare(String(b.collected_at || '')));
+    if (!rows.length) return `<li>${escapeHtml(meta.short)} : aucun relevé dans cette période.</li>`;
+    const first = rows[0], last = rows.at(-1), values = rows.map(row => Number(row.price));
+    const change = Number(first.price) ? (Number(last.price) / Number(first.price) - 1) * 100 : null;
+    return `<li><strong>${escapeHtml(datasets[Object.keys(PRODUCT_META).indexOf(key)].label)}</strong> : ${rows.length} point(s) affiché(s), de ${formatDate(first.source_date || marketDate(first))} à ${formatDate(last.source_date || marketDate(last))}. Dernière valeur ${formatNumber(last.price)} ${escapeHtml(last.unit || '')} ; minimum ${formatNumber(Math.min(...values))}, maximum ${formatNumber(Math.max(...values))} ; évolution ${formatPct(change)}. Les segments prolongés ne sont pas de nouvelles observations.</li>`;
+  }).join('')}</ul>`;
+  ctx.parentElement.classList.toggle('absolute-chart', chartMode === 'absolute');
   $('#chart-note').textContent = latestSegments.length
     ? `${chartDescription} Le trait pointillé prolonge la dernière cotation publiée jusqu’à maintenant ; il ne représente pas un nouveau prix.`
     : `${chartDescription} Toutes les séries disponibles sont publiées aujourd’hui.`;
   if (!window.Chart) { ctx.hidden = true; empty.hidden = true; if (!ctx.parentElement.querySelector('.chart-fallback')) ctx.insertAdjacentHTML('afterend', '<div class="empty chart-fallback">Le graphique sera disponible après chargement de Chart.js.</div>'); return; }
   ctx.hidden = false; ctx.parentElement.querySelector('.chart-fallback')?.remove();
-  chart = new Chart(ctx, { type: 'line', data: { labels: labels.map(d => new Date(`${d}T00:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })), datasets }, options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#202020', padding: 12, titleColor: '#fff', bodyColor: '#cccccc', callbacks: { label: item => { const actual = item.dataset.actualData?.[item.dataIndex]; const value = chartMode === 'indexed' ? `${formatNumber(item.raw, 1)} · ${actual == null ? '—' : formatNumber(actual)}` : formatNumber(actual ?? item.raw); const label = item.dataset.isLatestCarryForward ? 'Dernière cotation connue (prolongée)' : item.dataset.label; return ` ${label}: ${value} ${item.dataset.unit || ''}`; } } } }, scales: { x: { grid: { display: false }, ticks: { color: '#a0a0a0', maxTicksLimit: 7, font: { size: 10 } } }, y: { grid: { color: 'rgba(255,255,255,.07)' }, ticks: { color: '#a0a0a0', font: { size: 10 }, callback: value => chartMode === 'indexed' ? `${value}` : formatNumber(value, 0) }, title: { display: true, text: chartMode === 'indexed' ? 'Base 100 sur la période' : 'Prix / indice', color: '#a0a0a0', font: { size: 10, weight: '600' } }, border: { display: false } } } } });
+  const axis = (label, color) => ({ type: 'linear', axis: 'y', position: 'left', stack: 'markets', stackWeight: 1, grid: { color: 'rgba(255,255,255,.07)' }, ticks: { color, font: { size: 10 }, callback: (value, index, ticks) => chartMode === 'absolute' && ticks.length > 3 && (index === 0 || index === ticks.length - 1) ? '' : formatNumber(value, value < 10 ? 3 : 1) }, title: { display: true, text: label, color, font: { size: 10, weight: '600' } }, border: { display: false } });
+  const scales = { x: { grid: { display: false }, ticks: { color: '#a0a0a0', maxTicksLimit: 7, font: { size: 10 } } } };
+  if (chartMode === 'indexed') scales.y = { ...axis('Base 100 · dates de départ propres à chaque série', '#a0a0a0'), stack: undefined };
+  else Object.entries(PRODUCT_META).forEach(([key, meta]) => { if (series[key]?.length) scales[`y_${key}`] = axis(`${meta.short} · ${series[key][0].unit || 'unité inconnue'}`, meta.color); });
+  // Omit empty series so Chart.js cannot create an unlabelled default axis.
+  const visibleDatasets = datasets.filter(dataset => dataset.actualData.some(value => value != null));
+  chart = new Chart(ctx, { type: 'line', data: { labels: labels.map(d => new Date(`${d}T00:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })), datasets: visibleDatasets }, options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#202020', padding: 12, titleColor: '#fff', bodyColor: '#cccccc', callbacks: { label: item => { const actual = item.dataset.actualData?.[item.dataIndex]; const value = chartMode === 'indexed' ? `${formatNumber(item.raw, 1)} · ${actual == null ? '—' : formatNumber(actual)}` : formatNumber(actual ?? item.raw); const label = item.dataset.isLatestCarryForward ? 'Dernière cotation connue (prolongée)' : item.dataset.label; return ` ${label}: ${value} ${item.dataset.unit || ''}`; } } } }, scales } });
 }
 
 function renderLatest(rows) {
@@ -626,6 +651,7 @@ async function loadDashboard() {
     const response = await fetch(`/api/dashboard?${params}`, { cache: 'no-store' }); if (!response.ok) throw new Error('Impossible de charger le tableau de bord.');
     const data = await response.json();
     if (request !== dashboardRequest) return;
+    globalThis.PriceMonitorAttention?.update('dashboard', data);
     renderMetrics(data.metrics); renderChart(data.series); renderLatest(data.latest);
     renderSourceComparison(data.source_comparison);
     $('#quality-score').textContent = data.quality?.score ?? '—';
@@ -636,6 +662,7 @@ async function loadDashboard() {
     connectionMonitor.render();
   } catch (error) {
     if (request !== dashboardRequest) return;
+    globalThis.PriceMonitorAttention?.update('dashboard', null);
     renderSourceComparison(null);
     renderChart({});
     $('#chart-empty').innerHTML = '<strong>Service de données indisponible</strong><span>Redémarrez l’application, puis actualisez cette page.</span>';
@@ -909,7 +936,7 @@ updateAlertConditionFields();
 loadDashboard(); loadForecast(); loadAlerts(); loadLogs(); loadHistory(); loadBitumenHistory(); loadProcurements(); loadProcurementGuide();
 connectionMonitor.setBrowserOnline(navigator.onLine !== false);
 connectionMonitor.check();
-// The external chart library must not delay connection notifications offline.
+// The local chart library can finish after the first saved-data response.
 $('#chart-library').addEventListener('load', () => {
   loadDashboard();
   if (forecastData) renderForecast();

@@ -76,7 +76,7 @@
     if (response.status === 401) { state.user = null; state.role = null; state.csrf_token = null; showLogin(); }
     return response;
   }
-  window.PriceMonitorAuth = { fetch: authenticatedFetch, ready, get state() { return state; }, refresh: refreshSession };
+  window.PriceMonitorAuth = { fetch: authenticatedFetch, ready, get state() { return state; }, refresh: refreshSession, applyPermissions };
   window.fetch = authenticatedFetch;
   form.addEventListener('submit', async event => {
     event.preventDefault();

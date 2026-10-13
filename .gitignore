@@ -4,6 +4,10 @@ __pycache__/
 .env
 .venv/
 .pytest_cache/
+test-results/
+build/
+dist/
+*.egg-info/
 .chart-data-*/
 reports/data_science/models/
 reports/data_workflow/models/

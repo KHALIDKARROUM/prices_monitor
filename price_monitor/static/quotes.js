@@ -125,6 +125,7 @@ function editQuote(quote = null) {
   } else {
     form.elements.namedItem('quote_date').value = new Date().toISOString().slice(0, 10);
   }
+  if (window.PriceMonitorAuth?.state.user) form.elements.namedItem('actor').value = window.PriceMonitorAuth.state.user.username;
   setCostItems($('#quote-other-costs'), quote?.other_costs || []);
   $('#quote-reason-field').hidden = !quote;
   form.elements.namedItem('change_reason').required = !!quote;
@@ -157,8 +158,10 @@ function renderQuoteDetail(quote, revisions) {
   const keys = ['product', 'grade', 'specification', 'origin', 'incoterm', 'incoterm_place', 'destination', 'quantity', 'unit', 'packaging', 'packaging_detail', 'payment_terms', 'quote_date', 'valid_until', 'delivery_date', 'document_type', 'status', 'notes'];
   $('#quote-detail-content').innerHTML = `<dl class="quote-fields">${keys.map(key => `<div><dt>${QUOTE_FIELDS[key]}</dt><dd>${escapeHtml(quoteValue(quote, key))}</dd></div>`).join('')}</dl>${costBreakdownHtml(quote)}<p class="field-help">Prix proposé : ${formatNumber(quote.unit_price, 6)} ${escapeHtml(quote.currency)}/${escapeHtml(quote.unit)} · taux : ${formatNumber(quote.exchange_rate, 8)} USD par unité de devise · coût rendu : ${formatNumber(quote.landed_unit_cost_usd, 6)} USD/${escapeHtml(quote.unit)}.</p>`;
   $('#quote-budget').disabled = quote.status !== 'active' || quote.expired || quote.quote_date > new Date().toISOString().slice(0, 10);
-  $('#quote-documents').innerHTML = quote.documents.length ? quote.documents.map(doc => `<div class="quote-document"><span class="${doc.removed_at ? 'retired' : ''}">${escapeHtml(doc.filename)} · ${escapeHtml(quoteOptions?.document_types?.[doc.document_type] || doc.document_type)} · ${doc.size_bytes < 1024 ? `${doc.size_bytes} octets` : `${formatNumber(doc.size_bytes / 1024, 1)} Ko`}${doc.removed_at ? ' · retiré, conservé dans l’historique' : ''}</span><button type="button" class="text-btn" data-download-document="${doc.id}">Télécharger</button>${doc.removed_at ? '' : `<button type="button" class="text-btn" data-retire-document="${doc.id}">Retirer</button>`}</div>`).join('') : '<p class="empty">Aucun justificatif joint.</p>';
+  $('#quote-documents').innerHTML = quote.documents.length ? quote.documents.map(doc => `<div class="quote-document"><span class="${doc.removed_at ? 'retired' : ''}">${escapeHtml(doc.filename)} · ${escapeHtml(quoteOptions?.document_types?.[doc.document_type] || doc.document_type)} · ${doc.size_bytes < 1024 ? `${doc.size_bytes} octets` : `${formatNumber(doc.size_bytes / 1024, 1)} Ko`}${doc.removed_at ? ' · retiré, conservé dans l’historique' : ''}</span><button type="button" class="text-btn" data-download-document="${doc.id}">Télécharger</button>${doc.removed_at ? '' : `<button type="button" class="text-btn" data-permission="editor" data-retire-document="${doc.id}">Retirer</button>`}</div>`).join('') : '<p class="empty">Aucun justificatif joint.</p>';
   renderQuoteHistory(revisions);
+  if (window.PriceMonitorAuth?.state.user) $('#quote-document-form').elements.namedItem('actor').value = window.PriceMonitorAuth.state.user.username;
+  window.PriceMonitorAuth?.applyPermissions();
 }
 
 async function openQuote(id, scroll = true) {
@@ -347,6 +350,7 @@ $('#quote-document-form').addEventListener('submit', async event => {
       change_reason: form.elements.namedItem('change_reason').value
     }));
     form.reset();
+    if (window.PriceMonitorAuth?.state.user) form.elements.namedItem('actor').value = window.PriceMonitorAuth.state.user.username;
     if (quoteCurrent?.id === quote.id) await openQuote(quote.id, false);
     loadQuotes();
   } catch (error) { $('#quote-document-message').textContent = error.message; }

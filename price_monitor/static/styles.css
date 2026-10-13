@@ -154,7 +154,7 @@ textarea { resize: vertical; }
 .text-btn { color: #ddd; background: transparent; border: 0; padding: 0; text-decoration: none; font-size: 11px; font-weight: 500; }
 .text-btn:hover { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
 .muted-link { color: var(--muted); }
-.table-scroll { max-width: 100%; overflow: auto; margin-top: 22px; border: 1px solid var(--line); border-radius: 7px; overscroll-behavior-inline: contain; }
+.table-scroll, .table-wrap { max-width: 100%; overflow: auto; margin-top: 22px; border: 1px solid var(--line); border-radius: 7px; overscroll-behavior-inline: contain; }
 table { width: 100%; min-width: 730px; border-collapse: collapse; text-align: left; }
 th { padding: 13px 14px; background: #151515; color: var(--muted); font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
 td { padding: 16px 14px; border-top: 1px solid var(--line); color: #bbb; font-size: 11px; }
@@ -349,5 +349,17 @@ footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1
 .sign-in label { display: block; margin: 18px 0; }
 #equipe .panel { margin-bottom: 24px; }
 .account-actions { display: flex; flex-wrap: wrap; gap: 14px; }
+.attention-panel { padding: 16px 20px; margin-bottom: 24px; border: 1px solid var(--line); border-radius: 8px; background: #111; }
+.attention-panel.has-attention { border-color: #72582e; }
+.attention-heading { display: flex; gap: 16px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+.attention-heading h2 { margin: 0; font-size: 15px; }
+.attention-heading span { color: #dfbb83; font-size: 12px; }
+.attention-panel ul { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 0; list-style: none; margin: 12px 0 0; }
+.attention-panel li, .attention-panel p, .chart-summary { font-size: 12px; line-height: 1.6; color: #bbb; }
+.attention-panel p { margin: 8px 0 0; }
+.attention-panel a { text-decoration: underline; text-underline-offset: 3px; }
+.chart-summary ul { padding-left: 18px; }
+.chart-summary li { margin-top: 6px; }
+.chart-wrap.absolute-chart { height: 480px; }
 .team-user { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 18px 0; border-bottom: 1px solid #292929; }
 .team-user label { flex: 1 1 160px; }

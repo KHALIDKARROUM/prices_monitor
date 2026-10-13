@@ -64,9 +64,13 @@ Les migrations `012` ajoutent les calendriers, les leases de concurrence et le s
 
 ## Navigation
 
-L’interface utilise un fond noir, des panneaux gris et huit sections : **Marchés**, **Tendances**, **Veille**, **Archives**, **Nouveau prix**, **Fournisseurs**, **Budget** et **Activité**. Les sections restent dans une page continue ; les liens de navigation défilent doucement vers la section choisie et la page active suit la position de défilement. Les animations sont désactivées lorsque la préférence système de réduction des mouvements est activée.
+L’interface utilise un fond noir, des panneaux gris et neuf sections : **Marchés**, **Tendances**, **Veille**, **Archives**, **Nouveau prix**, **Fournisseurs**, **Budget**, **Activité** et **Mon compte / Équipe**. Les sections restent dans une page continue ; les liens de navigation défilent doucement vers la section choisie et la page active suit la position de défilement. Les animations sont désactivées lorsque la préférence système de réduction des mouvements est activée.
 
-Chaque section possède un lien direct (`#marches`, `#tendances`, `#veille`, `#archives`, `#nouveau-prix`, `#fournisseurs`, `#budget`, `#activite`). Les anciens liens restent compatibles. La navigation conserve les formulaires en cours et prend en charge les boutons précédent/suivant du navigateur. Sur mobile, le bouton de menu affiche les sections ; la touche Échap referme le menu.
+Chaque section possède un lien direct (`#marches`, `#tendances`, `#veille`, `#archives`, `#nouveau-prix`, `#fournisseurs`, `#budget`, `#activite`, `#equipe`). Les anciens liens restent compatibles. La navigation conserve les formulaires en cours et prend en charge les boutons précédent/suivant du navigateur. Sur mobile, le bouton de menu affiche les sections ; la touche Échap referme le menu.
+
+La synthèse **À surveiller** regroupe les données manquantes ou anciennes, alertes actives, écarts entre flux équivalents, limites des prévisions et fournisseurs en reprise ou au quota. Chaque point ouvre sa section. Une fermeture normale de marché et une collecte en cours ne sont pas présentées comme un incident. Les graphiques **Prix** utilisent des axes indépendants avec unités explicites ; **Base 100** compare les évolutions relatives en indiquant que les dates de départ peuvent différer. Les graphiques et prévisions disposent aussi de résumés textuels accessibles, utilisables même sans dessin du canvas.
+
+Chart.js **4.4.3** est inclus localement avec sa licence MIT et son empreinte dans `price_monitor/static/THIRD_PARTY.md`. Aucun script CDN n’est chargé. Les graphiques des données sauvegardées fonctionnent sans accès Internet tant que le serveur local reste accessible ; le mode avion rend aussi le serveur inaccessible s’il se trouve sur une autre machine.
 
 Après chaque collecte (au démarrage, programmée ou manuelle), les prix reçus des API sont comparés deux à deux. Une différence entre séries équivalentes de même date, unité et devise affiche « Les prix des API diffèrent : un problème est possible », avec les fournisseurs, les prix et l'écart. L'avertissement est enregistré dans le journal de collecte, affiché dans la console à chaque collecte concernée et conservé en haut du tableau de bord tant que l'écart existe. Seuls les arrondis sont tolérés : 0,005 USD/baril pour le Brent et 0,0005 USD/gallon pour le diesel. Les dates différentes, contrats à terme, proxies, indices et données manquantes restent explicitement non comparables ou non vérifiés. La réponse de `/api/collect` inclut le résultat dans `source_comparison`.
 
@@ -78,7 +82,18 @@ Installer les dépendances puis lancer la suite automatisée :
 .\.venv\Scripts\python.exe -m pytest
 ```
      
-Les tests couvrent la validation et la persistance SQLite, les calculs du tableau de bord, les exports CSV/Excel, l'import du snapshot réel EIA/FRED, les collectes complètes, partielles ou en échec, ainsi que le schéma et le moteur de migrations MySQL. Ils vérifient aussi l'absence de fuite temporelle dans les variables et les cibles, la purge des horizons, l'isolation du holdout, les métriques et la logique Holt en jours calendaires. La CI installe donc les extras `test,analysis`. Pour exécuter aussi le test d'intégration MySQL, définissez `RUN_MYSQL_TESTS=1` avec des paramètres `.env` valides.
+Les tests couvrent les instruments et états d’alerte séparés, les historiques intrajournaliers denses et exports de plus de 10 000 lignes, la sélection/calibration des prévisions, devis versionnés et coûts rendus, quotas persistants, droits individuels et écritures auditées. Ils vérifient aussi l'absence de fuite temporelle et l'isolation du holdout. La CI restaurée dans `.github/workflows/ci.yml` lance Python 3.11/3.12, les tests d’interface Node, les mêmes contrats métier sur **MySQL 8.4 réel**, les parcours **Chromium réel**, puis le paquet et le conteneur. Les résultats et traces du navigateur sont conservés en artefacts de CI. Les fournisseurs externes et emails sont neutralisés dans ces tests.
+
+Pour lancer les parcours navigateur localement :
+
+```powershell
+python -m pip install -e ".[test,browser]"
+python -m playwright install chromium
+$env:RUN_BROWSER_TESTS = "1"
+python -m pytest tests/test_browser_journeys.py
+```
+
+Les parcours utilisent une base temporaire et des comptes fictifs : connexion/déconnexion, lecture protégée, choix d’instrument, archives/export, devis/correction/justificatif/budget, alertes, petit écran et graphiques sans accès externe. Pour les contrats MySQL, configurez un serveur **de test** avec un compte autorisé à créer des bases, puis définissez `PRICE_MONITOR_TEST_MYSQL=1` et exécutez `python -m pytest tests/test_backend_contract.py`. Chaque test crée et supprime uniquement sa propre base `pm_test_<identifiant aléatoire>`. Le contrôle historique de schéma `tests/test_mysql.py` s’active avec `RUN_MYSQL_TESTS=1`. Le job MySQL de CI fournit automatiquement ce serveur jetable ; aucun serveur de production ni secret n’est requis.
 
 Le projet démarre avec un snapshot réel de cinq ans dans `data/processed/market_prices.csv`, sans clé API. Pour actualiser les fichiers source et reconstruire le snapshot :
 
@@ -108,7 +123,7 @@ Il n'existe pas de prix spot mondial gratuit et exécutable du bitume dans une A
 
 Un notebook unique est fourni :
 
-- `notebooks/data_science_workflow.ipynb` regroupe les dix étapes du workflow, avec 22 cellules de code exécutées et les figures intégrées au document.
+- [`notebooks/data_workflow.ipynb`](notebooks/data_workflow.ipynb) regroupe les étapes du workflow et les figures intégrées au document.
 
 Les graphiques adaptés au snapshot comprennent les histogrammes, box plots des rendements, scatter plots Brent-gasoil, heatmap de corrélation, comptage des observations et valeurs manquantes, pair plot, feature vs target, box plot de la cible par quartile de volatilité, séries temporelles et importance des variables par permutation. Les graphiques de variables continues remplacent volontairement les count plots catégoriels, car le snapshot ne contient pas de variable catégorielle pertinente à compter.
 
@@ -118,7 +133,7 @@ Le pipeline complet peut aussi être relancé sans interface :
 python scripts/run_data_science.py --save-models
 ```
 
-Le rapport généré est `reports/data_workflow/report.md`. Il contient les contrôles de qualité, les graphiques EDA, les découpages temporels, les scores de validation et de holdout, les prédictions, l'importance des variables et une fiche par expérience. Le manifeste enregistre le hash du snapshot, les versions des dépendances, la graine et les empreintes du code.
+Le rapport généré est [`reports/data_workflow/report.md`](reports/data_workflow/report.md), avec l’analyse mensuelle dans [`reports/data_workflow/bitumen_report.md`](reports/data_workflow/bitumen_report.md). Il contient les contrôles de qualité, les graphiques EDA, les découpages temporels, les scores de validation et de holdout, les prédictions, l'importance des variables et une fiche par expérience. Le manifeste enregistre le hash du snapshot, les versions des dépendances, la graine et les empreintes du code. Les tests de livraison vérifient ces chemins et la présence de la bibliothèque de graphiques dans le paquet.
 
 Les variables comprennent les rendements logarithmiques retardés, momentum, volatilité, écarts aux moyennes mobiles, cycles calendaires, durée entre publications et informations antérieures de l'autre produit. Les cibles restent toujours des prix réellement publiés : aucun prix cible n'est interpolé. Les transformations sont ajustées dans chaque pli d'entraînement, les cibles qui dépassent une frontière de validation sont purgées, et les 20 % les plus récents restent un holdout final.
 

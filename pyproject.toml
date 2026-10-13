@@ -33,6 +33,7 @@ analysis = [
   "joblib>=1.4.0",
 ]
 test = ["pytest>=8.0.0"]
+browser = ["playwright>=1.56,<2"]
 dev = ["pytest>=8.0.0", "build>=1.2.0"]
 
 [project.scripts]
@@ -50,4 +51,4 @@ price_monitor = ["templates/*.html", "static/*", "migrations/*.sql", "mysql_sche
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
-markers = ["mysql: tests requiring a configured live MySQL server"]
+markers = ["mysql: tests requiring a configured live MySQL server", "browser: real Chromium journeys against an isolated local server"]

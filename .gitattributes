@@ -2,3 +2,4 @@
 *.pptx binary
 *.png binary
 *.sh text eol=lf
+price_monitor/static/chart.umd-4.4.3.js -text

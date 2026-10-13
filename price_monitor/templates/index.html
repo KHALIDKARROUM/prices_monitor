@@ -6,7 +6,7 @@
   <meta name="description" content="Tableau de bord de suivi des prix internationaux du gasoil, du Brent et du bitume">
   <meta name="theme-color" content="#000000">
   <title>Marchés · Price Monitor</title>
-  <script id="chart-library" async src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script id="chart-library" async src="/static/chart.umd-4.4.3.js"></script>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -57,6 +57,10 @@
         <a href="#marches">Voir la comparaison dans Marchés →</a>
       </div>
       <div class="page-view" id="marches" data-page="marches" aria-label="Marchés">
+      <section id="needs-attention" class="attention-panel" aria-labelledby="attention-title">
+        <div class="attention-heading"><h2 id="attention-title">À surveiller</h2><span id="attention-count" role="status" aria-live="polite">Vérification en cours…</span></div>
+        <ul id="attention-items"></ul><p id="attention-note">Prix, alertes, prévisions et disponibilité des fournisseurs.</p>
+      </section>
       <section id="overview" class="hero-row">
         <div><p class="muted">Vue consolidée · <span id="period-label">30 derniers jours</span></p><p class="last-update">Dernière actualisation <strong id="last-update">—</strong></p></div>
         <div class="hero-actions"><select id="period-select" aria-label="Période des marchés"><option value="7">7 jours</option><option value="30" selected>30 jours</option><option value="90">90 jours</option><option value="365">12 mois</option><option value="1825">5 ans</option></select><button class="primary-btn" id="collect-btn"><span>↻</span> Lancer une collecte</button></div>
@@ -71,8 +75,9 @@
       <section class="grid-2 main-panels">
         <article class="panel chart-panel">
           <div class="panel-heading"><div><p class="eyebrow">TENDANCE COMPARÉE</p><h2>Évolution des prix</h2></div><div class="chart-tools"><div class="chart-mode" role="group" aria-label="Mode d'affichage"><button type="button" class="mode-btn" data-chart-mode="absolute" aria-pressed="false">Prix</button><button type="button" class="mode-btn active" data-chart-mode="indexed" aria-pressed="true">Base 100</button></div><div class="legend" id="legend"></div></div></div>
-          <div class="chart-wrap"><canvas id="price-chart"></canvas><div class="chart-empty" id="chart-empty" hidden></div></div>
+          <div class="chart-wrap"><canvas id="price-chart" role="img" aria-label="Évolution des prix et de l’indice bitume" aria-describedby="price-chart-summary chart-note">Le résumé textuel du graphique est disponible ci-dessous.</canvas><div class="chart-empty" id="chart-empty" hidden></div></div>
           <p class="chart-note" id="chart-note">Évolution relative depuis le premier relevé de la période.</p>
+          <div id="price-chart-summary" class="chart-summary" aria-label="Résumé de l’évolution des marchés"></div>
         </article>
 
       </section>
@@ -99,9 +104,9 @@
         </div>
         <p class="chart-note" id="forecast-status">Comparaison au dernier prix connu · validation historique en cours…</p>
         <div class="forecast-grid">
-          <article class="forecast-card"><div class="forecast-card-heading"><h3>Diesel New York Harbor · spot</h3><span class="forecast-unit">USD/gallon</span></div><div class="forecast-quality" id="forecast-gasoil-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-gasoil-chart"></canvas></div><div class="forecast-stats" id="forecast-gasoil-stats"><span>Chargement…</span></div></article>
-          <article class="forecast-card"><div class="forecast-card-heading"><h3>Brent Europe · spot</h3><span class="forecast-unit">USD/baril</span></div><div class="forecast-quality" id="forecast-brent-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-brent-chart"></canvas></div><div class="forecast-stats" id="forecast-brent-stats"><span>Chargement…</span></div></article>
-          <article class="forecast-card"><div class="forecast-card-heading"><h3>Bitume · indice BLS</h3><span class="forecast-unit">indice (déc. 1984 = 100)</span></div><div class="forecast-controls"><label for="forecast-bitume-horizon">Horizon mensuel</label><select id="forecast-bitume-horizon"><option value="1">1 mois</option><option value="3" selected>3 mois</option><option value="6">6 mois</option></select></div><div class="forecast-quality" id="forecast-bitume-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-bitume-chart"></canvas></div><div class="forecast-stats" id="forecast-bitume-stats"><span>Chargement…</span></div><p class="chart-note">Projection de l'indice mensuel WPU058. Les devis fournisseurs restent en USD/tonne.</p></article>
+          <article class="forecast-card"><div class="forecast-card-heading"><h3>Diesel New York Harbor · spot</h3><span class="forecast-unit">USD/gallon</span></div><div class="forecast-quality" id="forecast-gasoil-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-gasoil-chart" role="img" aria-label="Historique et projection : diesel spot" aria-describedby="forecast-gasoil-summary forecast-gasoil-quality">Le résumé textuel de cette prévision est disponible ci-dessous.</canvas></div><p class="chart-summary" id="forecast-gasoil-summary"></p><div class="forecast-stats" id="forecast-gasoil-stats"><span>Chargement…</span></div></article>
+          <article class="forecast-card"><div class="forecast-card-heading"><h3>Brent Europe · spot</h3><span class="forecast-unit">USD/baril</span></div><div class="forecast-quality" id="forecast-brent-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-brent-chart" role="img" aria-label="Historique et projection : Brent spot" aria-describedby="forecast-brent-summary forecast-brent-quality">Le résumé textuel de cette prévision est disponible ci-dessous.</canvas></div><p class="chart-summary" id="forecast-brent-summary"></p><div class="forecast-stats" id="forecast-brent-stats"><span>Chargement…</span></div></article>
+          <article class="forecast-card"><div class="forecast-card-heading"><h3>Bitume · indice BLS</h3><span class="forecast-unit">indice (déc. 1984 = 100)</span></div><div class="forecast-controls"><label for="forecast-bitume-horizon">Horizon mensuel</label><select id="forecast-bitume-horizon"><option value="1">1 mois</option><option value="3" selected>3 mois</option><option value="6">6 mois</option></select></div><div class="forecast-quality" id="forecast-bitume-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-bitume-chart" role="img" aria-label="Historique et projection : indice bitume BLS" aria-describedby="forecast-bitume-summary forecast-bitume-quality">Le résumé textuel de cette prévision est disponible ci-dessous.</canvas></div><p class="chart-summary" id="forecast-bitume-summary"></p><div class="forecast-stats" id="forecast-bitume-stats"><span>Chargement…</span></div><p class="chart-note">Projection de l'indice mensuel WPU058. Les devis fournisseurs restent en USD/tonne.</p></article>
         </div>
         <p class="forecast-disclaimer">Holt doit améliorer la MAE de validation d’au moins 2 % pour être retenu à chaque horizon ; sinon la projection conserve le dernier prix connu. Les bandes à 95 % nominal sont calibrées sur une période antérieure distincte du test final. Une calibration insuffisante laisse la bande absente. Leur couverture réelle peut rester inférieure à 95 %. Un gain MAE positif indique une amélioration par rapport au dernier prix constant. Les prévisions quotidiennes utilisent uniquement les séries spot, séparées des contrats à terme et du proxy heating oil. Les horizons partent de la dernière date source, pas de la date du jour.</p>
       </section>
@@ -197,7 +202,7 @@
           <label>Remarques<textarea name="notes" maxlength="2000" rows="2"></textarea></label><p id="quote-editor-message" class="error-note" role="status"></p><button class="primary-btn" type="submit" id="quote-save">Enregistrer le devis</button>
         </form>
         <article id="quote-detail" hidden>
-          <div class="panel-heading"><h3 id="quote-detail-title"></h3><div class="export-actions"><button type="button" class="text-btn" id="quote-edit">Corriger</button><button type="button" class="primary-btn" id="quote-budget">Préparer le budget</button><button type="button" class="text-btn" id="quote-detail-close">Fermer</button></div></div>
+          <div class="panel-heading"><h3 id="quote-detail-title"></h3><div class="export-actions"><button type="button" class="text-btn" id="quote-edit" data-permission="editor">Corriger</button><button type="button" class="primary-btn" id="quote-budget" data-permission="editor">Préparer le budget</button><button type="button" class="text-btn" id="quote-detail-close">Fermer</button></div></div>
           <div id="quote-detail-content"></div>
           <h3>Justificatifs</h3><div id="quote-documents"></div>
           <form id="quote-document-form" data-permission="editor"><div class="form-grid"><label>Fichier<input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.xlsx" required></label><label>Type de document<select name="document_type" id="quote-document-type"></select></label><label>Auteur<input name="actor" maxlength="100" value="Équipe achats" required></label><label>Motif de l’ajout ou du retrait<input name="change_reason" maxlength="1000" required></label></div><p class="field-help">PDF, images, TXT, DOCX ou XLSX sans macros · 5 Mo par document. Les pièces retirées restent dans l’historique.</p><button type="submit" class="text-btn" id="quote-upload">Joindre le justificatif</button><p id="quote-document-message" class="error-note" role="status"></p></form>
@@ -300,6 +305,7 @@
     </main>
   </div>
   <script src="/static/auth.js"></script>
+  <script src="/static/attention.js"></script>
   <script src="/static/connectivity.js"></script>
   <script src="/static/app.js"></script>
   <script src="/static/quotes.js"></script>

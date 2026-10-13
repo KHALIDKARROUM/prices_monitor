@@ -84,3 +84,16 @@ test('unavailable forecasts clear previous quality text and hide the chart', () 
   assert.equal($('#forecast-brent-quality').innerHTML, '');
   assert.equal($('#forecast-brent-chart').hidden, true);
 });
+
+test('a server awaiting restart keeps legacy Holt and heuristic bands honestly labelled', () => {
+  const data = product();
+  delete data.model_selection;
+  data.model = 'damped_holt';
+  data.interval_method = 'heuristic_residual_sqrt_time';
+  const { $, charts, render } = dashboard(data);
+  render();
+  assert.match($('#forecast-brent-quality').innerHTML, /Holt amorti/);
+  assert.match($('#forecast-brent-quality').innerHTML, /Comparaison des modèles indisponible/);
+  assert.doesNotMatch($('#forecast-brent-quality').innerHTML, /Dernier prix connu/);
+  assert.equal(charts[0].data.datasets[1].label, 'Bande indicative');
+});

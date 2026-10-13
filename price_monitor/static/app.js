@@ -103,8 +103,10 @@ function renderForecastProduct(key) {
   }
   const horizon = $(key === 'bitume' ? '#forecast-bitume-horizon' : '#forecast-horizon').value;
   const selection = product.model_selection?.[horizon] || {};
-  const modelLabel = selection.selected_model === 'holt' ? 'Holt amorti' : 'Dernier prix connu';
-  const warnings = selection.warnings || [];
+  const selectedModel = selection.selected_model || (product.model === 'damped_holt' ? 'holt' : product.model);
+  const modelLabel = selectedModel === 'holt' ? 'Holt amorti' : selectedModel === 'naive' ? 'Dernier prix connu' : 'Modèle non renseigné';
+  const warnings = selection.warnings || [{ message: 'Comparaison des modèles indisponible pour cette projection.' }];
+  const bandLabel = product.interval_method === 'chronological_absolute_log_error_quantile' ? 'Bande calibrée · 95 % nominal' : 'Bande indicative';
   quality.hidden = false;
   quality.classList.toggle('has-warning', warnings.length > 0);
   quality.innerHTML = `<strong>Modèle retenu : ${modelLabel}</strong>${warnings.map(warning => `<p>${escapeHtml(warning.message)}</p>`).join('')}`;
@@ -128,7 +130,7 @@ function renderForecastProduct(key) {
     type: 'line',
     data: { labels: labels.map(forecastDate), datasets: [
       { label: 'Borne basse', data: lower, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: false, spanGaps: false },
-      { label: 'Bande calibrée · 95 % nominal', data: upper, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: '-1', spanGaps: false },
+      { label: bandLabel, data: upper, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: '-1', spanGaps: false },
       { label: 'Réel', data: actualSeries, borderColor: meta.color, backgroundColor: meta.color, borderWidth: 2, pointRadius: 0, tension: .3, spanGaps: true },
       { label: modelLabel, data: forecast, borderColor: '#f0f7f9', backgroundColor: '#f0f7f9', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, tension: .3, spanGaps: true }
     ] },
@@ -154,7 +156,8 @@ async function loadForecast() {
     forecastData = await response.json();
     const generated = forecastData.generated_at ? formatDate(forecastData.generated_at, true) : 'à l’instant';
     const stale = Object.values(forecastData.products || {}).filter(product => product.is_stale);
-    $('#forecast-status').textContent = `Modèle choisi par horizon · prix : jours calendaires · indice bitume : mois · calculé ${generated}${stale.length ? ' · Attention : dernières données anciennes, projections ancrées sur leur date source.' : ''}`;
+    const compared = Object.values(forecastData.products || {}).every(product => product.status !== 'ready' || product.model_selection);
+    $('#forecast-status').textContent = `${compared ? 'Modèle choisi par horizon' : 'Comparaison des modèles indisponible'} · prix : jours calendaires · indice bitume : mois · calculé ${generated}${stale.length ? ' · Attention : dernières données anciennes, projections ancrées sur leur date source.' : ''}`;
     $('#forecast-status').classList.toggle('error-note', stale.length > 0);
     renderForecast();
   } catch (error) {

@@ -815,7 +815,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             raise ValueError("Invalid indicator code.")
         product = str(payload.get("product") or "").strip().lower()
         if product not in PROCUREMENT_PRODUCTS:
-            raise ValueError("L'indicateur doit concerner le gasoil ou le bitume.")
+            raise ValueError("The indicator must be for diesel or bitumen.")
         try:
             value = float(payload.get("value"))
         except (TypeError, ValueError):
@@ -1265,7 +1265,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             params.append(data_kind)
         if instrument:
             if instrument not in INSTRUMENTS or (product and INSTRUMENTS[instrument]["product"] != product):
-                raise ValueError("Instrument incompatible avec le produit.")
+                raise ValueError("Instrument is incompatible with the product.")
             clauses.append("instrument=?")
             params.append(instrument)
         return clauses, params

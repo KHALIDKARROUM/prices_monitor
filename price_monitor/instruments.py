@@ -6,8 +6,8 @@ INSTRUMENTS = {
     "brent_spot": {"product": "brent", "label": "Brent Europe · spot", "unit": "USD/baril"},
     "brent_futures": {"product": "brent", "label": "Brent BZ=F · futures", "unit": "USD/baril"},
     "diesel_spot": {"product": "gasoil", "label": "Diesel New York Harbor · spot", "unit": "USD/gallon"},
-    "heating_oil_futures": {"product": "gasoil", "label": "Heating oil HO=F · proxy gasoil", "unit": "USD/gallon"},
-    "bitumen_quote": {"product": "bitume", "label": "Bitume · devis fournisseur", "unit": "USD/tonne"},
+    "heating_oil_futures": {"product": "gasoil", "label": "Heating oil HO=F · diesel proxy", "unit": "USD/gallon"},
+    "bitumen_quote": {"product": "bitume", "label": "Bitumen · supplier quote", "unit": "USD/tonne"},
     "asphalt_index": {"product": "bitume", "label": "Bitumen · BLS WPU058 index", "unit": "indice (déc. 1984 = 100)"},
 }
 DEFAULT_INSTRUMENTS = {"brent": "brent_spot", "gasoil": "diesel_spot", "bitume": "bitumen_quote"}
@@ -36,7 +36,7 @@ def resolve_instrument(product: str, source: str = "", instrument: str | None = 
     inferred = "asphalt_index" if index else SOURCE_INSTRUMENTS.get(source, DEFAULT_INSTRUMENTS.get(product))
     selected = instrument or inferred
     if selected not in INSTRUMENTS or INSTRUMENTS[selected]["product"] != product:
-        raise ValueError("Instrument incompatible avec le produit.")
+        raise ValueError("Instrument is incompatible with the product.")
     if source in SOURCE_INSTRUMENTS and selected != inferred:
         raise ValueError("The instrument must match the series published by the source.")
     if index != (selected == "asphalt_index"):

@@ -13,6 +13,7 @@ let editingAlertId = null;
 let dashboardRequest = 0;
 const $ = (selector) => document.querySelector(selector);
 const displayUnit = unit => ({ 'USD/baril': 'USD/barrel', 'baril': 'barrel', 'indice (déc. 1984 = 100)': 'index (Dec. 1984 = 100)', 'indice': 'index' }[unit] || unit || '');
+const displaySource = source => ({ 'Yahoo Finance - NY Harbor Heating Oil HO=F (proxy gasoil)': 'Yahoo Finance - NY Harbor Heating Oil HO=F (diesel proxy)' }[source] || source || '');
 const formatPrice = (value, unit) => value == null ? '—' : `${Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 })} <small>${escapeHtml(displayUnit(unit))}</small>`;
 const formatPct = (value) => value == null ? '—' : `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(2)} %`;
 const formatDate = (value, withTime = false) => value ? new Date(value).toLocaleString('en-US', withTime ? { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -75,9 +76,9 @@ function renderMetrics(metrics) {
       : m.market_closed
         ? `<span class="freshness" title="Next opening: ${escapeHtml(formatDate(m.next_market_open_at, true))}">Market closed · ${m.quote_at ? formatDate(m.quote_at, true) : 'time unknown'}</span>`
       : m.is_live
-        ? `<span class="freshness current" title="${escapeHtml(m.source || 'Market feed')}">Live · ${formatDate(m.quote_at, true)}</span>`
+        ? `<span class="freshness current" title="${escapeHtml(displaySource(m.source || 'Market feed'))}">Live · ${formatDate(m.quote_at, true)}</span>`
       : m.quote_at
-        ? `<span class="freshness stale" title="${escapeHtml(m.source || 'Market feed')}">Latest quote · ${formatDate(m.quote_at, true)}</span>`
+        ? `<span class="freshness stale" title="${escapeHtml(displaySource(m.source || 'Market feed'))}">Latest quote · ${formatDate(m.quote_at, true)}</span>`
       : m.source?.startsWith('Yahoo Finance - ')
         ? '<span class="freshness stale">Quote time unavailable</span>'
       : m.is_stale
@@ -367,7 +368,7 @@ function renderChart(series) {
 function renderLatest(rows) {
   $('#latest-table').innerHTML = rows.length ? rows.map(row => {
     const meta = PRODUCT_META[row.product]; const pct = row.variation_pct; const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
-    return `<tr><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}${row.data_kind === 'index' ? ' · BLS index' : row.product === 'bitume' ? ' · quote' : ''}</strong></div></td><td class="price-cell">${formatPrice(row.price, row.unit)}</td><td><span class="variation trend ${cls}">${formatPct(pct)}</span></td><td>${formatDate(row.source_date)}</td><td>${formatDate(row.collected_at, true)}</td><td class="source-cell">${escapeHtml(row.source)}<br>${row.is_unchanged ? '<span class="unchanged">Publication unchanged</span>' : ''}</td><td></td></tr>`;
+    return `<tr><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}${row.data_kind === 'index' ? ' · BLS index' : row.product === 'bitume' ? ' · quote' : ''}</strong></div></td><td class="price-cell">${formatPrice(row.price, row.unit)}</td><td><span class="variation trend ${cls}">${formatPct(pct)}</span></td><td>${formatDate(row.source_date)}</td><td>${formatDate(row.collected_at, true)}</td><td class="source-cell">${escapeHtml(displaySource(row.source))}<br>${row.is_unchanged ? '<span class="unchanged">Publication unchanged</span>' : ''}</td><td></td></tr>`;
   }).join('') : '<tr><td colspan="7" class="empty">No observations in this period.</td></tr>';
 }
 
@@ -428,7 +429,7 @@ function renderMarketContext(data) {
   const price = context.latest_price;
   const priceLabel = data.product === 'bitume' ? 'Latest saved quote' : 'Latest diesel benchmark';
   const priceDetail = price
-    ? `<strong>${formatNumber(price.price, price.price < 10 ? 3 : 2)} ${escapeHtml(displayUnit(price.unit))}</strong><small>${formatDate(price.source_date)} · ${escapeHtml(price.source)}</small>`
+    ? `<strong>${formatNumber(price.price, price.price < 10 ? 3 : 2)} ${escapeHtml(displayUnit(price.unit))}</strong><small>${formatDate(price.source_date)} · ${escapeHtml(displaySource(price.source))}</small>`
     : '<strong>—</strong><small>No observations available.</small>';
   const benchmarkCards = (context.benchmarks || []).map(row =>
     `<div class="market-card"><span>${escapeHtml(row.label)}</span><strong>${formatNumber(row.value, 3)} ${escapeHtml(displayUnit(row.unit))}</strong><small>${formatDate(row.source_date)} · ${escapeHtml(row.geography)} · ${formatPct(row.variation_pct)}</small></div>`
@@ -544,7 +545,7 @@ function renderHistory(data) {
   $('#history-table').innerHTML = rows.length ? rows.map(row => {
     const meta = PRODUCT_META[row.product] || { label: row.product, color: '#a7bac2' };
     const pct = row.variation_pct; const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
-    return `<tr><td>${formatDate(row.source_date)}</td><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}${row.data_kind === 'index' ? ' · BLS index' : row.product === 'bitume' ? ' · quote' : ''}</strong></div></td><td class="price-cell">${formatPrice(row.price, row.unit)}</td><td>${escapeHtml(row.supplier || '—')}</td><td class="source-cell">${escapeHtml(row.source)}</td><td>${formatDate(row.collected_at, true)}</td><td><span class="trend ${cls}">${formatPct(pct)}</span></td></tr>`;
+    return `<tr><td>${formatDate(row.source_date)}</td><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}${row.data_kind === 'index' ? ' · BLS index' : row.product === 'bitume' ? ' · quote' : ''}</strong></div></td><td class="price-cell">${formatPrice(row.price, row.unit)}</td><td>${escapeHtml(row.supplier || '—')}</td><td class="source-cell">${escapeHtml(displaySource(row.source))}</td><td>${formatDate(row.collected_at, true)}</td><td><span class="trend ${cls}">${formatPct(pct)}</span></td></tr>`;
   }).join('') : '<tr><td colspan="7" class="empty">No observations match these filters.</td></tr>';
   updateHistoryExportLinks();
 }

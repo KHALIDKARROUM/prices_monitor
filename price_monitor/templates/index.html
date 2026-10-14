@@ -3,16 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Tableau de bord de suivi des prix internationaux du gasoil, du Brent et du bitume">
-  <meta name="theme-color" content="#000000">
+  <meta name="description" content="Monitor diesel, Brent crude, and bitumen markets, forecasts, alerts, and supplier quotes.">
+  <meta name="theme-color" content="#0b151d">
   <title>Markets · Price Monitor</title>
+  <script src="/static/theme.js"></script>
   <script id="chart-library" async src="/static/chart.umd-4.4.3.js"></script>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <section id="sign-in" class="sign-in" aria-labelledby="sign-in-title" hidden>
     <form id="sign-in-form" class="panel">
-      <p class="eyebrow">PRICE MONITOR</p><h1 id="sign-in-title">Access your workspace</h1>
+      <div class="sign-in-heading"><p class="eyebrow">PRICE MONITOR</p><button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to light mode" aria-pressed="true"><span data-theme-icon aria-hidden="true">☾</span><span data-theme-label>Dark</span></button></div><h1 id="sign-in-title">Access your workspace</h1>
       <p>Your team's prices, quotes, and documents are available only to authorized users.</p>
       <div id="sign-in-account-fields"><label>Username<input name="username" autocomplete="username" maxlength="80" required></label><label>Password<input name="password" type="password" autocomplete="current-password" maxlength="128" required></label></div>
       <div id="sign-in-key-fields" hidden><label>Local access key<input name="api_key" type="password" autocomplete="off"></label></div>
@@ -46,7 +47,7 @@
     <main class="content" id="main-content" tabindex="-1">
       <header class="topbar">
         <div><p class="eyebrow">PRICE MONITOR / GLOBAL MARKETS</p><h1 id="page-title" tabindex="-1">Markets</h1><p class="topbar-intro" id="page-description">Key prices at a glance.</p></div>
-        <div class="top-actions"><span class="live-pill warning" id="system-status" role="status"><i></i> Checking connection…</span><button class="icon-button" id="refresh-btn" title="Refresh data" aria-label="Refresh data">↻</button><button type="button" class="avatar" id="profile-button" aria-label="My account">PM</button></div>
+        <div class="top-actions"><span class="live-pill warning" id="system-status" role="status"><i></i> Checking connection…</span><button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to light mode" aria-pressed="true"><span data-theme-icon aria-hidden="true">☾</span><span data-theme-label>Dark</span></button><button class="icon-button" id="refresh-btn" title="Refresh data" aria-label="Refresh data">↻</button><button type="button" class="avatar" id="profile-button" aria-label="My account">PM</button></div>
       </header>
 
 

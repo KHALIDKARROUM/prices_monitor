@@ -12,9 +12,9 @@
       else if (metric.is_stale && !metric.market_closed) items.push({ id: `data-${key}`, text: `${names[key] || key}: latest data is stale`, href: '#marches' });
     }
     const mismatch = state.dashboard?.source_comparison?.mismatch_count || 0;
-    if (mismatch) items.push({ id: 'comparison', text: `${mismatch} mismatch(es) between equivalent feeds`, href: '#source-comparison' });
+    if (mismatch) items.push({ id: 'comparison', text: `${mismatch} ${mismatch === 1 ? 'mismatch' : 'mismatches'} between equivalent feeds`, href: '#source-comparison' });
     const active = (state.alerts || []).filter(rule => rule.active && rule.enabled !== false && !rule.muted);
-    if (active.length) items.push({ id: 'alerts', text: `${active.length} active alert(s)`, href: '#veille' });
+    if (active.length) items.push({ id: 'alerts', text: `${active.length} active ${active.length === 1 ? 'alert' : 'alerts'}`, href: '#veille' });
     for (const [key, data] of Object.entries(state)) {
       if (!key.startsWith('forecast-')) continue;
       const name = names[key.slice(9)] || key.slice(9);
@@ -39,7 +39,7 @@
     state[key] = value;
     const items = attentionItems(state);
     panel.classList.toggle('has-attention', items.length > 0);
-    document.querySelector('#attention-count').textContent = items.length ? `${items.length} item(s) to review` : 'Nothing needs attention';
+    document.querySelector('#attention-count').textContent = items.length ? `${items.length} ${items.length === 1 ? 'item' : 'items'} to review` : 'Nothing needs attention';
     document.querySelector('#attention-items').innerHTML = attentionHtml(items);
     document.querySelector('#attention-note').textContent = items.length ? 'Open an item to see details.' : 'Available data summarized; checks continue in the background.';
   } };

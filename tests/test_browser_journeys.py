@@ -121,7 +121,7 @@ def test_offline_bundle_independent_axes_summaries_and_mobile_navigation(journey
     from playwright.sync_api import expect
     page,base,_ = journey
     login(page,base)
-    expect(page.locator('#needs-attention')).to_contain_text('active alert(s)')
+    expect(page.locator('#needs-attention')).to_contain_text('active alert')
     expect(page.locator('#needs-attention')).to_contain_text('use forecast with caution')
     page.wait_for_function("window.Chart && Chart.getChart('price-chart')")
     page.get_by_role('button',name='Price',exact=True).click()
@@ -144,6 +144,34 @@ def test_offline_bundle_independent_axes_summaries_and_mobile_navigation(journey
     assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
     page.locator('#nav-toggle').click()
     page.locator('nav').get_by_role('link',name='Markets',exact=True).click()
+
+def test_theme_choice_persists_and_recolors_charts(journey):
+    from playwright.sync_api import expect
+    page,base,_ = journey
+    page.goto(base)
+    expect(page.locator('#sign-in')).to_be_visible()
+    original = page.locator('html').get_attribute('data-theme')
+    assert original in {'dark','light'}
+    chosen = 'light' if original == 'dark' else 'dark'
+    page.locator('#sign-in [data-theme-toggle]').click()
+    expect(page.locator('html')).to_have_attribute('data-theme', chosen)
+    assert page.evaluate("localStorage.getItem('priceMonitorTheme')") == chosen
+
+    login(page,base)
+    expect(page.locator('.app-shell [data-theme-toggle]')).to_have_attribute('aria-label', f'Switch to {original} mode')
+    page.wait_for_function("window.Chart && Chart.getChart('price-chart')")
+    assert page.evaluate("Chart.getChart('price-chart').options.scales.x.ticks.color") == page.evaluate('PriceMonitorTheme.palette().tick')
+
+    page.locator('.app-shell [data-theme-toggle]').click()
+    expect(page.locator('html')).to_have_attribute('data-theme', original)
+    page.wait_for_function("Chart.getChart('price-chart').options.scales.x.ticks.color === PriceMonitorTheme.palette().tick")
+    page.reload()
+    expect(page.locator('html')).to_have_attribute('data-theme', original)
+    assert page.evaluate("localStorage.getItem('priceMonitorTheme')") == original
+    page.set_viewport_size({'width':390,'height':844})
+    expect(page.locator('.app-shell [data-theme-toggle]')).to_be_visible()
+    assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+
 
 def fill_quote(page, supplier):
     form=page.locator('#quote-editor')

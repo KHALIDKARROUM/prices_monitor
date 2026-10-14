@@ -11,6 +11,7 @@ let forecastData = null;
 let alertRules = [];
 let editingAlertId = null;
 let dashboardRequest = 0;
+let dashboardSeries = null;
 const $ = (selector) => document.querySelector(selector);
 const displayUnit = unit => ({ 'USD/baril': 'USD/barrel', 'baril': 'barrel', 'indice (déc. 1984 = 100)': 'index (Dec. 1984 = 100)', 'indice': 'index' }[unit] || unit || '');
 const displaySource = source => ({ 'Yahoo Finance - NY Harbor Heating Oil HO=F (proxy gasoil)': 'Yahoo Finance - NY Harbor Heating Oil HO=F (diesel proxy)' }[source] || source || '');
@@ -142,16 +143,18 @@ function renderForecastProduct(key) {
     canvas.hidden = true;
     return;
   }
+  const palette = window.PriceMonitorTheme?.palette() || { tick: '#a0a0a0', grid: 'rgba(255,255,255,.07)', forecast: '#f0f7f9', band: 'rgba(200,200,200,.1)', tooltip: '#202020', tooltipText: '#fff', series: {} };
+  const actualColor = palette.series[key] || meta.color;
   const chartContext = canvas.getContext('2d');
   forecastCharts[key] = new Chart(chartContext, {
     type: 'line',
     data: { labels: labels.map(forecastDate), datasets: [
-      { label: 'Lower bound', data: lower, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: false, spanGaps: false },
-      { label: bandLabel, data: upper, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: '-1', spanGaps: false },
-      { label: 'Actual', data: actualSeries, borderColor: meta.color, backgroundColor: meta.color, borderWidth: 2, pointRadius: 0, tension: .3, spanGaps: true },
-      { label: modelLabel, data: forecast, borderColor: '#f0f7f9', backgroundColor: '#f0f7f9', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, tension: .3, spanGaps: true }
+      { label: 'Lower bound', data: lower, borderColor: 'transparent', backgroundColor: palette.band, pointRadius: 0, fill: false, spanGaps: false },
+      { label: bandLabel, data: upper, borderColor: 'transparent', backgroundColor: palette.band, pointRadius: 0, fill: '-1', spanGaps: false },
+      { label: 'Actual', data: actualSeries, borderColor: actualColor, backgroundColor: actualColor, borderWidth: 2, pointRadius: 0, tension: .3, spanGaps: true },
+      { label: modelLabel, data: forecast, borderColor: palette.forecast, backgroundColor: palette.forecast, borderWidth: 2, borderDash: [6, 4], pointRadius: 0, tension: .3, spanGaps: true }
     ] },
-    options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#202020', padding: 10, callbacks: { label: item => ` ${item.dataset.label}: ${formatNumber(item.raw, item.raw < 10 ? 3 : 2)} ${displayUnit(product.unit)}` } } }, scales: { x: { grid: { display: false }, ticks: { color: '#a0a0a0', maxTicksLimit: 8, font: { size: 10 } } }, y: { grid: { color: 'rgba(255,255,255,.07)' }, ticks: { color: '#a0a0a0', font: { size: 10 }, callback: value => formatNumber(value, value < 10 ? 3 : 0) }, border: { display: false } } } }
+    options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: palette.tooltip, titleColor: palette.tooltipText, bodyColor: palette.tooltipText, padding: 10, callbacks: { label: item => ` ${item.dataset.label}: ${formatNumber(item.raw, item.raw < 10 ? 3 : 2)} ${displayUnit(product.unit)}` } } }, scales: { x: { grid: { display: false }, ticks: { color: palette.tick, maxTicksLimit: 8, font: { size: 10 } } }, y: { grid: { color: palette.grid }, ticks: { color: palette.tick, font: { size: 10 }, callback: value => formatNumber(value, value < 10 ? 3 : 0) }, border: { display: false } } } }
   });
 }
 
@@ -282,6 +285,7 @@ async function mutateAlert(id, payload) {
 }
 
 function renderChart(series) {
+  const palette = window.PriceMonitorTheme?.palette() || { tick: '#a0a0a0', grid: 'rgba(255,255,255,.07)', tooltip: '#202020', tooltipText: '#fff', series: {} };
   const marketDate = row => row.chart_date || row.source_date || row.collected_at?.slice(0, 10);
   const allRows = Object.values(series || {}).flat().sort((a, b) => marketDate(a).localeCompare(marketDate(b)));
   const labels = [...new Set(allRows.map(marketDate).filter(Boolean))];
@@ -308,6 +312,7 @@ function renderChart(series) {
   empty.hidden = true;
   const latestSegments = [];
   const datasets = Object.entries(PRODUCT_META).map(([key, meta]) => {
+    const seriesColor = palette.series[key] || meta.color;
     const rows = [...(series[key] || [])].sort((a, b) => {
       const dateOrder = marketDate(a).localeCompare(marketDate(b));
       return dateOrder || String(a.collected_at || '').localeCompare(String(b.collected_at || ''));
@@ -327,8 +332,8 @@ function renderChart(series) {
         label: `${meta.short} · latest quote`,
         data: labels.map(date => date === latestDate || date === today ? displayedLatestPrice : null),
         actualData: labels.map(date => date === latestDate || date === today ? latestPrice : null),
-        borderColor: meta.color,
-        backgroundColor: meta.color,
+        borderColor: seriesColor,
+        backgroundColor: seriesColor,
         borderWidth: 2,
         borderDash: [6, 5],
         pointRadius: 0,
@@ -337,7 +342,7 @@ function renderChart(series) {
         unit: displayUnit(latest.unit), isLatestCarryForward: true, yAxisID: chartMode === 'indexed' ? 'y' : `y_${key}`
       });
     }
-    return { label: key === 'bitume' && rows.some(row => row.data_kind === 'index') ? 'Bitumen · BLS index' : ALERT_INSTRUMENTS[key]?.find(([id]) => id === rows[0]?.instrument)?.[1] || meta.short, unit: displayUnit(rows[0]?.unit), yAxisID: chartMode === 'indexed' ? 'y' : `y_${key}`, data, actualData: labels.map(date => byDate[date] ?? null), borderColor: meta.color, backgroundColor: meta.color, borderWidth: 2, pointRadius: 0, tension: .35, spanGaps: true };
+    return { label: key === 'bitume' && rows.some(row => row.data_kind === 'index') ? 'Bitumen · BLS index' : ALERT_INSTRUMENTS[key]?.find(([id]) => id === rows[0]?.instrument)?.[1] || meta.short, unit: displayUnit(rows[0]?.unit), yAxisID: chartMode === 'indexed' ? 'y' : `y_${key}`, data, actualData: labels.map(date => byDate[date] ?? null), borderColor: seriesColor, backgroundColor: seriesColor, borderWidth: 2, pointRadius: 0, tension: .35, spanGaps: true };
   });
   $('#legend').innerHTML = datasets.map(d => `<span><i style="background:${d.borderColor}"></i>${d.label}</span>`).join('');
   datasets.push(...latestSegments);
@@ -356,13 +361,13 @@ function renderChart(series) {
     : `${chartDescription} All available series were published today.`;
   if (!window.Chart) { ctx.hidden = true; empty.hidden = true; if (!ctx.parentElement.querySelector('.chart-fallback')) ctx.insertAdjacentHTML('afterend', '<div class="empty chart-fallback">The chart will appear when Chart.js loads.</div>'); return; }
   ctx.hidden = false; ctx.parentElement.querySelector('.chart-fallback')?.remove();
-  const axis = (label, color) => ({ type: 'linear', axis: 'y', position: 'left', stack: 'markets', stackWeight: 1, grid: { color: 'rgba(255,255,255,.07)' }, ticks: { color, font: { size: 10 }, callback: (value, index, ticks) => chartMode === 'absolute' && ticks.length > 3 && (index === 0 || index === ticks.length - 1) ? '' : formatNumber(value, value < 10 ? 3 : 1) }, title: { display: true, text: label, color, font: { size: 10, weight: '600' } }, border: { display: false } });
-  const scales = { x: { grid: { display: false }, ticks: { color: '#a0a0a0', maxTicksLimit: 7, font: { size: 10 } } } };
-  if (chartMode === 'indexed') scales.y = { ...axis('Base 100 · each series starts on its own date', '#a0a0a0'), stack: undefined };
-  else Object.entries(PRODUCT_META).forEach(([key, meta]) => { if (series[key]?.length) scales[`y_${key}`] = axis(`${meta.short} · ${displayUnit(series[key][0].unit) || 'unknown unit'}`, meta.color); });
+  const axis = (label, color) => ({ type: 'linear', axis: 'y', position: 'left', stack: 'markets', stackWeight: 1, grid: { color: palette.grid }, ticks: { color, font: { size: 10 }, callback: (value, index, ticks) => chartMode === 'absolute' && ticks.length > 3 && (index === 0 || index === ticks.length - 1) ? '' : formatNumber(value, value < 10 ? 3 : 1) }, title: { display: true, text: label, color, font: { size: 10, weight: '600' } }, border: { display: false } });
+  const scales = { x: { grid: { display: false }, ticks: { color: palette.tick, maxTicksLimit: 7, font: { size: 10 } } } };
+  if (chartMode === 'indexed') scales.y = { ...axis('Base 100 · each series starts on its own date', palette.tick), stack: undefined };
+  else Object.entries(PRODUCT_META).forEach(([key, meta]) => { if (series[key]?.length) scales[`y_${key}`] = axis(`${meta.short} · ${displayUnit(series[key][0].unit) || 'unknown unit'}`, palette.series[key] || meta.color); });
   // Omit empty series so Chart.js cannot create an unlabelled default axis.
   const visibleDatasets = datasets.filter(dataset => dataset.actualData.some(value => value != null));
-  chart = new Chart(ctx, { type: 'line', data: { labels: labels.map(d => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { day: '2-digit', month: 'short' })), datasets: visibleDatasets }, options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#202020', padding: 12, titleColor: '#fff', bodyColor: '#cccccc', callbacks: { label: item => { const actual = item.dataset.actualData?.[item.dataIndex]; const value = chartMode === 'indexed' ? `${formatNumber(item.raw, 1)} · ${actual == null ? '—' : formatNumber(actual)}` : formatNumber(actual ?? item.raw); const label = item.dataset.isLatestCarryForward ? 'Last known quote (extended)' : item.dataset.label; return ` ${label}: ${value} ${item.dataset.unit || ''}`; } } } }, scales } });
+  chart = new Chart(ctx, { type: 'line', data: { labels: labels.map(d => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { day: '2-digit', month: 'short' })), datasets: visibleDatasets }, options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: palette.tooltip, padding: 12, titleColor: palette.tooltipText, bodyColor: palette.tooltipText, callbacks: { label: item => { const actual = item.dataset.actualData?.[item.dataIndex]; const value = chartMode === 'indexed' ? `${formatNumber(item.raw, 1)} · ${actual == null ? '—' : formatNumber(actual)}` : formatNumber(actual ?? item.raw); const label = item.dataset.isLatestCarryForward ? 'Last known quote (extended)' : item.dataset.label; return ` ${label}: ${value} ${item.dataset.unit || ''}`; } } } }, scales } });
 }
 
 function renderLatest(rows) {
@@ -654,6 +659,7 @@ async function loadDashboard() {
     const data = await response.json();
     if (request !== dashboardRequest) return;
     globalThis.PriceMonitorAttention?.update('dashboard', data);
+    dashboardSeries = data.series;
     renderMetrics(data.metrics); renderChart(data.series); renderLatest(data.latest);
     renderSourceComparison(data.source_comparison);
     $('#quality-score').textContent = data.quality?.score ?? '—';
@@ -664,6 +670,7 @@ async function loadDashboard() {
     connectionMonitor.render();
   } catch (error) {
     if (request !== dashboardRequest) return;
+    dashboardSeries = null;
     globalThis.PriceMonitorAttention?.update('dashboard', null);
     renderSourceComparison(null);
     renderChart({});
@@ -685,6 +692,10 @@ document.querySelectorAll('.mode-btn').forEach(button => button.addEventListener
   document.querySelectorAll('.mode-btn').forEach(item => { const active = item === button; item.classList.toggle('active', active); item.setAttribute('aria-pressed', active ? 'true' : 'false'); });
   loadDashboard();
 }));
+window.addEventListener('price-monitor-theme-change', () => {
+  if (dashboardSeries) renderChart(dashboardSeries);
+  if (forecastData) renderForecast();
+});
 
 const navigation = $('.sidebar');
 const navigationToggle = $('#nav-toggle');

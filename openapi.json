@@ -1282,7 +1282,68 @@
             "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
         },
-        "description": "Scores only the same instrument: a futures or heating-oil observation can never resolve a spot forecast. Daily targets accept the first published actual on the target date through four days later; the monthly BLS index requires the target month.",
+        "description": "Scores only the same instrument: a futures or heating-oil observation can never resolve a spot forecast. Daily targets accept the first published actual on the target date through four days later; the monthly BLS index requires the target month. When product, instrument, and horizon are supplied, the current production candidate is reported rather than mixing it with shadow forecasts.",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/model-lifecycle": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Versioned forecast candidates and lifecycle audit",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Product"
+          },
+          {
+            "$ref": "#/components/parameters/Instrument"
+          },
+          {
+            "name": "horizon",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365
+            }
+          },
+          {
+            "name": "event_limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Production and shadow candidates, version identities, promotion and rollback criteria, and append-only lifecycle events."
+          },
+          "400": {
+            "description": "Invalid parameter"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "description": "Candidates are versioned, first run in shadow against identical issued endpoints, and are promoted only after 30 paired actuals and at least 5% MAE improvement. A non-persistence model rolls back after 30 live actuals when its MAE is more than 10% worse than its issued persistence baseline.",
         "security": [
           {
             "CookieSession": []

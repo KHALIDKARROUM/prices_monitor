@@ -123,6 +123,24 @@ def _round(value: float | None) -> float | None:
     return round(value, 6) if value is not None else None
 
 
+def _forecast_points(
+    predictions: list[float], *, evaluation: dict[str, Any], model: str, last_day: date, monthly: bool,
+) -> list[dict[str, Any]]:
+    """Return issue-time points and model-specific calibration bands."""
+    points = []
+    radii = evaluation["candidate_radii"][model]
+    for index, prediction in enumerate(predictions, start=1):
+        radius = radii[str(index)]
+        month_number = last_day.year * 12 + last_day.month - 1 + index
+        forecast_day = date(month_number // 12, month_number % 12 + 1, 1) if monthly else last_day + timedelta(days=index)
+        points.append({
+            "date": forecast_day.isoformat(), "value": _round(prediction),
+            "lower": _round(prediction * math.exp(-radius)) if radius is not None else None,
+            "upper": _round(prediction * math.exp(radius)) if radius is not None else None,
+        })
+    return points
+
+
 def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tuple[int, ...] = FORECAST_HORIZONS) -> dict[str, Any]:
     monthly = product == "bitume"
     instrument = "asphalt_index" if monthly else DEFAULT_INSTRUMENTS[product]
@@ -155,6 +173,10 @@ def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tup
         "history": series[-120:],
         "forecasts": {},
         "backtest": {},
+        # The lifecycle needs both endpoints before they are written to the
+        # ledger. This internal value is removed before API responses are sent.
+        "_candidate_forecasts": {},
+        "_candidate_metadata": {},
     }
     if not series:
         base.update({"status": "insufficient_data", "message": "No history available."})
@@ -196,18 +218,21 @@ def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tup
             "target_max_delay": plan["max_delay"],
             "calibration_samples_by_step": evaluation["calibration_counts"],
         })
-        predictions = [values[-1]] * horizon if selected == "naive" else _damped_holt(values, horizon, days)
-        points = []
-        for index, prediction in enumerate(predictions, start=1):
-            radius = evaluation["radii"][str(index)]
-            month_number = last_day.year * 12 + last_day.month - 1 + index
-            forecast_day = date(month_number // 12, month_number % 12 + 1, 1) if monthly else last_day + timedelta(days=index)
-            points.append({
-                "date": forecast_day.isoformat(), "value": _round(prediction),
-                "lower": _round(prediction * math.exp(-radius)) if radius is not None else None,
-                "upper": _round(prediction * math.exp(radius)) if radius is not None else None,
-            })
-        base["forecasts"][str(horizon)] = points
+        candidate_points = {
+            "naive": _forecast_points([values[-1]] * horizon, evaluation=evaluation, model="naive", last_day=last_day, monthly=monthly),
+            "holt": _forecast_points(_damped_holt(values, horizon, days), evaluation=evaluation, model="holt", last_day=last_day, monthly=monthly),
+        }
+        base["_candidate_forecasts"][str(horizon)] = candidate_points
+        base["_candidate_metadata"][str(horizon)] = [
+            {
+                "model": name, "model_version": base["model_version"],
+                "validation_mae": evaluation["candidates"][name].get("mae"),
+                "validation_samples": evaluation["candidates"][name].get("samples"),
+                "calibration_coverage": evaluation["candidates"][name].get("interval_coverage"),
+            }
+            for name in ("naive", "holt")
+        ]
+        base["forecasts"][str(horizon)] = candidate_points[selected]
         base["backtest"][str(horizon)] = _backtest_payload(evaluation, base["horizon_unit"])
     selected_models = {item["selected_model"] for item in base["model_selection"].values()}
     base["model"] = next(iter(selected_models)) if len(selected_models) == 1 else "per_horizon"
@@ -231,31 +256,71 @@ def build_forecast(database: Any, history_days: int = DEFAULT_HISTORY_DAYS) -> d
     if hasattr(database, "record_live_forecast"):
         for product, forecast in products.items():
             if forecast.get("status") != "ready":
+                forecast.pop("_candidate_forecasts", None)
+                forecast.pop("_candidate_metadata", None)
                 continue
+            lifecycle_planner = getattr(database, "prepare_model_lifecycle", None)
+            lifecycle_by_horizon: dict[str, Any] = {}
             for horizon, points in forecast.get("forecasts", {}).items():
                 if not points:
                     continue
-                endpoint = points[-1]
                 selection = forecast.get("model_selection", {}).get(horizon, {})
-                database.record_live_forecast({
+                candidate_points = forecast["_candidate_forecasts"][horizon]
+                plan = None
+                if callable(lifecycle_planner):
+                    plan = lifecycle_planner(
+                        product=product, instrument=forecast["instrument"], horizon=int(horizon),
+                        horizon_unit=forecast["horizon_unit"], candidates=forecast["_candidate_metadata"][horizon],
+                        preferred_model=selection.get("selected_model", "naive"),
+                    )
+                    production = plan["production"]
+                    selected_before_control = selection.get("selected_model")
+                    forecast["forecasts"][horizon] = candidate_points[production["model"]]
+                    if production["model"] != selected_before_control:
+                        selection["validation_selected_model"] = selected_before_control
+                        selection["selected_model"] = production["model"]
+                    lifecycle_by_horizon[horizon] = {
+                        "production": {key: production[key] for key in ("model", "candidate_version", "status", "promoted_at", "reason")},
+                        "shadow_models": [shadow["model"] for shadow in plan["shadows"]],
+                        "criteria": plan["criteria"],
+                    }
+                    issuance = [production, *plan["shadows"]]
+                else:
+                    issuance = [{
+                        "model": selection.get("selected_model", forecast.get("model", "unknown")),
+                        "forecast_model_version": f"{forecast.get('model_version', 'unknown')}:{LIVE_FORECAST_MODEL_VERSION}",
+                    }]
+                for candidate in issuance:
+                    model = candidate["model"]
+                    endpoint = candidate_points[model][-1]
+                    database.record_live_forecast({
                     "product": product,
                     "instrument": forecast["instrument"],
                     "horizon": int(horizon),
                     "horizon_unit": forecast["horizon_unit"],
-                    "model": selection.get("selected_model", forecast.get("model", "unknown")),
-                    "model_version": f"{forecast.get('model_version', 'unknown')}:{LIVE_FORECAST_MODEL_VERSION}",
+                    "model": model,
+                    "model_version": candidate["forecast_model_version"],
                     "origin_date": forecast["forecast_origin"],
                     "target_date": endpoint["date"],
                     "prediction": endpoint["value"],
                     "baseline_prediction": forecast["last_actual"]["value"],
                     "lower_bound": endpoint.get("lower"),
                     "upper_bound": endpoint.get("upper"),
-                })
+                    })
+            forecast.pop("_candidate_forecasts", None)
+            forecast.pop("_candidate_metadata", None)
+            if lifecycle_by_horizon:
+                forecast["model_lifecycle"] = lifecycle_by_horizon
             forecast["live_performance"] = {
                 "window": LIVE_FORECAST_WINDOW,
                 "horizons": {
                     str(horizon): database.live_forecast_performance(
                         LIVE_FORECAST_WINDOW, product=product, instrument=forecast["instrument"], horizon=int(horizon),
+                        model_version=(
+                            lifecycle_by_horizon[str(horizon)]["production"].get("candidate_version", "")
+                            + f":{LIVE_FORECAST_MODEL_VERSION}"
+                            if str(horizon) in lifecycle_by_horizon else None
+                        ),
                     )
                     for horizon in forecast["horizons"]
                 },

@@ -97,6 +97,22 @@ def test_live_forecast_ledger_scores_the_original_instrument_and_baseline(contra
     assert metrics['interval_coverage'] == 1
 
 
+def test_model_lifecycle_is_available_to_every_database_backend(contract_db):
+    plan = contract_db.prepare_model_lifecycle(
+        product='brent', instrument='brent_spot', horizon=7, horizon_unit='calendar_days',
+        candidates=[
+            {'model': 'naive', 'model_version': 'contract-lifecycle-v1', 'validation_mae': 2, 'validation_samples': 40},
+            {'model': 'holt', 'model_version': 'contract-lifecycle-v1', 'validation_mae': 1.8, 'validation_samples': 40},
+        ],
+        preferred_model='holt',
+    )
+    assert plan['production']['model'] == 'holt'
+    assert plan['shadows'][0]['model'] == 'naive'
+    lifecycle = contract_db.model_lifecycle(product='brent', instrument='brent_spot', horizon=7)
+    assert lifecycle['criteria']['shadow_min_samples'] == 30
+    assert {candidate['status'] for candidate in lifecycle['candidates']} == {'production', 'shadow'}
+
+
 def test_provider_vintages_preserve_revisions_and_rebuild_the_as_of_series(contract_db):
     values = [(100, 10), (102, 12), (100, 14)]
     for value, hour in values:

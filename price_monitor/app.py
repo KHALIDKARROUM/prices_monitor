@@ -547,9 +547,24 @@ class Handler(WSGIRequest):
                 product = query.get("product", [None])[0]
                 instrument = query.get("instrument", [None])[0]
                 horizon = query.get("horizon", [None])[0]
-                return self.send_json(database.live_forecast_performance(
-                    window, product=product, instrument=instrument,
+                horizon_value = int(horizon) if horizon not in (None, "") else None
+                model_version = query.get("model_version", [None])[0]
+                active_version = getattr(database, "active_forecast_model_version", None)
+                if not model_version and callable(active_version) and product and instrument and horizon_value is not None:
+                    model_version = active_version(product=product, instrument=instrument, horizon=horizon_value)
+                performance_args = {"product": product, "instrument": instrument, "horizon": horizon_value}
+                if model_version:
+                    performance_args["model_version"] = model_version
+                return self.send_json(database.live_forecast_performance(window, **performance_args))
+            if parsed.path == "/api/model-lifecycle":
+                lifecycle = getattr(database, "model_lifecycle", None)
+                if not callable(lifecycle):
+                    return self.send_json({"criteria": {}, "candidates": [], "events": []})
+                horizon = query.get("horizon", [None])[0]
+                return self.send_json(lifecycle(
+                    product=query.get("product", [None])[0], instrument=query.get("instrument", [None])[0],
                     horizon=int(horizon) if horizon not in (None, "") else None,
+                    event_limit=max(1, min(1000, int(query.get("event_limit", [100])[0]))),
                 ))
             if parsed.path == "/api/vintages":
                 if not self._protect_local_records():

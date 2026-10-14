@@ -180,6 +180,20 @@ def test_partial_collection_is_persisted_and_logged_as_partial(empty_database, m
     assert log["message"] == "Brent service unavailable"
 
 
+def test_collection_refreshes_the_controlled_forecast_lifecycle_after_new_data(empty_database, monkeypatch):
+    monkeypatch.setattr(scheduler_module, "collect_all", lambda: ([gasoil_observation()], []))
+    calls = []
+    monkeypatch.setattr(
+        scheduler_module, "_refresh_model_lifecycle",
+        lambda database: calls.append(database) or {"evaluated_scopes": 2, "promoted": 0, "rolled_back": 0},
+    )
+
+    result = scheduler_module.run_collection(empty_database)
+
+    assert calls == [empty_database]
+    assert result["model_lifecycle"] == {"evaluated_scopes": 2, "promoted": 0, "rolled_back": 0}
+
+
 def test_failed_collection_is_logged_without_persisting_rows(empty_database, monkeypatch):
     def failing_collection():
         raise RuntimeError("All market sources unavailable")

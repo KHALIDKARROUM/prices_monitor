@@ -103,6 +103,13 @@ OPENAPI_SPEC = {
                 {"name": "horizon", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 365}},
             ], "responses": {"200": {"description": "Persisted issued forecasts, their resolved actuals, rolling MAE/RMSE/MAPE, bias, improvement over the original last-known-price baseline, and interval coverage."}, "400": {"description": "Invalid parameter"}}}
         },
+        "/api/model-lifecycle": {
+            "get": {"tags": ["market"], "summary": "Versioned forecast candidates and lifecycle audit", "parameters": [
+                {"$ref": "#/components/parameters/Product"}, {"$ref": "#/components/parameters/Instrument"},
+                {"name": "horizon", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 365}},
+                {"name": "event_limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100}},
+            ], "responses": {"200": {"description": "Production and shadow candidates, version identities, promotion and rollback criteria, and append-only lifecycle events."}, "400": {"description": "Invalid parameter"}}}
+        },
         "/api/vintages": {
             "get": {"tags": ["market"], "summary": "Captured provider value vintages", "parameters": [
                 {"$ref": "#/components/parameters/Product"}, {"$ref": "#/components/parameters/Instrument"},
@@ -201,7 +208,8 @@ for product, choices in (("brent", ["brent_spot", "brent_futures"]), ("gasoil", 
 OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] = "Brent and diesel forecasts use only spot series, with stable FRED, EIA, then Alpha Vantage priority. Futures and the heating oil proxy are excluded from this history."
 OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] += " One point per source date is selected before limiting; the latest 5,000 aggregated points are kept in chronological order."
 OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] += " Each selected endpoint is persisted once with its model version, original baseline, and interval."
-OPENAPI_SPEC["paths"]["/api/forecast-performance"]["get"]["description"] = "Scores only the same instrument: a futures or heating-oil observation can never resolve a spot forecast. Daily targets accept the first published actual on the target date through four days later; the monthly BLS index requires the target month."
+OPENAPI_SPEC["paths"]["/api/forecast-performance"]["get"]["description"] = "Scores only the same instrument: a futures or heating-oil observation can never resolve a spot forecast. Daily targets accept the first published actual on the target date through four days later; the monthly BLS index requires the target month. When product, instrument, and horizon are supplied, the current production candidate is reported rather than mixing it with shadow forecasts."
+OPENAPI_SPEC["paths"]["/api/model-lifecycle"]["get"]["description"] = "Candidates are versioned, first run in shadow against identical issued endpoints, and are promoted only after 30 paired actuals and at least 5% MAE improvement. A non-persistence model rolls back after 30 live actuals when its MAE is more than 10% worse than its issued persistence baseline."
 OPENAPI_SPEC["paths"]["/api/vintages"]["get"]["description"] = "Each revision is append-only. available_at records the provider timestamp when supplied; captured_at records when this application received the value."
 OPENAPI_SPEC["paths"]["/api/observations"]["get"]["description"] = "The 600 most recent raw observations in the period are returned in chronological order. Use paginated history or exports to browse all observations."
 OPENAPI_SPEC["paths"]["/api/history/compare"]["get"]["description"] = "Compares all data matching the filters, with no 10,000-row cap per period; daily series are aggregated by instrument and date."

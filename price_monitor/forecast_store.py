@@ -253,7 +253,7 @@ class ForecastStoreMixin:
 
     def live_forecast_performance(
         self, window: int = LIVE_FORECAST_WINDOW, *, product: str | None = None, instrument: str | None = None,
-        horizon: int | None = None,
+        horizon: int | None = None, model_version: str | None = None,
     ) -> dict[str, Any]:
         """Return rolling, comparable endpoint performance and recent ledger entries."""
         try:
@@ -283,6 +283,9 @@ class ForecastStoreMixin:
                 raise ValueError("Forecast horizon must be from 1 to 365.")
             clauses.append("horizon=?")
             params.append(horizon)
+        if model_version:
+            clauses.append("model_version=?")
+            params.append(str(model_version))
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         with self.connect() as conn:
             pending_count = conn.execute(

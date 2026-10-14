@@ -149,23 +149,30 @@ def evaluate_baselines(values: list[float], timeline: list[int], horizon: int, p
                                                [predictions[name][i] for i in holdout], radius),
                             "calibration_log_radius": radius, "calibration_samples": len(cal)}
 
-    # Calibrate each displayed step for the selected horizon model, using only
-    # the earlier calibration origins whose full endpoint is already observed.
-    radii, counts = {}, {}
-    for step in range(1, horizon + 1):
-        errors = []
-        for i in plan["calibration"]:
-            origin = plan["pairs"][i]["origin"]
-            target = target_position(timeline, origin, step, plan["max_delay"])
-            if target is None:
-                continue
-            prediction = values[origin] if selected == "naive" else paths[origin][timeline[target] - timeline[origin] - 1]
-            errors.append(math.log(values[target] / prediction))
-        counts[str(step)] = len(errors)
-        try:
-            radii[str(step)] = interval_radius(errors)
-        except ValueError:
-            radii[str(step)] = None
+    # Calibrate every candidate separately. The selected candidate provides
+    # the displayed band; shadow candidates need their own issue-time bands so
+    # their eventual live coverage is also measurable.
+    candidate_radii, candidate_counts = {}, {}
+    for name in predictions:
+        radii, counts = {}, {}
+        for step in range(1, horizon + 1):
+            errors = []
+            for i in plan["calibration"]:
+                origin = plan["pairs"][i]["origin"]
+                target = target_position(timeline, origin, step, plan["max_delay"])
+                if target is None:
+                    continue
+                prediction = values[origin] if name == "naive" else paths[origin][timeline[target] - timeline[origin] - 1]
+                errors.append(math.log(values[target] / prediction))
+            counts[str(step)] = len(errors)
+            try:
+                radii[str(step)] = interval_radius(errors)
+            except ValueError:
+                radii[str(step)] = None
+        candidate_radii[name] = radii
+        candidate_counts[name] = counts
+    radii = candidate_radii[selected]
+    counts = candidate_counts[selected]
 
     warnings = []
     if not cv:
@@ -184,4 +191,5 @@ def evaluate_baselines(values: list[float], timeline: list[int], horizon: int, p
     return {"protocol": PROTOCOL, "selection_rule": SELECTION_RULE, "selected_model": selected,
             "selection_available": bool(cv), "validation_mae": ranking, "candidates": candidates,
             "warnings": warnings, "radii": radii, "calibration_counts": counts,
+            "candidate_radii": candidate_radii, "candidate_calibration_counts": candidate_counts,
             "plan": plan, "predictions": predictions, "cv": cv}

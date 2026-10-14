@@ -25,6 +25,7 @@ from .quote_store import QuoteStoreMixin, json_text
 from .collection_store import CollectionStoreMixin
 from .access_store import AccessStoreMixin, borrowed_connection
 from .forecast_store import ForecastStoreMixin
+from .model_lifecycle import ModelLifecycleStoreMixin
 from .vintage_store import VintageStoreMixin
 from .market_calendar import market_session
 from .quotes import QuoteConflict
@@ -381,7 +382,18 @@ class DatabaseBackend(Protocol):
     def reconcile_live_forecasts(self) -> int: ...
 
     def live_forecast_performance(self, window: int = 90, *, product: str | None = None,
-                                  instrument: str | None = None, horizon: int | None = None) -> dict[str, Any]: ...
+                                  instrument: str | None = None, horizon: int | None = None,
+                                  model_version: str | None = None) -> dict[str, Any]: ...
+
+    def prepare_model_lifecycle(self, *, product: str, instrument: str, horizon: int, horizon_unit: str,
+                                candidates: list[dict[str, Any]], preferred_model: str) -> dict[str, Any]: ...
+
+    def evaluate_model_lifecycle(self) -> dict[str, Any]: ...
+
+    def model_lifecycle(self, *, product: str | None = None, instrument: str | None = None,
+                        horizon: int | None = None, event_limit: int = 100) -> dict[str, Any]: ...
+
+    def active_forecast_model_version(self, *, product: str, instrument: str, horizon: int) -> str | None: ...
 
     def provider_vintages(self, *, product: str | None = None, instrument: str | None = None,
                           source: str | None = None, data_kind: str | None = None, limit: int = 100) -> list[dict[str, Any]]: ...
@@ -490,7 +502,7 @@ def run_sqlite_migrations(connection: sqlite3.Connection, migrations_dir: Path =
     return newly_applied
 
 
-class SQLiteDatabase(VintageStoreMixin, ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
+class SQLiteDatabase(VintageStoreMixin, ModelLifecycleStoreMixin, ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
     """SQLite persistence backend used locally and by default."""
 
     _lock = threading.RLock()

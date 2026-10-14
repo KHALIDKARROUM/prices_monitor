@@ -129,5 +129,7 @@ def test_build_forecast_persists_each_selected_endpoint_once(empty_database):
         assert performance["metrics"]["pending"] == 1
     with empty_database.connect() as conn:
         records = conn.execute("SELECT model_version, prediction, lower_bound, upper_bound FROM live_forecasts WHERE product='brent'").fetchall()
-    assert len(records) == 3
+    # Each live endpoint is accompanied by its independently versioned shadow
+    # candidate. Repeating the build remains idempotent for both models.
+    assert len(records) == 6
     assert all("live_forecast_ledger_v1" in record["model_version"] and record["prediction"] > 0 for record in records)

@@ -317,6 +317,23 @@ def _evaluate_collection_alerts(database: DatabaseBackend, observations: list[di
         logger.exception("Collection alert evaluation failed", extra={"event": "collection_alert_evaluation_failed"})
 
 
+def _refresh_model_lifecycle(database: DatabaseBackend) -> dict | None:
+    """Issue fresh shadow endpoints, then score the outcomes that just arrived."""
+    if not callable(getattr(database, "prepare_model_lifecycle", None)):
+        return None
+    try:
+        from .forecasting import build_forecast
+
+        build_forecast(database)
+        evaluate = getattr(database, "evaluate_model_lifecycle", None)
+        return evaluate() if callable(evaluate) else None
+    except Exception:
+        # Collection success must not depend on an optional forecast refresh.
+        # The ledger is idempotent, so the next collection safely retries it.
+        logger.exception("Forecast lifecycle refresh failed", extra={"event": "forecast_lifecycle_refresh_failed"})
+        return None
+
+
 def run_collection(database: DatabaseBackend, *, collector=None) -> dict:
     """Persist one batch. Production callers use CollectionCoordinator policy."""
     started = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -361,6 +378,7 @@ def run_collection(database: DatabaseBackend, *, collector=None) -> dict:
             logger.warning(warning, extra={"event": "api_price_mismatch", "mismatch_count": comparison["mismatch_count"]})
         status = _collection_status(observations, messages, source_outcomes, has_source_metadata)
         row_count = len(observations) + len(benchmarks)
+        lifecycle = _refresh_model_lifecycle(database) if row_count else None
         if status != "deferred":
             database.log_collection(status, row_count, message, started, finished)
         index_observations = [dict(row, price=row["value"], data_kind="index") for row in benchmarks]
@@ -385,6 +403,8 @@ def run_collection(database: DatabaseBackend, *, collector=None) -> dict:
             result["generation"] = generation
         if benchmarks:
             result["benchmarks"] = len(benchmarks)
+        if lifecycle is not None:
+            result["model_lifecycle"] = lifecycle
         return result
     except Exception as exc:
         if collector is None:

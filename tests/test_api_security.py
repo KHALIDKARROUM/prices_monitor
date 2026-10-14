@@ -72,6 +72,9 @@ class StubDatabase:
     def live_forecast_performance(self, window=90, *, product=None, instrument=None, horizon=None):
         return {"window": window, "horizon": horizon, "metrics": {"samples": 0, "pending": 0}, "records": []}
 
+    def model_lifecycle(self, **kwargs):
+        return {"criteria": {"shadow_min_samples": 30}, "candidates": [{"status": "production", **kwargs}], "events": []}
+
     def provider_vintages(self, **kwargs):
         return [{"instrument": "brent_spot", "availability_basis": "collection_observed", **kwargs}]
 
@@ -204,6 +207,15 @@ def test_live_forecast_performance_route_returns_a_rolling_ledger(api_server):
     assert payload["window"] == 30
     assert payload["horizon"] == 7
     assert payload["metrics"]["samples"] == 0
+
+
+def test_model_lifecycle_route_returns_versioned_candidates(api_server):
+    server, _ = api_server
+    status, _, body = request(server, "GET", "/api/model-lifecycle?product=brent&instrument=brent_spot&horizon=7", {"X-API-Key": "test-api-key"})
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["criteria"]["shadow_min_samples"] == 30
+    assert payload["candidates"][0]["status"] == "production"
 
 
 def test_provider_vintages_require_authentication_and_support_an_as_of_read(api_server):

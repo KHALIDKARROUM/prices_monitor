@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-14T16:51:22.369560+00:00",
+  "generated_at": "2026-10-14T17:29:56.826712+00:00",
   "python": "3.14.6",
   "packages": {
     "numpy": "2.5.3",
@@ -24,11 +24,12 @@
     "analysis\\data.py": "f4483aeaf3524f7e37d40c8c19a972429286938ce1eea2a28ec01a55be6c6d5a",
     "analysis\\features.py": "324ba4132f01997b2a76ff2d065abaaf94a808a74ac799dc9388409cfc609fe7",
     "analysis\\modeling.py": "50e007dc11557c89eef2fb60be7df88b79a07d1e4f66ea6aeb2f90122c5b2393",
-    "analysis\\pipeline.py": "9a7942658d3a14b1b61246f86c3f328f51ad93b4f4d15010a14b81d96675a295",
+    "analysis\\pipeline.py": "65ce2b66ea790a8666108b95dd737de236d0f2ada2a06d5a442fba27aec593df",
     "analysis\\procurement_decision.py": "c4774e12327da738f9b96d3691dc42f713b6e9d2b8b0cce5af2cc04a52e861cf",
     "analysis\\__init__.py": "4384f72b21c6992a35ec5f22cdb3384d4d67fc88b6ba8e00613eb9187e421894",
-    "services\\forecasting.py": "f7ebd93cb62124c2d7d4ee0cc55891bf1d4e0bd2e147e258072c49f6d4dadd25",
-    "forecast_evaluation.py": "74d8ae06099110535ec6016f451c2ac83444f1aea68b28b807a397b0f4622e48"
+    "services\\forecasting.py": "673ec83d5554f8c7fd4dbe9790d8d5c905a4b5cf5ae9c3bc83d940a32f1a4e49",
+    "forecast_evaluation.py": "e6a16153fc41c6962955d15b25ad51edd121e5ee0f2d29864567d335ce36e96a",
+    "model_lifecycle.py": "66c5b1c35f231557fb04abc315c59f77b76a016945d8dbcb88aaa6ad736cddc1"
   },
   "procurement_decision": {
     "use_case": "request_or_refresh_quotes_before_a_material_market_rise",
@@ -38,6 +39,14 @@
     "momentum_lookback_days": 7,
     "outcome": "material_market_rise_at_first_actual_target_publication",
     "status": "market_exposure_proxy_not_realised_supplier_savings"
+  },
+  "model_lifecycle": {
+    "research_candidate_registry": "model_lifecycle_candidates.json",
+    "stage": "offline_research",
+    "live_lifecycle_version": "controlled_lifecycle_v1",
+    "shadow_min_samples": 30,
+    "promotion_min_improvement": 0.05,
+    "rollback_max_degradation": 0.1
   },
   "eda": {
     "diagnostic_end": "2024-12-05",

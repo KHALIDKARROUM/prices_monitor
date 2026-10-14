@@ -21,6 +21,12 @@ from threadpoolctl import threadpool_limits
 from .data import PRODUCTS, UNITS, audit_data, load_market_data, load_bitumen_data
 from ..services.forecasting import forecast_product
 from ..forecast_evaluation import PROTOCOL, SELECTION_RULE
+from ..model_lifecycle import (
+    MODEL_LIFECYCLE_VERSION,
+    PROMOTION_MIN_IMPROVEMENT,
+    ROLLBACK_MAX_DEGRADATION,
+    SHADOW_MIN_SAMPLES,
+)
 from ..bitumen import INDEX_UNIT
 from .modeling import SEED, run_experiment
 from .procurement_decision import (
@@ -33,6 +39,11 @@ from .procurement_decision import (
 
 def write_json(path: Path, data) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n", encoding="utf-8")
+
+
+def _json_number(value):
+    """Keep generated candidate registries valid JSON when a metric is absent."""
+    return None if pd.isna(value) else float(value)
 
 
 def _save(fig, output: Path, name: str) -> None:
@@ -187,6 +198,7 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
     write_json(output / "data_quality.json", audit)
     eda = exploratory_analysis(frame, output)
     results, cv_results, all_folds, selections, importances, predictions, production_results = [], [], [], [], [], [], []
+    lifecycle_candidates = []
     procurement_summaries, procurement_decisions = [], []
     plt.rcParams.update({"axes.spines.top": False, "axes.spines.right": False})
     for product in PRODUCTS:
@@ -204,6 +216,23 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
                 for name, score in production["candidates"].items())
             result = experiment["metrics"].assign(product=product, horizon_days=horizon)
             results.append(result)
+            for row in result.to_dict("records"):
+                model = str(row["model"])
+                identity = json.dumps({
+                    "stage": "offline_research", "product": product, "horizon_days": horizon,
+                    "model": model, "snapshot_sha256": audit["sha256"], "protocol": PROTOCOL,
+                }, sort_keys=True).encode("utf-8")
+                lifecycle_candidates.append({
+                    "candidate_version": f"research-{hashlib.sha256(identity).hexdigest()[:16]}",
+                    "stage": "offline_research", "product": product, "horizon_days": horizon,
+                    "model": model, "snapshot_sha256": audit["sha256"], "evaluation_protocol": PROTOCOL,
+                    "validation_selected": bool(row.get("selected_on_validation")),
+                    "holdout_mae": _json_number(row.get("mae")),
+                    "holdout_skill_vs_naive": _json_number(row.get("mae_skill_vs_naive")),
+                    "holdout_interval_coverage": _json_number(row.get("interval_coverage")),
+                    "live_eligible": False,
+                    "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production.",
+                })
             cv_results.append(experiment["cv"].assign(product=product, horizon_days=horizon))
             all_folds += [{"product": product, "horizon_days": horizon, **f} for f in experiment["folds"]]
             card = {"product": product, "horizon_days": horizon, "selected_model": selected,
@@ -269,10 +298,24 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
     procurement_decision_rows = pd.concat(procurement_decisions, ignore_index=True)
     procurement_summary.to_csv(output / "rfq_timing_backtest.csv", index=False)
     procurement_decision_rows.to_csv(output / "rfq_timing_decisions.csv", index=False)
+    lifecycle_table = pd.DataFrame(lifecycle_candidates)
+    lifecycle_table.to_csv(output / "model_lifecycle_candidates.csv", index=False)
+    write_json(output / "model_lifecycle_candidates.json", {
+        "generated_from_snapshot_sha256": audit["sha256"],
+        "stage": "offline_research",
+        "controlled_live_lifecycle": {
+            "version": MODEL_LIFECYCLE_VERSION,
+            "shadow_min_samples": SHADOW_MIN_SAMPLES,
+            "promotion_min_improvement": PROMOTION_MIN_IMPROVEMENT,
+            "rollback_max_degradation": ROLLBACK_MAX_DEGRADATION,
+            "rule": "Research candidates remain offline until a separately packaged runtime candidate completes paired live shadow evaluation.",
+        },
+        "candidates": lifecycle_candidates,
+    })
     versions = {name: importlib.metadata.version(name) for name in
                 ("numpy", "pandas", "scikit-learn", "scipy", "statsmodels", "matplotlib", "joblib")}
     source_files = [*Path(__file__).parent.glob("*.py"), Path(__file__).parents[1] / "services" / "forecasting.py",
-                    Path(__file__).parents[1] / "forecast_evaluation.py"]
+                    Path(__file__).parents[1] / "forecast_evaluation.py", Path(__file__).parents[1] / "model_lifecycle.py"]
     manifest = {"generated_at": datetime.now(timezone.utc).isoformat(), "python": platform.python_version(),
         "packages": versions, "seed": SEED, "horizons_calendar_days": list(horizons),
         "data_sha256": audit["sha256"], "data_start": audit["start"], "data_end": audit["end"],
@@ -285,6 +328,14 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
             "momentum_lookback_days": MOMENTUM_LOOKBACK_DAYS,
             "outcome": "material_market_rise_at_first_actual_target_publication",
             "status": "market_exposure_proxy_not_realised_supplier_savings",
+        },
+        "model_lifecycle": {
+            "research_candidate_registry": "model_lifecycle_candidates.json",
+            "stage": "offline_research",
+            "live_lifecycle_version": MODEL_LIFECYCLE_VERSION,
+            "shadow_min_samples": SHADOW_MIN_SAMPLES,
+            "promotion_min_improvement": PROMOTION_MIN_IMPROVEMENT,
+            "rollback_max_degradation": ROLLBACK_MAX_DEGRADATION,
         },
         "eda": eda, "experiments": selections}
     bitumen_path = data_path.parent / "bitumen_index.csv"
@@ -326,7 +377,7 @@ SHA-256: `{audit['sha256']}`. Full versions, split dates and code fingerprints: 
 
 - The original notebook had partial execution, no engineered features, and no ML comparison. Its purported next-observation baseline was a single-origin constant prediction across 60 observations; it now uses rolling one-step persistence.
 - The live Holt implementation damped its accumulated forecast trend twice. The geometric sum is corrected. Missing calendar days now advance model state without creating observations; validation uses the same calendar-day horizons as the API.
-- The live service and this research now share `{PROTOCOL}`: the same actual endpoint labels, chronological splits, purged folds, MAE selection rule, metrics and calibration quantiles. Production chooses between persistence and Holt for each horizon using validation only. ML candidates remain research artifacts.
+- The live service and this research now share `{PROTOCOL}`: the same actual endpoint labels, chronological splits, purged folds, MAE selection rule, metrics and calibration quantiles. The research candidate registry assigns immutable snapshot versions, while ML candidates remain offline artifacts.
 - Raw/processed local CSV agreement, missingness, finite positive prices, date uniqueness and chronology are checked before fitting. Local consistency does not authenticate the upstream provider or resolve historical revisions.
 
 ## Feature engineering and evaluation
@@ -353,6 +404,12 @@ Persistence selection means no validated trend improvement. Negative final-test 
 
 Bands use finite-sample absolute log-error quantiles from the separate calibration period, specific to the selected model and displayed forecast step. They replace the former Holt residual / square-root-time heuristic. At least 19 calibration errors are needed for a finite nominal 95% quantile; otherwise the band is absent. Final-test prices never choose the model or widen calibration bands.
 
+## Controlled live model lifecycle
+
+Every research candidate is assigned a snapshot-specific identity in [model_lifecycle_candidates.json](model_lifecycle_candidates.json) and [model_lifecycle_candidates.csv](model_lifecycle_candidates.csv). That registry is an offline review record, not a production switch: a research artifact must be separately packaged into the small live runtime before it can be considered.
+
+The live runtime versions its persistence and Holt candidates, issues the non-production candidate beside the production model for identical instrument/origin/target endpoints, and records both outcomes. Promotion requires at least **{SHADOW_MIN_SAMPLES} paired live actuals**, at least **{PROMOTION_MIN_IMPROVEMENT:.0%} lower MAE** than the production candidate, and no worse MAE than the issued last-known-price baseline. A non-persistence production candidate is rolled back to persistence after at least **{SHADOW_MIN_SAMPLES} live actuals** if it is more than **{ROLLBACK_MAX_DEGRADATION:.0%} worse** than that baseline. Candidate status and the append-only event log are available from `GET /api/model-lifecycle`.
+
 ## Procurement decision: request quotes now or wait
 
 The tested use case is **requesting or refreshing competitive supplier quotes now** when the selected forecast expects the market benchmark to rise by at least **{RFQ_TRIGGER_PCT * 100:.0f}%** by the recorded target publication. It is compared with a simple rule that requests quotes only after the same **{RFQ_TRIGGER_PCT * 100:.0f}%** rise has already appeared in the previous **{MOMENTUM_LOOKBACK_DAYS}** calendar days. The actual outcome is a material rise at the target. The score reports early RFQs that identified a rise, unnecessary RFQs, missed rises, and the share of one-unit market-price upside identified before the target.
@@ -377,7 +434,7 @@ Calibration-set permutation importance is saved in [feature_importance.csv](feat
 
 ## Limits and next decisions
 
-- No ML model is automatically promoted to the live app. Review validation consistency, holdout skill, freshness and interval coverage before a separate deployment decision.
+- No ML model is automatically promoted to the live app. Research output is versioned in the candidate registry, then requires a separately packaged live candidate and the paired shadow promotion criteria above.
 - Historical provider publication timestamps and vintages remain unavailable for the delivered snapshot. Source-date causality prevents mechanical future leakage, but this snapshot cannot prove what would have been known at every past origin. Migration `015` now captures append-only provider vintages, the provider availability timestamp and the application capture timestamp for new collections; `GET /api/vintages/as-of` admits a value only after this application captured it, so it can build future as-of training snapshots from those records. Reconstructed collection times from the legacy import remain excluded from that route and cannot establish actual availability.
 - The RFQ timing check measures market-exposure opportunities only. Historical supplier quote issue/response timestamps, validity, quantities, FX and landed cost components are not available, so it cannot prove realised savings or rank suppliers retrospectively.
 - {bitumen_note}

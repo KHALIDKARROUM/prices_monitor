@@ -7,7 +7,7 @@ SHA-256: `98aa047ab90dfec93ab188f50c79fd33b4b60188047560b6f132458ebb12aa26`. Ful
 
 - The original notebook had partial execution, no engineered features, and no ML comparison. Its purported next-observation baseline was a single-origin constant prediction across 60 observations; it now uses rolling one-step persistence.
 - The live Holt implementation damped its accumulated forecast trend twice. The geometric sum is corrected. Missing calendar days now advance model state without creating observations; validation uses the same calendar-day horizons as the API.
-- The live service and this research now share `chronological_endpoints_v1`: the same actual endpoint labels, chronological splits, purged folds, MAE selection rule, metrics and calibration quantiles. Production chooses between persistence and Holt for each horizon using validation only. ML candidates remain research artifacts.
+- The live service and this research now share `chronological_endpoints_v1`: the same actual endpoint labels, chronological splits, purged folds, MAE selection rule, metrics and calibration quantiles. The research candidate registry assigns immutable snapshot versions, while ML candidates remain offline artifacts.
 - Raw/processed local CSV agreement, missingness, finite positive prices, date uniqueness and chronology are checked before fitting. Local consistency does not authenticate the upstream provider or resolve historical revisions.
 
 ## Feature engineering and evaluation
@@ -60,6 +60,12 @@ Persistence selection means no validated trend improvement. Negative final-test 
 
 Bands use finite-sample absolute log-error quantiles from the separate calibration period, specific to the selected model and displayed forecast step. They replace the former Holt residual / square-root-time heuristic. At least 19 calibration errors are needed for a finite nominal 95% quantile; otherwise the band is absent. Final-test prices never choose the model or widen calibration bands.
 
+## Controlled live model lifecycle
+
+Every research candidate is assigned a snapshot-specific identity in [model_lifecycle_candidates.json](model_lifecycle_candidates.json) and [model_lifecycle_candidates.csv](model_lifecycle_candidates.csv). That registry is an offline review record, not a production switch: a research artifact must be separately packaged into the small live runtime before it can be considered.
+
+The live runtime versions its persistence and Holt candidates, issues the non-production candidate beside the production model for identical instrument/origin/target endpoints, and records both outcomes. Promotion requires at least **30 paired live actuals**, at least **5% lower MAE** than the production candidate, and no worse MAE than the issued last-known-price baseline. A non-persistence production candidate is rolled back to persistence after at least **30 live actuals** if it is more than **10% worse** than that baseline. Candidate status and the append-only event log are available from `GET /api/model-lifecycle`.
+
 ## Procurement decision: request quotes now or wait
 
 The tested use case is **requesting or refreshing competitive supplier quotes now** when the selected forecast expects the market benchmark to rise by at least **2%** by the recorded target publication. It is compared with a simple rule that requests quotes only after the same **2%** rise has already appeared in the previous **7** calendar days. The actual outcome is a material rise at the target. The score reports early RFQs that identified a rise, unnecessary RFQs, missed rises, and the share of one-unit market-price upside identified before the target.
@@ -101,7 +107,7 @@ Calibration-set permutation importance is saved in [feature_importance.csv](feat
 
 ## Limits and next decisions
 
-- No ML model is automatically promoted to the live app. Review validation consistency, holdout skill, freshness and interval coverage before a separate deployment decision.
+- No ML model is automatically promoted to the live app. Research output is versioned in the candidate registry, then requires a separately packaged live candidate and the paired shadow promotion criteria above.
 - Historical provider publication timestamps and vintages remain unavailable for the delivered snapshot. Source-date causality prevents mechanical future leakage, but this snapshot cannot prove what would have been known at every past origin. Migration `015` now captures append-only provider vintages, the provider availability timestamp and the application capture timestamp for new collections; `GET /api/vintages/as-of` admits a value only after this application captured it, so it can build future as-of training snapshots from those records. Reconstructed collection times from the legacy import remain excluded from that route and cannot establish actual availability.
 - The RFQ timing check measures market-exposure opportunities only. Historical supplier quote issue/response timestamps, validity, quantities, FX and landed cost components are not available, so it cannot prove realised savings or rank suppliers retrospectively.
 - Bitumen is covered separately by its monthly BLS/FRED WPU058 index: [monthly report](bitumen_report.md), statistics, 1/3/6-month forecasts and walk-forward scores. It is not mixed into the daily price ML experiment or relabeled as USD/tonne.

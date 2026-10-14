@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-13T17:03:04.287072+00:00",
+  "generated_at": "2026-10-14T16:51:22.369560+00:00",
   "python": "3.14.6",
   "packages": {
     "numpy": "2.5.3",
@@ -24,10 +24,20 @@
     "analysis\\data.py": "f4483aeaf3524f7e37d40c8c19a972429286938ce1eea2a28ec01a55be6c6d5a",
     "analysis\\features.py": "324ba4132f01997b2a76ff2d065abaaf94a808a74ac799dc9388409cfc609fe7",
     "analysis\\modeling.py": "50e007dc11557c89eef2fb60be7df88b79a07d1e4f66ea6aeb2f90122c5b2393",
-    "analysis\\pipeline.py": "aa7e066face98b7d76c1b4defdd989f6e9c3e6add5d7efad537be6e58c9b4d99",
+    "analysis\\pipeline.py": "9a7942658d3a14b1b61246f86c3f328f51ad93b4f4d15010a14b81d96675a295",
+    "analysis\\procurement_decision.py": "c4774e12327da738f9b96d3691dc42f713b6e9d2b8b0cce5af2cc04a52e861cf",
     "analysis\\__init__.py": "4384f72b21c6992a35ec5f22cdb3384d4d67fc88b6ba8e00613eb9187e421894",
-    "services\\forecasting.py": "f824bf54c6da2ed43fe7b310e3c8154edab44bd1cbdd78473f7be017634abce4",
-    "forecast_evaluation.py": "de34eaa85a7b2500314116e74696d1294bfbbdf829db4f3175e7379066fb8316"
+    "services\\forecasting.py": "f7ebd93cb62124c2d7d4ee0cc55891bf1d4e0bd2e147e258072c49f6d4dadd25",
+    "forecast_evaluation.py": "74d8ae06099110535ec6016f451c2ac83444f1aea68b28b807a397b0f4622e48"
+  },
+  "procurement_decision": {
+    "use_case": "request_or_refresh_quotes_before_a_material_market_rise",
+    "action": "request_or_refresh_supplier_quotes_now",
+    "forecast_trigger_pct": 2.0,
+    "simple_policy": "request_after_same_threshold_in_seven_day_momentum",
+    "momentum_lookback_days": 7,
+    "outcome": "material_market_rise_at_first_actual_target_publication",
+    "status": "market_exposure_proxy_not_realised_supplier_savings"
   },
   "eda": {
     "diagnostic_end": "2024-12-05",

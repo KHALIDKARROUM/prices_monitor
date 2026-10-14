@@ -23,6 +23,12 @@ from ..services.forecasting import forecast_product
 from ..forecast_evaluation import PROTOCOL, SELECTION_RULE
 from ..bitumen import INDEX_UNIT
 from .modeling import SEED, run_experiment
+from .procurement_decision import (
+    MOMENTUM_LOOKBACK_DAYS,
+    RFQ_TRIGGER_PCT,
+    USE_CASE,
+    evaluate_rfq_timing,
+)
 
 
 def write_json(path: Path, data) -> None:
@@ -97,6 +103,8 @@ def exploratory_analysis(frame: pd.DataFrame, output: Path) -> dict:
 
 def _markdown_table(frame: pd.DataFrame) -> str:
     def cell(v):
+        if pd.isna(v):
+            return "—"
         return f"{v:.4f}" if isinstance(v, (float, np.floating)) else str(v)
     rows = ["| " + " | ".join(map(str, frame.columns)) + " |",
             "| " + " | ".join("---" for _ in frame.columns) + " |"]
@@ -179,6 +187,7 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
     write_json(output / "data_quality.json", audit)
     eda = exploratory_analysis(frame, output)
     results, cv_results, all_folds, selections, importances, predictions, production_results = [], [], [], [], [], [], []
+    procurement_summaries, procurement_decisions = [], []
     plt.rcParams.update({"axes.spines.top": False, "axes.spines.right": False})
     for product in PRODUCTS:
         for horizon in horizons:
@@ -210,6 +219,12 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
             write_json(output / f"model_card_{product}_{horizon}.json", card)
             for model_name, prediction in experiment["predictions"].items():
                 predictions.append(prediction.assign(product=product, horizon_days=horizon, model=model_name))
+            decision_summary, decision_rows = evaluate_rfq_timing(
+                experiment["predictions"][selected], frame[product], product=product,
+                horizon_days=horizon, forecast_model=selected,
+            )
+            procurement_summaries.append(decision_summary)
+            procurement_decisions.append(decision_rows)
             # Explain the best ML candidate on calibration only, even when the
             # persistence baseline wins selection. Correlated lags share signal.
             ranking = experiment["cv"].groupby("model").mae.mean().sort_values()
@@ -250,6 +265,10 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
     pd.DataFrame(all_folds).to_csv(output / "split_audit.csv", index=False)
     pd.concat(importances).to_csv(output / "feature_importance.csv", index=False)
     pd.concat(predictions).to_csv(output / "holdout_predictions.csv", index=False)
+    procurement_summary = pd.concat(procurement_summaries, ignore_index=True)
+    procurement_decision_rows = pd.concat(procurement_decisions, ignore_index=True)
+    procurement_summary.to_csv(output / "rfq_timing_backtest.csv", index=False)
+    procurement_decision_rows.to_csv(output / "rfq_timing_decisions.csv", index=False)
     versions = {name: importlib.metadata.version(name) for name in
                 ("numpy", "pandas", "scikit-learn", "scipy", "statsmodels", "matplotlib", "joblib")}
     source_files = [*Path(__file__).parent.glob("*.py"), Path(__file__).parents[1] / "services" / "forecasting.py",
@@ -258,12 +277,39 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
         "packages": versions, "seed": SEED, "horizons_calendar_days": list(horizons),
         "data_sha256": audit["sha256"], "data_start": audit["start"], "data_end": audit["end"],
         "code_sha256": {str(p.relative_to(Path(__file__).parents[1])): hashlib.sha256(p.read_bytes()).hexdigest() for p in source_files},
+        "procurement_decision": {
+            "use_case": USE_CASE,
+            "action": "request_or_refresh_supplier_quotes_now",
+            "forecast_trigger_pct": RFQ_TRIGGER_PCT * 100,
+            "simple_policy": "request_after_same_threshold_in_seven_day_momentum",
+            "momentum_lookback_days": MOMENTUM_LOOKBACK_DAYS,
+            "outcome": "material_market_rise_at_first_actual_target_publication",
+            "status": "market_exposure_proxy_not_realised_supplier_savings",
+        },
         "eda": eda, "experiments": selections}
     bitumen_path = data_path.parent / "bitumen_index.csv"
     if bitumen_path.exists():
         manifest["bitumen_index"] = run_bitumen_analysis(bitumen_path, output)
     write_json(output / "manifest.json", manifest)
     selected_rows = table[table.selected_on_validation]
+    forecast_rfq = procurement_summary.loc[procurement_summary["policy"] == "forecast"]
+    momentum_rfq = procurement_summary.loc[procurement_summary["policy"] == "seven_day_momentum"]
+    if int(forecast_rfq["rfq_requests"].sum()) == 0:
+        procurement_verdict = (
+            "**Decision result: do not use the current forecast to trigger RFQs.** "
+            "Every selected model is persistence in this snapshot, so the forecast policy made no early requests "
+            "and captured none of the material-rise opportunities."
+        )
+    elif forecast_rfq["upside_capture_pct"].mean() <= momentum_rfq["upside_capture_pct"].mean():
+        procurement_verdict = (
+            "**Decision result: do not use the current forecast to trigger RFQs.** "
+            "Its holdout market-exposure capture did not exceed the simple momentum rule."
+        )
+    else:
+        procurement_verdict = (
+            "The forecast policy captured more holdout market-price exposure than the simple momentum rule. "
+            "Validate that advantage again on newly captured, point-in-time provider and supplier-quote data before operational use."
+        )
     bitumen_note = (
         "Bitumen is covered separately by its monthly BLS/FRED WPU058 index: [monthly report](bitumen_report.md), statistics, 1/3/6-month forecasts and walk-forward scores. It is not mixed into the daily price ML experiment or relabeled as USD/tonne."
         if "bitumen_index" in manifest else
@@ -307,6 +353,16 @@ Persistence selection means no validated trend improvement. Negative final-test 
 
 Bands use finite-sample absolute log-error quantiles from the separate calibration period, specific to the selected model and displayed forecast step. They replace the former Holt residual / square-root-time heuristic. At least 19 calibration errors are needed for a finite nominal 95% quantile; otherwise the band is absent. Final-test prices never choose the model or widen calibration bands.
 
+## Procurement decision: request quotes now or wait
+
+The tested use case is **requesting or refreshing competitive supplier quotes now** when the selected forecast expects the market benchmark to rise by at least **{RFQ_TRIGGER_PCT * 100:.0f}%** by the recorded target publication. It is compared with a simple rule that requests quotes only after the same **{RFQ_TRIGGER_PCT * 100:.0f}%** rise has already appeared in the previous **{MOMENTUM_LOOKBACK_DAYS}** calendar days. The actual outcome is a material rise at the target. The score reports early RFQs that identified a rise, unnecessary RFQs, missed rises, and the share of one-unit market-price upside identified before the target.
+
+{_markdown_table(procurement_summary[['product', 'horizon_days', 'forecast_model', 'policy', 'samples', 'rfq_requests', 'correct_early_rfq', 'unnecessary_rfq', 'missed_material_rise', 'precision', 'recall', 'upside_capture_pct', 'forecast_minus_momentum_upside_capture_pp']])}
+
+{procurement_verdict}
+
+This is a quote-timing evaluation, not a purchase recommendation. `identified_upside_per_unit` is a market-exposure proxy, not realised savings: the snapshot contains no historical RFQ issue times, supplier response times, quote validity, or executable landed costs. The detailed decisions and both policies are in [rfq_timing_decisions.csv](rfq_timing_decisions.csv); [rfq_timing_backtest.csv](rfq_timing_backtest.csv) contains the policy summary. A future landed-cost decision evaluation must join these decisions to the versioned supplier quote record, its currency and every cost component.
+
 ## EDA and interpretation
 
 Model diagnostics use development dates only (through {eda['diagnostic_end']}). Price/return distributions, rolling volatility, ACF, calendar seasonality, ADF/KPSS stationarity tests, aligned-return correlation and robust shock flags are included. ADF's null is a unit root; KPSS's null is level stationarity. Their assumptions and structural breaks limit conclusions. Warnings and bounded p-values are retained. Seasonal patterns are descriptive, not evidence of a repeatable trading effect.
@@ -322,8 +378,8 @@ Calibration-set permutation importance is saved in [feature_importance.csv](feat
 ## Limits and next decisions
 
 - No ML model is automatically promoted to the live app. Review validation consistency, holdout skill, freshness and interval coverage before a separate deployment decision.
-- Historical provider publication timestamps and vintages are unavailable. Source-date causality prevents mechanical future leakage, but a true as-of backtest requires release timestamps/revision history. Data imported into SQL uses reconstructed collection times; those cannot establish actual availability.
-- Prices are market benchmarks. They omit executable quotes, transaction costs, freight, FX and supplier terms. No profitability or purchasing recommendation is inferred from forecast accuracy.
+- Historical provider publication timestamps and vintages remain unavailable for the delivered snapshot. Source-date causality prevents mechanical future leakage, but this snapshot cannot prove what would have been known at every past origin. Migration `015` now captures append-only provider vintages, the provider availability timestamp and the application capture timestamp for new collections; `GET /api/vintages/as-of` admits a value only after this application captured it, so it can build future as-of training snapshots from those records. Reconstructed collection times from the legacy import remain excluded from that route and cannot establish actual availability.
+- The RFQ timing check measures market-exposure opportunities only. Historical supplier quote issue/response timestamps, validity, quantities, FX and landed cost components are not available, so it cannot prove realised savings or rank suppliers retrospectively.
 - {bitumen_note}
 - Overlapping horizons and serial dependence mean fold errors are not independent. Calibration quantiles have a 95% nominal level; time-series dependence and regime changes remove exchangeability guarantees. Use measured holdout coverage.
 - Check fresh-data errors, missingness, feature ranges and interval coverage after deployment; reassess on new chronological data, not by repeatedly tuning to this holdout. Use block-bootstrap uncertainty or non-overlapping evaluation when more history is available.

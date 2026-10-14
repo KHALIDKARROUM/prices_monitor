@@ -60,6 +60,33 @@ Persistence selection means no validated trend improvement. Negative final-test 
 
 Bands use finite-sample absolute log-error quantiles from the separate calibration period, specific to the selected model and displayed forecast step. They replace the former Holt residual / square-root-time heuristic. At least 19 calibration errors are needed for a finite nominal 95% quantile; otherwise the band is absent. Final-test prices never choose the model or widen calibration bands.
 
+## Procurement decision: request quotes now or wait
+
+The tested use case is **requesting or refreshing competitive supplier quotes now** when the selected forecast expects the market benchmark to rise by at least **2%** by the recorded target publication. It is compared with a simple rule that requests quotes only after the same **2%** rise has already appeared in the previous **7** calendar days. The actual outcome is a material rise at the target. The score reports early RFQs that identified a rise, unnecessary RFQs, missed rises, and the share of one-unit market-price upside identified before the target.
+
+| product | horizon_days | forecast_model | policy | samples | rfq_requests | correct_early_rfq | unnecessary_rfq | missed_material_rise | precision | recall | upside_capture_pct | forecast_minus_momentum_upside_capture_pp |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| brent | 1 | naive | forecast | 252 | 0 | 0 | 0 | 62 | — | 0.0000 | 0.0000 | -58.5760 |
+| brent | 1 | naive | seven_day_momentum | 252 | 101 | 29 | 72 | 33 | 0.2871 | 0.4677 | 0.5858 | -58.5760 |
+| brent | 7 | naive | forecast | 248 | 0 | 0 | 0 | 102 | — | 0.0000 | 0.0000 | -47.8413 |
+| brent | 7 | naive | seven_day_momentum | 248 | 97 | 38 | 59 | 64 | 0.3918 | 0.3725 | 0.4784 | -47.8413 |
+| brent | 30 | naive | forecast | 232 | 0 | 0 | 0 | 106 | — | 0.0000 | 0.0000 | -38.9250 |
+| brent | 30 | naive | seven_day_momentum | 232 | 88 | 39 | 49 | 67 | 0.4432 | 0.3679 | 0.3892 | -38.9250 |
+| brent | 90 | naive | forecast | 190 | 0 | 0 | 0 | 107 | — | 0.0000 | 0.0000 | -32.0078 |
+| brent | 90 | naive | seven_day_momentum | 190 | 73 | 34 | 39 | 73 | 0.4658 | 0.3178 | 0.3201 | -32.0078 |
+| gasoil | 1 | naive | forecast | 249 | 0 | 0 | 0 | 65 | — | 0.0000 | 0.0000 | -55.6256 |
+| gasoil | 1 | naive | seven_day_momentum | 249 | 110 | 32 | 78 | 33 | 0.2909 | 0.4923 | 0.5563 | -55.6256 |
+| gasoil | 7 | naive | forecast | 246 | 0 | 0 | 0 | 110 | — | 0.0000 | 0.0000 | -54.1996 |
+| gasoil | 7 | naive | seven_day_momentum | 246 | 108 | 54 | 54 | 56 | 0.5000 | 0.4909 | 0.5420 | -54.1996 |
+| gasoil | 30 | naive | forecast | 229 | 0 | 0 | 0 | 120 | — | 0.0000 | 0.0000 | -49.9535 |
+| gasoil | 30 | naive | seven_day_momentum | 229 | 96 | 49 | 47 | 71 | 0.5104 | 0.4083 | 0.4995 | -49.9535 |
+| gasoil | 90 | naive | forecast | 189 | 0 | 0 | 0 | 105 | — | 0.0000 | 0.0000 | -34.4424 |
+| gasoil | 90 | naive | seven_day_momentum | 189 | 76 | 40 | 36 | 65 | 0.5263 | 0.3810 | 0.3444 | -34.4424 |
+
+**Decision result: do not use the current forecast to trigger RFQs.** Every selected model is persistence in this snapshot, so the forecast policy made no early requests and captured none of the material-rise opportunities.
+
+This is a quote-timing evaluation, not a purchase recommendation. `identified_upside_per_unit` is a market-exposure proxy, not realised savings: the snapshot contains no historical RFQ issue times, supplier response times, quote validity, or executable landed costs. The detailed decisions and both policies are in [rfq_timing_decisions.csv](rfq_timing_decisions.csv); [rfq_timing_backtest.csv](rfq_timing_backtest.csv) contains the policy summary. A future landed-cost decision evaluation must join these decisions to the versioned supplier quote record, its currency and every cost component.
+
 ## EDA and interpretation
 
 Model diagnostics use development dates only (through 2024-12-05). Price/return distributions, rolling volatility, ACF, calendar seasonality, ADF/KPSS stationarity tests, aligned-return correlation and robust shock flags are included. ADF's null is a unit root; KPSS's null is level stationarity. Their assumptions and structural breaks limit conclusions. Warnings and bounded p-values are retained. Seasonal patterns are descriptive, not evidence of a repeatable trading effect.
@@ -76,7 +103,7 @@ Calibration-set permutation importance is saved in [feature_importance.csv](feat
 
 - No ML model is automatically promoted to the live app. Review validation consistency, holdout skill, freshness and interval coverage before a separate deployment decision.
 - Historical provider publication timestamps and vintages remain unavailable for the delivered snapshot. Source-date causality prevents mechanical future leakage, but this snapshot cannot prove what would have been known at every past origin. Migration `015` now captures append-only provider vintages, the provider availability timestamp and the application capture timestamp for new collections; `GET /api/vintages/as-of` admits a value only after this application captured it, so it can build future as-of training snapshots from those records. Reconstructed collection times from the legacy import remain excluded from that route and cannot establish actual availability.
-- Prices are market benchmarks. They omit executable quotes, transaction costs, freight, FX and supplier terms. No profitability or purchasing recommendation is inferred from forecast accuracy.
+- The RFQ timing check measures market-exposure opportunities only. Historical supplier quote issue/response timestamps, validity, quantities, FX and landed cost components are not available, so it cannot prove realised savings or rank suppliers retrospectively.
 - Bitumen is covered separately by its monthly BLS/FRED WPU058 index: [monthly report](bitumen_report.md), statistics, 1/3/6-month forecasts and walk-forward scores. It is not mixed into the daily price ML experiment or relabeled as USD/tonne.
 - Overlapping horizons and serial dependence mean fold errors are not independent. Calibration quantiles have a 95% nominal level; time-series dependence and regime changes remove exchangeability guarantees. Use measured holdout coverage.
 - Check fresh-data errors, missingness, feature ranges and interval coverage after deployment; reassess on new chronological data, not by repeatedly tuning to this holdout. Use block-bootstrap uncertainty or non-overlapping evaluation when more history is available.

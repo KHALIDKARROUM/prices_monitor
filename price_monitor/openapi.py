@@ -103,6 +103,21 @@ OPENAPI_SPEC = {
                 {"name": "horizon", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 365}},
             ], "responses": {"200": {"description": "Persisted issued forecasts, their resolved actuals, rolling MAE/RMSE/MAPE, bias, improvement over the original last-known-price baseline, and interval coverage."}, "400": {"description": "Invalid parameter"}}}
         },
+        "/api/vintages": {
+            "get": {"tags": ["market"], "summary": "Captured provider value vintages", "parameters": [
+                {"$ref": "#/components/parameters/Product"}, {"$ref": "#/components/parameters/Instrument"},
+                {"name": "source", "in": "query", "schema": {"type": "string"}},
+                {"name": "data_kind", "in": "query", "schema": {"type": "string", "enum": ["quote", "index"]}},
+                {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100}},
+            ], "responses": {"200": {"description": "Immutable provider values with availability timestamp, basis, revision number, and predecessor."}}}
+        },
+        "/api/vintages/as-of": {
+            "get": {"tags": ["market"], "summary": "Point-in-time observed market values", "parameters": [
+                {"name": "as_of", "in": "query", "required": True, "schema": {"type": "string", "format": "date-time"}},
+                {"$ref": "#/components/parameters/Product"}, {"$ref": "#/components/parameters/Instrument"},
+                {"name": "data_kind", "in": "query", "schema": {"type": "string", "enum": ["quote", "index"], "default": "quote"}},
+            ], "responses": {"200": {"description": "Canonical provider values captured by this application at the requested instant, including provider availability provenance. Legacy reconstructed imports are deliberately excluded."}, "400": {"description": "Invalid timestamp or filter"}}}
+        },
         "/api/alerts": {
             "get": {"tags": ["market"], "summary": "List alert rules and their status", "responses": {"200": {"description": "Active, recovered, or paused rules"}}},
             "post": {"tags": ["market"], "summary": "Create an alert rule", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AlertRuleInput"}}}}, "responses": {"201": {"description": "Rule created"}, "400": {"description": "Invalid rule"}}},
@@ -187,6 +202,7 @@ OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] = "Brent and diesel
 OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] += " One point per source date is selected before limiting; the latest 5,000 aggregated points are kept in chronological order."
 OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] += " Each selected endpoint is persisted once with its model version, original baseline, and interval."
 OPENAPI_SPEC["paths"]["/api/forecast-performance"]["get"]["description"] = "Scores only the same instrument: a futures or heating-oil observation can never resolve a spot forecast. Daily targets accept the first published actual on the target date through four days later; the monthly BLS index requires the target month."
+OPENAPI_SPEC["paths"]["/api/vintages"]["get"]["description"] = "Each revision is append-only. available_at records the provider timestamp when supplied; captured_at records when this application received the value."
 OPENAPI_SPEC["paths"]["/api/observations"]["get"]["description"] = "The 600 most recent raw observations in the period are returned in chronological order. Use paginated history or exports to browse all observations."
 OPENAPI_SPEC["paths"]["/api/history/compare"]["get"]["description"] = "Compares all data matching the filters, with no 10,000-row cap per period; daily series are aggregated by instrument and date."
 for path in ("/export.csv", "/export.xlsx"):

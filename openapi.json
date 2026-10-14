@@ -1296,6 +1296,135 @@
         ]
       }
     },
+    "/api/vintages": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Captured provider value vintages",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Product"
+          },
+          {
+            "$ref": "#/components/parameters/Instrument"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "data_kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "quote",
+                "index"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Immutable provider values with availability timestamp, basis, revision number, and predecessor."
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "description": "Each revision is append-only. available_at records the provider timestamp when supplied; captured_at records when this application received the value.",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/vintages/as-of": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Point-in-time observed market values",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Product"
+          },
+          {
+            "$ref": "#/components/parameters/Instrument"
+          },
+          {
+            "name": "data_kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "quote",
+                "index"
+              ],
+              "default": "quote"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Canonical provider values captured by this application at the requested instant, including provider availability provenance. Legacy reconstructed imports are deliberately excluded."
+          },
+          "400": {
+            "description": "Invalid timestamp or filter"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
+      }
+    },
     "/api/alerts": {
       "get": {
         "tags": [

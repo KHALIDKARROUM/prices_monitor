@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS provider_value_vintages (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    data_kind ENUM('quote','index') NOT NULL,
+    product ENUM('gasoil','brent','bitume') NOT NULL,
+    instrument VARCHAR(64) NOT NULL,
+    source VARCHAR(180) NOT NULL,
+    source_date DATE NOT NULL,
+    value DECIMAL(18,6) NOT NULL,
+    unit VARCHAR(64) NOT NULL,
+    currency VARCHAR(8) NOT NULL DEFAULT '',
+    available_at DATETIME(6) NOT NULL,
+    availability_basis ENUM('provider_timestamp','collection_observed','manual_entry','reconstructed') NOT NULL,
+    captured_at DATETIME(6) NOT NULL,
+    revision_number INT UNSIGNED NOT NULL,
+    previous_vintage_id BIGINT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_provider_vintage_revision (data_kind, product, instrument, source, source_date, revision_number),
+    INDEX idx_provider_vintages_as_of (data_kind, product, instrument, available_at, source_date),
+    INDEX idx_provider_vintages_series (data_kind, product, instrument, source, source_date, revision_number),
+    CONSTRAINT fk_provider_vintage_previous FOREIGN KEY (previous_vintage_id) REFERENCES provider_value_vintages(id)
+) ENGINE=InnoDB;

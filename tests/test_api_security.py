@@ -72,6 +72,12 @@ class StubDatabase:
     def live_forecast_performance(self, window=90, *, product=None, instrument=None, horizon=None):
         return {"window": window, "horizon": horizon, "metrics": {"samples": 0, "pending": 0}, "records": []}
 
+    def provider_vintages(self, **kwargs):
+        return [{"instrument": "brent_spot", "availability_basis": "collection_observed", **kwargs}]
+
+    def point_in_time_observations(self, as_of, **kwargs):
+        return {"as_of": as_of, "items": [], "vintages": [], **kwargs}
+
 
 @pytest.fixture
 def api_server(monkeypatch):
@@ -198,6 +204,21 @@ def test_live_forecast_performance_route_returns_a_rolling_ledger(api_server):
     assert payload["window"] == 30
     assert payload["horizon"] == 7
     assert payload["metrics"]["samples"] == 0
+
+
+def test_provider_vintages_require_authentication_and_support_an_as_of_read(api_server):
+    server, _ = api_server
+
+    status, _, _ = request(server, "GET", "/api/vintages")
+    assert status == 401
+    status, _, body = request(
+        server, "GET", "/api/vintages/as-of?as_of=2026-01-05T12%3A00%3A00%2B00%3A00&data_kind=index",
+        {"X-API-Key": "test-api-key"},
+    )
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["as_of"] == "2026-01-05T12:00:00+00:00"
+    assert payload["data_kind"] == "index"
 
 
 def test_alert_page_reports_email_readiness(api_server, monkeypatch):

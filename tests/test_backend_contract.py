@@ -96,6 +96,36 @@ def test_live_forecast_ledger_scores_the_original_instrument_and_baseline(contra
     assert metrics['improvement_over_baseline'] == pytest.approx(.75)
     assert metrics['interval_coverage'] == 1
 
+
+def test_provider_vintages_preserve_revisions_and_rebuild_the_as_of_series(contract_db):
+    values = [(100, 10), (102, 12), (100, 14)]
+    for value, hour in values:
+        at = datetime(2026, 10, 5, hour, tzinfo=timezone.utc)
+        contract_db.insert_observation({
+            'product': 'brent', 'instrument': 'brent_spot', 'source': 'EIA/FRED - DCOILBRENTEU',
+            'price': value, 'source_date': '2026-10-05', 'collected_at': at.isoformat(),
+            'available_at': at.isoformat(), 'availability_basis': 'provider_timestamp',
+        })
+    vintages = contract_db.provider_vintages(product='brent', instrument='brent_spot')
+    assert [row['value'] for row in vintages] == [100, 102, 100]
+    assert [row['revision_number'] for row in reversed(vintages)] == [1, 2, 3]
+    assert vintages[0]['previous_vintage_id'] == vintages[1]['id']
+    early = contract_db.point_in_time_observations('2026-10-05T11:00:00+00:00', instrument='brent_spot')
+    revised = contract_db.point_in_time_observations('2026-10-05T12:30:00+00:00', instrument='brent_spot')
+    assert early['items'][0]['price'] == 100
+    assert revised['items'][0]['price'] == 102
+
+    delayed = datetime(2026, 10, 6, 9, tzinfo=timezone.utc)
+    contract_db.insert_observation({
+        'product': 'brent', 'instrument': 'brent_spot', 'source': 'EIA/FRED - DCOILBRENTEU',
+        'price': 104, 'source_date': '2026-10-06', 'available_at': delayed.isoformat(),
+        'collected_at': (delayed + timedelta(hours=2)).isoformat(), 'availability_basis': 'provider_timestamp',
+    })
+    before_capture = contract_db.point_in_time_observations('2026-10-06T10:00:00+00:00', instrument='brent_spot')
+    after_capture = contract_db.point_in_time_observations('2026-10-06T12:30:00+00:00', instrument='brent_spot')
+    assert all(row['source_date'] != '2026-10-06' for row in before_capture['items'])
+    assert after_capture['items'][-1]['price'] == 104
+
 def test_dense_history_forecast_and_exports_keep_the_latest_and_all_requested_rows(contract_db):
     day = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     old = day - timedelta(days=50)

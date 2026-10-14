@@ -551,6 +551,24 @@ class Handler(WSGIRequest):
                     window, product=product, instrument=instrument,
                     horizon=int(horizon) if horizon not in (None, "") else None,
                 ))
+            if parsed.path == "/api/vintages":
+                if not self._protect_local_records():
+                    return
+                return self.send_json({"vintages": database.provider_vintages(
+                    product=query.get("product", [None])[0], instrument=query.get("instrument", [None])[0],
+                    source=query.get("source", [None])[0], data_kind=query.get("data_kind", [None])[0],
+                    limit=max(1, min(1000, int(query.get("limit", [100])[0]))),
+                )})
+            if parsed.path == "/api/vintages/as-of":
+                if not self._protect_local_records():
+                    return
+                as_of = query.get("as_of", [None])[0]
+                if not as_of:
+                    raise ValueError("An as_of timestamp is required.")
+                return self.send_json(database.point_in_time_observations(
+                    as_of, product=query.get("product", [None])[0], instrument=query.get("instrument", [None])[0],
+                    data_kind=query.get("data_kind", ["quote"])[0],
+                ))
             if parsed.path == "/api/alerts":
                 return self.send_json({"alerts": database.alert_rules(), "channels": alert_channel_status()})
             if parsed.path == "/api/observations":

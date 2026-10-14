@@ -149,7 +149,8 @@ def collect_live_brent() -> dict:
         "product": "brent", "price": price, "unit": "USD/baril",
         "source": "Yahoo Finance - Brent futures BZ=F", "source_code": "live_brent",
         "source_date": quote_time.date().isoformat(),
-        "quote_at": quote_time.isoformat(),
+        "quote_at": quote_time.isoformat(), "available_at": quote_time.isoformat(),
+        "availability_basis": "provider_timestamp",
         "notes": f"Market quote at {quote_time.isoformat()}. {delay_note}",
     }
 
@@ -162,7 +163,8 @@ def collect_live_gasoil() -> dict:
         "product": "gasoil", "price": price, "unit": "USD/gallon",
         "source": "Yahoo Finance - NY Harbor Heating Oil HO=F (proxy gasoil)", "source_code": "live_gasoil_proxy",
         "source_date": quote_time.date().isoformat(),
-        "quote_at": quote_time.isoformat(),
+        "quote_at": quote_time.isoformat(), "available_at": quote_time.isoformat(),
+        "availability_basis": "provider_timestamp",
         "notes": f"Live diesel proxy quoted at {quote_time.isoformat()}. {delay_note}",
     }
 

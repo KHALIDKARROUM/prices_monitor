@@ -25,6 +25,7 @@ from .quote_store import QuoteStoreMixin, json_text
 from .collection_store import CollectionStoreMixin
 from .access_store import AccessStoreMixin, borrowed_connection
 from .forecast_store import ForecastStoreMixin
+from .vintage_store import VintageStoreMixin
 from .market_calendar import market_session
 from .quotes import QuoteConflict
 from .quotes import COST_FIELDS, EXTRA_COST_FIELDS, landed_costs
@@ -382,6 +383,12 @@ class DatabaseBackend(Protocol):
     def live_forecast_performance(self, window: int = 90, *, product: str | None = None,
                                   instrument: str | None = None, horizon: int | None = None) -> dict[str, Any]: ...
 
+    def provider_vintages(self, *, product: str | None = None, instrument: str | None = None,
+                          source: str | None = None, data_kind: str | None = None, limit: int = 100) -> list[dict[str, Any]]: ...
+
+    def point_in_time_observations(self, as_of: str, *, product: str | None = None,
+                                   instrument: str | None = None, data_kind: str = "quote") -> dict[str, Any]: ...
+
     def insert_benchmark(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
     def latest_benchmarks(self, product: str | None = None, limit: int = 20) -> list[dict[str, Any]]: ...
@@ -483,7 +490,7 @@ def run_sqlite_migrations(connection: sqlite3.Connection, migrations_dir: Path =
     return newly_applied
 
 
-class SQLiteDatabase(ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
+class SQLiteDatabase(VintageStoreMixin, ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
     """SQLite persistence backend used locally and by default."""
 
     _lock = threading.RLock()
@@ -740,13 +747,12 @@ class SQLiteDatabase(ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, 
             datetime.now(timezone.utc).date().isoformat() if source_date_input is None else source_date_input
         )
         collected_at_input = payload.get("collected_at")
-        collected_at = self._datetime_value(
-            self._collected_at_value(
-                datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-                if collected_at_input is None
-                else collected_at_input
-            )
+        collected_at_text = self._collected_at_value(
+            datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+            if collected_at_input is None
+            else collected_at_input
         )
+        collected_at = self._datetime_value(collected_at_text)
         unit_input = payload.get("unit")
         unit = PRODUCTS[product]["unit"] if unit_input is None else unit_input
         if not isinstance(unit, str) or unit.strip() != PRODUCTS[product]["unit"]:
@@ -758,6 +764,15 @@ class SQLiteDatabase(ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, 
         if not supplier and product == "bitume":
             supplier = source
         notes = str(payload.get("notes") or "")[:500]
+
+        def capture_vintage(conn: Any) -> None:
+            self._capture_provider_vintage(
+                conn, data_kind="quote", product=product, instrument=instrument, source=source,
+                source_date=source_date, value=price, unit=unit, currency="USD", captured_at=collected_at_text,
+                available_at=payload.get("available_at") or payload.get("quote_at"),
+                availability_basis=payload.get("availability_basis") or ("manual_entry" if source == "Validated entry" else None),
+            )
+
         with self._lock, self.connect() as conn:
             existing = conn.execute(
                 """SELECT * FROM price_observations
@@ -776,6 +791,7 @@ class SQLiteDatabase(ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, 
                     )
                     existing = conn.execute("SELECT * FROM price_observations WHERE id=?", (existing["id"],)).fetchone()
                 record = dict(existing)
+                capture_vintage(conn)
                 self._match_live_forecasts_for_actual(
                     conn, product=product, instrument=instrument, value=price,
                     source_date=source_date, collected_at=collected_at,
@@ -817,6 +833,7 @@ class SQLiteDatabase(ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, 
                 ).fetchone()
                 if existing:
                     record = dict(existing)
+                    capture_vintage(conn)
                     self._match_live_forecasts_for_actual(
                         conn, product=product, instrument=instrument, value=price,
                         source_date=source_date, collected_at=collected_at,
@@ -824,6 +841,7 @@ class SQLiteDatabase(ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, 
                     return record
                 raise
             record = conn.execute("SELECT * FROM price_observations WHERE id=?", (cur.lastrowid,)).fetchone()
+            capture_vintage(conn)
             self._match_live_forecasts_for_actual(
                 conn, product=product, instrument=instrument, value=price,
                 source_date=source_date, collected_at=collected_at,
@@ -878,6 +896,11 @@ class SQLiteDatabase(ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, 
                 else:
                     record = dict(existing)
                 if code == INDEX_CODE:
+                    self._capture_provider_vintage(
+                        conn, data_kind="index", product=product, instrument="asphalt_index", source=source,
+                        source_date=source_date, value=value, unit=unit, currency="", captured_at=collected_at,
+                        available_at=payload.get("available_at"), availability_basis=payload.get("availability_basis"),
+                    )
                     self._match_live_forecasts_for_actual(
                         conn, product=product, instrument="asphalt_index", value=value,
                         source_date=source_date, collected_at=collected_at,
@@ -908,12 +931,28 @@ class SQLiteDatabase(ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, 
                     (code, source_date, value),
                 ).fetchone()
                 if existing:
-                    return dict(existing)
+                    record = dict(existing)
+                    if code == INDEX_CODE:
+                        self._capture_provider_vintage(
+                            conn, data_kind="index", product=product, instrument="asphalt_index", source=source,
+                            source_date=source_date, value=value, unit=unit, currency="", captured_at=collected_at,
+                            available_at=payload.get("available_at"), availability_basis=payload.get("availability_basis"),
+                        )
+                        self._match_live_forecasts_for_actual(
+                            conn, product=product, instrument="asphalt_index", value=value,
+                            source_date=source_date, collected_at=collected_at,
+                        )
+                    return record
                 raise
             record = conn.execute(
                 "SELECT * FROM market_benchmarks WHERE id=?", (cursor.lastrowid,)
             ).fetchone()
             if code == INDEX_CODE:
+                self._capture_provider_vintage(
+                    conn, data_kind="index", product=product, instrument="asphalt_index", source=source,
+                    source_date=source_date, value=value, unit=unit, currency="", captured_at=collected_at,
+                    available_at=payload.get("available_at"), availability_basis=payload.get("availability_basis"),
+                )
                 self._match_live_forecasts_for_actual(
                     conn, product=product, instrument="asphalt_index", value=value,
                     source_date=source_date, collected_at=collected_at,
@@ -1898,8 +1937,8 @@ class MySQLDatabase(SQLiteDatabase):
         return {"status": "ok", "backend": "mysql"}
 
     @staticmethod
-    def _datetime_value(value: str) -> datetime:
-        parsed = datetime.fromisoformat(value)
+    def _datetime_value(value: str | datetime) -> datetime:
+        parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
         if parsed.tzinfo is not None:
             parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
         return parsed

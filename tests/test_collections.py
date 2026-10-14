@@ -150,8 +150,11 @@ def test_live_quote_connectors_keep_market_timestamp_and_proxy_label(monkeypatch
 
     assert (brent["source_code"], brent["price"]) == ("live_brent", 98.58)
     assert brent["source_date"] == "2026-09-22"
+    assert brent["available_at"] == brent["quote_at"]
+    assert brent["availability_basis"] == "provider_timestamp"
     assert gasoil["source_code"] == "live_gasoil_proxy"
     assert "proxy" in gasoil["source"].lower()
+    assert gasoil["available_at"] == gasoil["quote_at"]
 
 
 def test_partial_collection_is_persisted_and_logged_as_partial(empty_database, monkeypatch):

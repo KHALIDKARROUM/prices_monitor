@@ -2,6 +2,8 @@
 
 Application de suivi des prix internationaux du gasoil, du Brent et du bitume, avec tableau de bord responsive, prévisions transparentes et workflow data science reproductible.
 
+[▶ Voir la démonstration vidéo (67 s)](presentations/price-monitor-demo.mp4) · [Aperçu](presentations/price-monitor-demo-poster.png). Elle utilise une base temporaire et des données fictives, sans fournisseurs ni notifications externes.
+
 ## Ce qui est livré
 
 - collectes en arrière-plan selon chaque fournisseur, quotas persistants et reprises progressives ; les données enregistrées sont accessibles dès le démarrage ; le tableau de bord ouvert s'actualise chaque minute ;
@@ -13,7 +15,7 @@ Application de suivi des prix internationaux du gasoil, du Brent et du bitume, a
 - contrôle de qualité, validation stricte des dates et unités, déduplication idempotente, date de publication distincte de la date de collecte, variation absolue et en pourcentage ;
 - saisie validée des devis, commandes ou factures de bitume ;
 - répertoire SQL de canaux fournisseurs officiels, filtré par produit et région, avec processus RFQ, contrôle de contrepartie et calcul du coût rendu ;
-- tableau de bord responsive à fond noir, navigation continue par défilement, graphiques de tendance, moyennes/minimums/maximums, journal des collectes ;
+- tableau de bord responsive avec thèmes clair/sombre, navigation continue par défilement, graphiques de tendance, moyennes/minimums/maximums, journal des collectes ;
 - prévisions statistiques à 7, 30 et 90 jours pour le gasoil et le Brent, avec bandes calibrées et comparaison au dernier prix connu ;
 - projections mensuelles de l'indice bitume à 1, 3 et 6 mois, avec validation historique et alertes distinctes des devis USD/tonne ;
 - exports CSV et Excel `.xlsx` ;
@@ -64,7 +66,7 @@ Les migrations `012` ajoutent les calendriers, les leases de concurrence et le s
 
 ## Navigation
 
-L’interface utilise un fond noir, des panneaux gris et neuf sections : **Marchés**, **Tendances**, **Veille**, **Archives**, **Nouveau prix**, **Fournisseurs**, **Budget**, **Activité** et **Mon compte / Équipe**. Les sections restent dans une page continue ; les liens de navigation défilent doucement vers la section choisie et la page active suit la position de défilement. Les animations sont désactivées lorsque la préférence système de réduction des mouvements est activée.
+L’interface propose des thèmes clair et sombre, et neuf sections : **Marchés**, **Tendances**, **Veille**, **Archives**, **Nouveau prix**, **Fournisseurs**, **Budget**, **Activité** et **Mon compte / Équipe**. Les sections restent dans une page continue ; les liens de navigation défilent doucement vers la section choisie et la page active suit la position de défilement. Les animations sont désactivées lorsque la préférence système de réduction des mouvements est activée.
 
 Chaque section possède un lien direct (`#marches`, `#tendances`, `#veille`, `#archives`, `#nouveau-prix`, `#fournisseurs`, `#budget`, `#activite`, `#equipe`). Les anciens liens restent compatibles. La navigation conserve les formulaires en cours et prend en charge les boutons précédent/suivant du navigateur. Sur mobile, le bouton de menu affiche les sections ; la touche Échap referme le menu.
 

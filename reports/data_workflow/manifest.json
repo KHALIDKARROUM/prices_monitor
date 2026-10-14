@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-14T17:29:56.826712+00:00",
+  "generated_at": "2026-10-14T18:00:53.850216+00:00",
   "python": "3.14.6",
   "packages": {
     "numpy": "2.5.3",
@@ -23,13 +23,13 @@
   "code_sha256": {
     "analysis\\data.py": "f4483aeaf3524f7e37d40c8c19a972429286938ce1eea2a28ec01a55be6c6d5a",
     "analysis\\features.py": "324ba4132f01997b2a76ff2d065abaaf94a808a74ac799dc9388409cfc609fe7",
-    "analysis\\modeling.py": "50e007dc11557c89eef2fb60be7df88b79a07d1e4f66ea6aeb2f90122c5b2393",
-    "analysis\\pipeline.py": "65ce2b66ea790a8666108b95dd737de236d0f2ada2a06d5a442fba27aec593df",
+    "analysis\\modeling.py": "4d2421ff075108bdaf5beaef6c8ecef1dfd6e6cb811152591cf8358775f44e20",
+    "analysis\\pipeline.py": "727301da3684541c1c9b59044d07690e85e6c3c3757110f4bb4c6ca4b03250ea",
     "analysis\\procurement_decision.py": "c4774e12327da738f9b96d3691dc42f713b6e9d2b8b0cce5af2cc04a52e861cf",
     "analysis\\__init__.py": "4384f72b21c6992a35ec5f22cdb3384d4d67fc88b6ba8e00613eb9187e421894",
-    "services\\forecasting.py": "673ec83d5554f8c7fd4dbe9790d8d5c905a4b5cf5ae9c3bc83d940a32f1a4e49",
-    "forecast_evaluation.py": "e6a16153fc41c6962955d15b25ad51edd121e5ee0f2d29864567d335ce36e96a",
-    "model_lifecycle.py": "66c5b1c35f231557fb04abc315c59f77b76a016945d8dbcb88aaa6ad736cddc1"
+    "services\\forecasting.py": "c8ee4740bd60ba1b937214d25b9618a4bfc615fad22eb5a4d06de9a689d99f8a",
+    "forecast_evaluation.py": "9d692e7a0f72e5a0f6949752cb612886b18efa92af7a5786a9d240c32f3779eb",
+    "model_lifecycle.py": "a1d963b5707c51d35e19ba85b216a32afa1e9435ff1e17fc6444d453bb94444e"
   },
   "procurement_decision": {
     "use_case": "request_or_refresh_quotes_before_a_material_market_rise",
@@ -46,7 +46,17 @@
     "live_lifecycle_version": "controlled_lifecycle_v1",
     "shadow_min_samples": 30,
     "promotion_min_improvement": 0.05,
+    "promotion_min_interval_samples": 20,
+    "promotion_min_interval_coverage": 0.85,
     "rollback_max_degradation": 0.1
+  },
+  "uncertainty": {
+    "target_coverage": 0.95,
+    "long_horizon_daily_days": 30,
+    "long_horizon_months": 3,
+    "historical_stress_minimum_blocks": 8,
+    "monthly_history_required": 84,
+    "monitoring_report": "interval_monitoring.csv"
   },
   "eda": {
     "diagnostic_end": "2024-12-05",

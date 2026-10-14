@@ -23,6 +23,7 @@ FORECAST_HORIZONS = (7, 30, 90)
 DEFAULT_HISTORY_DAYS = 1825
 MAX_HISTORY_ROWS = 5000
 MIN_OBSERVATIONS = 30
+MIN_MONTHLY_UNCERTAINTY_HISTORY = 84
 
 PRODUCT_META = {
     "gasoil": {"label": "Gasoil / diesel", "unit": "USD/gallon"},
@@ -159,14 +160,14 @@ def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tup
         "instrument": instrument,
         "unit": meta["unit"],
         "model": "per_horizon",
-        "model_version": "3_chronological_selection",
+        "model_version": "4_stress_calibrated_intervals",
         "evaluation_protocol": PROTOCOL,
         "model_selection": {},
         "horizon_unit": "months" if monthly else "calendar_days",
         "horizons": list(horizons),
         "frequency": "monthly" if monthly else "daily",
         "data_kind": "index" if monthly else "quote",
-        "interval_method": "chronological_absolute_log_error_quantile",
+        "interval_method": "split_conformal_plus_historical_stress_envelope",
         "interval_nominal_level": NOMINAL_LEVEL,
         "interval_guarantee": False,
         "history_count": len(series),
@@ -217,7 +218,19 @@ def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tup
             "holdout_samples": len(plan["holdout"]),
             "target_max_delay": plan["max_delay"],
             "calibration_samples_by_step": evaluation["calibration_counts"],
+            "interval_details_by_step": evaluation["candidate_interval_details"][selected],
         })
+        if monthly and len(series) < MIN_MONTHLY_UNCERTAINTY_HISTORY:
+            base["model_selection"][str(horizon)]["warnings"] = [
+                *base["model_selection"][str(horizon)]["warnings"],
+                {
+                    "code": "limited_monthly_uncertainty_history",
+                    "message": (
+                        f"Only {len(series)} published monthly index values are available. At least "
+                        f"{MIN_MONTHLY_UNCERTAINTY_HISTORY} are required before long-horizon uncertainty can be trusted."
+                    ),
+                },
+            ]
         candidate_points = {
             "naive": _forecast_points([values[-1]] * horizon, evaluation=evaluation, model="naive", last_day=last_day, monthly=monthly),
             "holt": _forecast_points(_damped_holt(values, horizon, days), evaluation=evaluation, model="holt", last_day=last_day, monthly=monthly),

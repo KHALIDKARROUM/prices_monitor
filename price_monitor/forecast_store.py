@@ -8,13 +8,14 @@ from statistics import mean
 from typing import Any
 
 from .bitumen import INDEX_CODE
-from .forecast_evaluation import forecast_metrics
+from .forecast_evaluation import NOMINAL_LEVEL, forecast_metrics
 from .instruments import INSTRUMENTS, canonical_daily_rows, resolve_instrument
 
 
 LIVE_FORECAST_WINDOW = 90
 LIVE_FORECAST_MODEL_VERSION = "live_forecast_ledger_v1"
 DAILY_PUBLICATION_GRACE_DAYS = 4
+MIN_INTERVAL_MONITORING_SAMPLES = 20
 
 
 def _date_text(value: Any) -> str | None:
@@ -312,6 +313,17 @@ class ForecastStoreMixin:
             "mean_interval_width": mean(widths) if widths else None,
             "latest_evaluated_at": records[-1]["evaluated_at"] if records else None,
         })
+        if not coverage:
+            metrics["interval_status"] = "unavailable"
+            metrics["interval_coverage_gap"] = None
+        else:
+            gap = metrics["interval_coverage"] - NOMINAL_LEVEL
+            metrics["interval_coverage_gap"] = gap
+            metrics["interval_status"] = (
+                "limited_sample" if len(coverage) < MIN_INTERVAL_MONITORING_SAMPLES else
+                "undercovered" if gap < 0 else "on_target"
+            )
+        metrics["interval_target_coverage"] = NOMINAL_LEVEL
         # Keep the API vocabulary explicit: `improvement_over_baseline` is the
         # same MAE skill used by the research protocol, not a price change.
         metrics["improvement_over_baseline"] = metrics["mae_skill_vs_naive"]

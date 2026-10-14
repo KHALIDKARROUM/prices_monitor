@@ -6,7 +6,7 @@ import pytest
 
 from price_monitor.services.forecasting import build_forecast, daily_series, forecast_product
 from price_monitor.services.forecasting import _damped_holt, _backtest
-from price_monitor.forecast_evaluation import evaluate_baselines, evaluation_plan, interval_radius, select_model
+from price_monitor.forecast_evaluation import evaluate_baselines, evaluation_plan, historical_stress_radius, interval_radius, select_model
 
 
 def synthetic_rows(count: int = 220) -> list[dict]:
@@ -100,7 +100,7 @@ def test_calendar_backtest_scores_actual_endpoints_in_final_period():
 def test_forecast_exposes_age_origin_and_honest_interval_metadata():
     result = forecast_product(synthetic_rows(), "gasoil")
     assert result["forecast_origin"] == result["last_actual"]["date"]
-    assert result["interval_method"] == "chronological_absolute_log_error_quantile"
+    assert result["interval_method"] == "split_conformal_plus_historical_stress_envelope"
     assert result["interval_guarantee"] is False
     assert isinstance(result["is_stale"], bool)
 
@@ -196,3 +196,28 @@ def test_undercoverage_and_holdout_regression_are_prominent():
     assert "undercoverage" in codes
     assert "weak_holdout" in codes
     assert result["candidates"]["holt"]["interval_coverage"] < .95
+
+
+def test_long_horizons_use_non_overlapping_historical_stress_blocks():
+    radius, blocks = historical_stress_radius(
+        [.02, .12, .03, .08, .04, .09, .05, .07],
+        [0, 1, 30, 31, 60, 61, 90, 91], 30, minimum_blocks=4,
+    )
+    assert blocks == 4
+    assert radius == pytest.approx(.12)
+
+
+@pytest.mark.parametrize("product", ["brent", "gasoil"])
+def test_supplied_long_horizon_holdout_uses_a_conservative_stress_envelope(product):
+    from pathlib import Path
+    from price_monitor.analysis.data import load_market_data
+
+    frame = load_market_data(Path(__file__).resolve().parents[1] / "data" / "processed" / "market_prices.csv")
+    series = frame[product].dropna()
+    result = evaluate_baselines(series.tolist(), [day.toordinal() for day in series.index], 90, _damped_holt)
+    naive = result["candidates"]["naive"]
+    assert naive["interval_method"] == "split_conformal_plus_historical_stress"
+    assert naive["historical_stress_blocks"] >= 8
+    # The old recent-slice-only band covered about 52% for Brent and 57% for
+    # gasoil in this untouched holdout.
+    assert naive["interval_coverage"] >= .9

@@ -1209,7 +1209,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Prices at 7/30/90 days and BLS bitumen index at 1/3/6 months from the latest source date. Each product exposes its unit, frequency, horizons, indicative intervals, persistence comparison, and historical coverage."
+            "description": "Prices at 7/30/90 days and BLS bitumen index at 1/3/6 months from the latest source date. Each product exposes its unit, frequency, horizons, persistence comparison, historical coverage, and calibrated intervals. Intervals at longer horizons use a non-overlapping historical stress envelope when sufficient evidence exists; otherwise they are withheld."
           },
           "400": {
             "description": "Invalid parameter"
@@ -1270,7 +1270,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Persisted issued forecasts, their resolved actuals, rolling MAE/RMSE/MAPE, bias, improvement over the original last-known-price baseline, and interval coverage."
+            "description": "Persisted issued forecasts, their resolved actuals, rolling MAE/RMSE/MAPE, bias, improvement over the original last-known-price baseline, and interval coverage with a 95% target, gap, and monitoring status."
           },
           "400": {
             "description": "Invalid parameter"
@@ -1331,7 +1331,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Production and shadow candidates, version identities, promotion and rollback criteria, and append-only lifecycle events."
+            "description": "Production and shadow candidates, version identities, promotion and rollback criteria including interval coverage, and append-only lifecycle events."
           },
           "400": {
             "description": "Invalid parameter"

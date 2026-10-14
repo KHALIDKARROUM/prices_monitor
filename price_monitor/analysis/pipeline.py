@@ -19,10 +19,12 @@ from statsmodels.tsa.stattools import acf, adfuller, kpss
 from threadpoolctl import threadpool_limits
 
 from .data import PRODUCTS, UNITS, audit_data, load_market_data, load_bitumen_data
-from ..services.forecasting import forecast_product
-from ..forecast_evaluation import PROTOCOL, SELECTION_RULE
+from ..services.forecasting import MIN_MONTHLY_UNCERTAINTY_HISTORY, forecast_product
+from ..forecast_evaluation import MIN_STRESS_BLOCKS, NOMINAL_LEVEL, PROTOCOL, SELECTION_RULE
 from ..model_lifecycle import (
     MODEL_LIFECYCLE_VERSION,
+    MIN_PROMOTION_INTERVAL_COVERAGE,
+    MIN_PROMOTION_INTERVAL_SAMPLES,
     PROMOTION_MIN_IMPROVEMENT,
     ROLLBACK_MAX_DEGRADATION,
     SHADOW_MIN_SAMPLES,
@@ -182,7 +184,7 @@ Persistence and fixed-parameter damped Holt are compared separately at 1, 3 and 
 
 {_markdown_table(comparison[['horizon_months', 'model', 'selected', 'samples', 'mae', 'mae_skill_vs_naive', 'calibration_samples', 'interval_coverage']])}
 
-MAE/RMSE are in index points. Positive MAE skill means improvement over persistence; negative skill means worse. The first 65% of source months are used for purged validation, the next 15% for calibration, and the last 20% for final testing. Only an actual publication at the requested month is scored. Insufficient validation defaults to persistence; insufficient calibration leaves bands absent. Full comparison: [bitumen_model_comparison.csv](bitumen_model_comparison.csv). Historical publication timestamps and vintages are unavailable, so these checks use source months and cannot establish real-time availability. Overlapping pairs are dependent and nominal 95% bands are not coverage guarantees.
+MAE/RMSE are in index points. Positive MAE skill means improvement over persistence; negative skill means worse. The first 65% of source months are used for purged validation, the next 15% for calibration, and the last 20% for final testing. Only an actual publication at the requested month is scored. Insufficient validation defaults to persistence; insufficient calibration leaves bands absent. Long monthly bands also require at least {MIN_STRESS_BLOCKS} non-overlapping earlier forecast blocks; the live service marks the current {len(series)}-month history as insufficient for trusted long-horizon uncertainty until it reaches {MIN_MONTHLY_UNCERTAINTY_HISTORY} months. Full comparison: [bitumen_model_comparison.csv](bitumen_model_comparison.csv). Historical publication timestamps and vintages are unavailable, so these checks use source months and cannot establish real-time availability. Overlapping pairs are dependent and 95% calibration targets are not coverage guarantees.
 """
     (output / "bitumen_report.md").write_text(report, encoding="utf-8")
     return audit
@@ -279,7 +281,7 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
             axes[0].plot(chosen.target_date, chosen.actual, label="Actual", color="#222")
             axes[0].plot(chosen.target_date, chosen.prediction, label=selected, color="#388776")
             axes[0].fill_between(chosen.target_date, chosen.lower, chosen.upper, color="#388776", alpha=.15,
-                                 label="95% nominal, calibrated on earlier data")
+                                 label="Calibrated band; long horizons add historical stress")
             axes[0].set(title=f"{product} — {horizon}-day target, frozen holdout", ylabel=UNITS[product])
             axes[0].legend(fontsize=8)
             axes[1].plot(chosen.target_date, chosen.prediction-chosen.actual, color="#ad6538")
@@ -289,6 +291,24 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
     table, cv_table = pd.concat(results, ignore_index=True), pd.concat(cv_results, ignore_index=True)
     production_table = pd.DataFrame(production_results)
     production_table.to_csv(output / "production_comparison.csv", index=False)
+    interval_monitoring = production_table.loc[
+        production_table["production_selected"],
+        [
+            "product", "horizon_days", "model", "samples", "interval_coverage",
+            "calibration_log_radius", "calibration_radius", "historical_stress_radius",
+            "historical_stress_blocks", "interval_method",
+        ],
+    ].copy()
+    interval_monitoring["target_coverage"] = NOMINAL_LEVEL
+    interval_monitoring["coverage_gap"] = (
+        interval_monitoring["interval_coverage"] - interval_monitoring["target_coverage"]
+    )
+    interval_monitoring["status"] = np.where(
+        interval_monitoring["interval_coverage"].isna(),
+        "unavailable",
+        np.where(interval_monitoring["interval_coverage"] < NOMINAL_LEVEL, "below_target", "on_target"),
+    )
+    interval_monitoring.to_csv(output / "interval_monitoring.csv", index=False)
     table.to_csv(output / "holdout_metrics.csv", index=False)
     cv_table.to_csv(output / "cross_validation.csv", index=False)
     pd.DataFrame(all_folds).to_csv(output / "split_audit.csv", index=False)
@@ -307,6 +327,8 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
             "version": MODEL_LIFECYCLE_VERSION,
             "shadow_min_samples": SHADOW_MIN_SAMPLES,
             "promotion_min_improvement": PROMOTION_MIN_IMPROVEMENT,
+            "promotion_min_interval_samples": MIN_PROMOTION_INTERVAL_SAMPLES,
+            "promotion_min_interval_coverage": MIN_PROMOTION_INTERVAL_COVERAGE,
             "rollback_max_degradation": ROLLBACK_MAX_DEGRADATION,
             "rule": "Research candidates remain offline until a separately packaged runtime candidate completes paired live shadow evaluation.",
         },
@@ -335,7 +357,17 @@ def run_analysis(data_path: Path, output: Path, horizons=(1, 7, 30, 90), save_mo
             "live_lifecycle_version": MODEL_LIFECYCLE_VERSION,
             "shadow_min_samples": SHADOW_MIN_SAMPLES,
             "promotion_min_improvement": PROMOTION_MIN_IMPROVEMENT,
+            "promotion_min_interval_samples": MIN_PROMOTION_INTERVAL_SAMPLES,
+            "promotion_min_interval_coverage": MIN_PROMOTION_INTERVAL_COVERAGE,
             "rollback_max_degradation": ROLLBACK_MAX_DEGRADATION,
+        },
+        "uncertainty": {
+            "target_coverage": NOMINAL_LEVEL,
+            "long_horizon_daily_days": 30,
+            "long_horizon_months": 3,
+            "historical_stress_minimum_blocks": MIN_STRESS_BLOCKS,
+            "monthly_history_required": MIN_MONTHLY_UNCERTAINTY_HISTORY,
+            "monitoring_report": "interval_monitoring.csv",
         },
         "eda": eda, "experiments": selections}
     bitumen_path = data_path.parent / "bitumen_index.csv"
@@ -400,15 +432,15 @@ MAE/RMSE use each product's own price unit; they must not be averaged across pro
 
 {_markdown_table(production_table[['product', 'horizon_days', 'model', 'production_selected', 'validation_mae', 'samples', 'mae', 'mae_skill_vs_naive', 'interval_coverage']])}
 
-Persistence selection means no validated trend improvement. Negative final-test skill means the candidate underperformed the last known price. Coverage below 0.95 means the nominal 95% band missed more prices than intended; it must not be read as reliable 95% coverage. These warnings are prominent in the dashboard, alongside missing-band and small-sample warnings. [Production comparison](production_comparison.csv) and `production_selection_*.json` are generated by the same evaluator called by the API. The live selection is recomputed on its current instrument history, so a later snapshot may choose differently.
+Persistence selection means no validated trend improvement. Negative final-test skill means the candidate underperformed the last known price. Coverage below {NOMINAL_LEVEL:.0%} is below the uncertainty target, not evidence of reliable coverage. The selected-model [interval monitoring report](interval_monitoring.csv) records every horizon's calibration radius, historical stress radius, blocks, coverage gap and status. These warnings are prominent in the dashboard, alongside missing-band and small-sample warnings. [Production comparison](production_comparison.csv) and `production_selection_*.json` are generated by the same evaluator called by the API. The live selection is recomputed on its current instrument history, so a later snapshot may choose differently.
 
-Bands use finite-sample absolute log-error quantiles from the separate calibration period, specific to the selected model and displayed forecast step. They replace the former Holt residual / square-root-time heuristic. At least 19 calibration errors are needed for a finite nominal 95% quantile; otherwise the band is absent. Final-test prices never choose the model or widen calibration bands.
+Short-horizon bands use finite-sample absolute log-error quantiles from the separate calibration period, specific to the selected model and displayed forecast step. For daily horizons of 30 days or longer and monthly horizons of 3 months or longer, the band is widened to the larger of that calibration radius and the largest error from at least {MIN_STRESS_BLOCKS} non-overlapping earlier forecast blocks. This historical stress envelope addresses missed volatility regimes without using final-test prices. If that independent evidence is unavailable, the long-horizon band is withheld. At least 19 calibration errors are still needed for the 95% calibration quantile. The envelope improved the supplied long-horizon holdout, but it is not a guarantee of future {NOMINAL_LEVEL:.0%} coverage.
 
 ## Controlled live model lifecycle
 
 Every research candidate is assigned a snapshot-specific identity in [model_lifecycle_candidates.json](model_lifecycle_candidates.json) and [model_lifecycle_candidates.csv](model_lifecycle_candidates.csv). That registry is an offline review record, not a production switch: a research artifact must be separately packaged into the small live runtime before it can be considered.
 
-The live runtime versions its persistence and Holt candidates, issues the non-production candidate beside the production model for identical instrument/origin/target endpoints, and records both outcomes. Promotion requires at least **{SHADOW_MIN_SAMPLES} paired live actuals**, at least **{PROMOTION_MIN_IMPROVEMENT:.0%} lower MAE** than the production candidate, and no worse MAE than the issued last-known-price baseline. A non-persistence production candidate is rolled back to persistence after at least **{SHADOW_MIN_SAMPLES} live actuals** if it is more than **{ROLLBACK_MAX_DEGRADATION:.0%} worse** than that baseline. Candidate status and the append-only event log are available from `GET /api/model-lifecycle`.
+The live runtime versions its persistence and Holt candidates, issues the non-production candidate beside the production model for identical instrument/origin/target endpoints, and records both outcomes. Promotion requires at least **{SHADOW_MIN_SAMPLES} paired live actuals**, at least **{PROMOTION_MIN_IMPROVEMENT:.0%} lower MAE** than the production candidate, no worse MAE than the issued last-known-price baseline, and at least **{MIN_PROMOTION_INTERVAL_COVERAGE:.0%} interval coverage across {MIN_PROMOTION_INTERVAL_SAMPLES} resolved intervals**. A non-persistence production candidate is rolled back to persistence after at least **{SHADOW_MIN_SAMPLES} live actuals** if it is more than **{ROLLBACK_MAX_DEGRADATION:.0%} worse** than that baseline. Candidate status and the append-only event log are available from `GET /api/model-lifecycle`.
 
 ## Procurement decision: request quotes now or wait
 
@@ -438,8 +470,8 @@ Calibration-set permutation importance is saved in [feature_importance.csv](feat
 - Historical provider publication timestamps and vintages remain unavailable for the delivered snapshot. Source-date causality prevents mechanical future leakage, but this snapshot cannot prove what would have been known at every past origin. Migration `015` now captures append-only provider vintages, the provider availability timestamp and the application capture timestamp for new collections; `GET /api/vintages/as-of` admits a value only after this application captured it, so it can build future as-of training snapshots from those records. Reconstructed collection times from the legacy import remain excluded from that route and cannot establish actual availability.
 - The RFQ timing check measures market-exposure opportunities only. Historical supplier quote issue/response timestamps, validity, quantities, FX and landed cost components are not available, so it cannot prove realised savings or rank suppliers retrospectively.
 - {bitumen_note}
-- Overlapping horizons and serial dependence mean fold errors are not independent. Calibration quantiles have a 95% nominal level; time-series dependence and regime changes remove exchangeability guarantees. Use measured holdout coverage.
-- Check fresh-data errors, missingness, feature ranges and interval coverage after deployment; reassess on new chronological data, not by repeatedly tuning to this holdout. Use block-bootstrap uncertainty or non-overlapping evaluation when more history is available.
+- Overlapping horizons and serial dependence mean fold errors are not independent. Calibration has a {NOMINAL_LEVEL:.0%} target, while long horizons add a non-overlapping historical stress envelope; neither gives a future coverage guarantee. Use the measured holdout and live coverage in [interval_monitoring.csv](interval_monitoring.csv) and `GET /api/forecast-performance`.
+- Check fresh-data errors, missingness, feature ranges and interval coverage after deployment; reassess on new chronological data, not by repeatedly tuning to this holdout. Add monthly bitumen publications until at least {MIN_MONTHLY_UNCERTAINTY_HISTORY} months are available for trusted long-horizon uncertainty. Use block-bootstrap uncertainty or non-overlapping evaluation when more history is available.
 - Serialized models, if requested, are research artifacts fitted on development only, with their training cutoff in each model card. Never load untrusted pickle/joblib files. Baseline artifacts contain `model=None` and an explicit baseline name.
 
 ## References

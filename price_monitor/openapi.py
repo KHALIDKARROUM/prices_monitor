@@ -94,21 +94,21 @@ OPENAPI_SPEC = {
             "get": {"tags": ["market"], "summary": "Schedules and quotas for configured providers", "responses": {"200": {"description": "Provider, interval_minutes, status, next_collection_at, requests_last_24h, request_limit_24h (null when no local limit), failures, reason, and last_error. Times are UTC; market closures, quotas, and backoff are considered."}}}
         },
         "/api/forecast": {
-            "get": {"tags": ["market"], "summary": "Diesel, Brent, and bitumen index forecasts", "parameters": [{"$ref": "#/components/parameters/HistoryDays"}], "responses": {"200": {"description": "Prices at 7/30/90 days and BLS bitumen index at 1/3/6 months from the latest source date. Each product exposes its unit, frequency, horizons, indicative intervals, persistence comparison, and historical coverage."}, "400": {"description": "Invalid parameter"}}}
+            "get": {"tags": ["market"], "summary": "Diesel, Brent, and bitumen index forecasts", "parameters": [{"$ref": "#/components/parameters/HistoryDays"}], "responses": {"200": {"description": "Prices at 7/30/90 days and BLS bitumen index at 1/3/6 months from the latest source date. Each product exposes its unit, frequency, horizons, persistence comparison, historical coverage, and calibrated intervals. Intervals at longer horizons use a non-overlapping historical stress envelope when sufficient evidence exists; otherwise they are withheld."}, "400": {"description": "Invalid parameter"}}}
         },
         "/api/forecast-performance": {
             "get": {"tags": ["market"], "summary": "Rolling live forecast performance", "parameters": [
                 {"name": "window", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 365, "default": 90}},
                 {"$ref": "#/components/parameters/Product"}, {"$ref": "#/components/parameters/Instrument"},
                 {"name": "horizon", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 365}},
-            ], "responses": {"200": {"description": "Persisted issued forecasts, their resolved actuals, rolling MAE/RMSE/MAPE, bias, improvement over the original last-known-price baseline, and interval coverage."}, "400": {"description": "Invalid parameter"}}}
+            ], "responses": {"200": {"description": "Persisted issued forecasts, their resolved actuals, rolling MAE/RMSE/MAPE, bias, improvement over the original last-known-price baseline, and interval coverage with a 95% target, gap, and monitoring status."}, "400": {"description": "Invalid parameter"}}}
         },
         "/api/model-lifecycle": {
             "get": {"tags": ["market"], "summary": "Versioned forecast candidates and lifecycle audit", "parameters": [
                 {"$ref": "#/components/parameters/Product"}, {"$ref": "#/components/parameters/Instrument"},
                 {"name": "horizon", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 365}},
                 {"name": "event_limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100}},
-            ], "responses": {"200": {"description": "Production and shadow candidates, version identities, promotion and rollback criteria, and append-only lifecycle events."}, "400": {"description": "Invalid parameter"}}}
+            ], "responses": {"200": {"description": "Production and shadow candidates, version identities, promotion and rollback criteria including interval coverage, and append-only lifecycle events."}, "400": {"description": "Invalid parameter"}}}
         },
         "/api/vintages": {
             "get": {"tags": ["market"], "summary": "Captured provider value vintages", "parameters": [

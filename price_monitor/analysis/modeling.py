@@ -106,12 +106,29 @@ def run_experiment(frame: pd.DataFrame, product: str, horizon: int) -> dict:
             return baseline[name].loc[indices].to_numpy() if fitted is None else price_predictions(fitted, x.loc[indices], labels.loc[indices])
         cal_prediction, prediction = predict(calibration), predict(holdout)
         calibration_predictions[name] = cal_prediction
-        radius = interval_radius(np.log(labels.loc[calibration].target_price.to_numpy() / cal_prediction))
-        lower, upper = prediction * np.exp(-radius), prediction * np.exp(radius)
+        if name in production["candidates"]:
+            # Keep the research baseline bands identical to the production
+            # evaluator. This includes the independent long-horizon stress
+            # floor, and prevents the report from overstating certainty.
+            radius = production["candidates"][name]["calibration_log_radius"]
+            interval_method = production["candidates"][name]["interval_method"]
+        else:
+            local_radius = interval_radius(np.log(labels.loc[calibration].target_price.to_numpy() / cal_prediction))
+            stress_floor = production["candidates"]["naive"]["historical_stress_radius"]
+            radius = max(local_radius, stress_floor) if stress_floor is not None else local_radius
+            interval_method = (
+                "split_conformal_plus_baseline_stress_floor" if stress_floor is not None else "split_conformal"
+            )
+        if radius is None:
+            lower = np.full_like(prediction, np.nan, dtype=float)
+            upper = np.full_like(prediction, np.nan, dtype=float)
+        else:
+            lower, upper = prediction * np.exp(-radius), prediction * np.exp(radius)
         actual = labels.loc[holdout].target_price.to_numpy()
         results.append({"model": name, "selected_on_validation": name == selected,
             **metrics(actual, prediction, labels.loc[holdout].current_price),
-            **interval_metrics(actual, prediction, radius), "calibration_log_radius": radius})
+            **interval_metrics(actual, prediction, radius), "calibration_log_radius": radius,
+            "interval_method": interval_method})
         predictions[name] = pd.DataFrame({"origin_date": holdout, "target_date": labels.loc[holdout].target_date.to_numpy(),
             "actual": actual, "current_price": labels.loc[holdout].current_price.to_numpy(),
             "prediction": prediction, "lower": lower, "upper": upper})

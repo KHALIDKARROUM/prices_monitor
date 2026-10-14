@@ -21,6 +21,8 @@ MODEL_LIFECYCLE_VERSION = "controlled_lifecycle_v1"
 SHADOW_MIN_SAMPLES = 30
 PROMOTION_MIN_IMPROVEMENT = 0.05
 ROLLBACK_MAX_DEGRADATION = 0.10
+MIN_PROMOTION_INTERVAL_SAMPLES = 20
+MIN_PROMOTION_INTERVAL_COVERAGE = 0.85
 
 
 def candidate_version(model: str, implementation_version: str) -> str:
@@ -223,8 +225,10 @@ class ModelLifecycleStoreMixin:
             "shadow_min_samples": SHADOW_MIN_SAMPLES,
             "promotion_min_improvement": PROMOTION_MIN_IMPROVEMENT,
             "rollback_max_degradation": ROLLBACK_MAX_DEGRADATION,
+            "promotion_min_interval_samples": MIN_PROMOTION_INTERVAL_SAMPLES,
+            "promotion_min_interval_coverage": MIN_PROMOTION_INTERVAL_COVERAGE,
             "comparison": "paired issued forecasts for the same instrument, origin, target date, and horizon",
-            "promotion": "Shadow MAE must improve on the production MAE by at least 5% across at least 30 paired actuals and must not be worse than persistence.",
+            "promotion": "Shadow MAE must improve on the production MAE by at least 5% across at least 30 paired actuals, must not be worse than persistence, and must cover at least 85% of 20 resolved intervals.",
             "rollback": "A non-persistence production model is rolled back to persistence after at least 30 live actuals when its MAE is more than 10% worse than its issued last-known-price baseline.",
         }
 
@@ -268,7 +272,7 @@ class ModelLifecycleStoreMixin:
         return {
             "samples": len(actual), "production_mae": production_mae, "candidate_mae": candidate_mae,
             "baseline_mae": baseline_mae, "improvement": improvement,
-            "interval_coverage": mean(coverage) if coverage else None,
+            "interval_coverage": mean(coverage) if coverage else None, "interval_samples": len(coverage),
         }
 
     def _production_scores(self, conn: Any, production: dict[str, Any]) -> dict[str, Any]:
@@ -285,7 +289,7 @@ class ModelLifecycleStoreMixin:
         return {
             "samples": len(entries), "production_mae": mean(errors) if errors else None,
             "baseline_mae": mean(baseline) if baseline else None,
-            "interval_coverage": mean(coverage) if coverage else None,
+            "interval_coverage": mean(coverage) if coverage else None, "interval_samples": len(coverage),
         }
 
     def _switch_production(
@@ -353,6 +357,8 @@ class ModelLifecycleStoreMixin:
                         score["samples"] >= min_samples and improvement is not None
                         and improvement >= float(shadow["promotion_min_improvement"])
                         and (score["baseline_mae"] is None or score["candidate_mae"] <= score["baseline_mae"])
+                        and score["interval_samples"] >= MIN_PROMOTION_INTERVAL_SAMPLES
+                        and score["interval_coverage"] >= MIN_PROMOTION_INTERVAL_COVERAGE
                     )
                     if not promotes:
                         continue

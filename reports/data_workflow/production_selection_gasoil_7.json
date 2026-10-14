@@ -23,7 +23,11 @@
       "interval_coverage": 0.8617886178861789,
       "mean_interval_width": 0.6822006140840114,
       "calibration_log_radius": 0.10683961280832713,
-      "calibration_samples": 182
+      "calibration_samples": 182,
+      "calibration_radius": 0.10683961280832713,
+      "historical_stress_radius": null,
+      "historical_stress_blocks": 0,
+      "interval_method": "split_conformal"
     },
     "holt": {
       "samples": 246,
@@ -38,17 +42,21 @@
       "interval_coverage": 0.8373983739837398,
       "mean_interval_width": 0.7460315460214877,
       "calibration_log_radius": 0.11573020630020749,
-      "calibration_samples": 182
+      "calibration_samples": 182,
+      "calibration_radius": 0.11573020630020749,
+      "historical_stress_radius": null,
+      "historical_stress_blocks": 0,
+      "interval_method": "split_conformal"
     }
   },
   "warnings": [
     {
       "code": "no_predictive_gain",
-      "message": "Holt ne démontre pas un gain d’au moins 2 % en validation. Projection au dernier prix connu, sans tendance prédictive démontrée."
+      "message": "Holt did not improve validation accuracy by at least 2%. Projecting the last known price; no predictive trend was demonstrated."
     },
     {
       "code": "undercoverage",
-      "message": "La bande nominale à 95 % ne couvre que 86% des prix testés. Incertitude sous-estimée sur cette période."
+      "message": "The nominal 95% band covered only 86% of tested prices. Uncertainty was underestimated in this period."
     }
   ]
 }

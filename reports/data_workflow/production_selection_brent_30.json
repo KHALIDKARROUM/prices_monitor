@@ -20,10 +20,14 @@
       "direction_accuracy": 0,
       "naive_mae": 12.451120689655173,
       "mae_skill_vs_naive": 0.0,
-      "interval_coverage": 0.6594827586206896,
-      "mean_interval_width": 24.712729301658705,
-      "calibration_log_radius": 0.15105374331672525,
-      "calibration_samples": 169
+      "interval_coverage": 0.8663793103448276,
+      "mean_interval_width": 54.3315913822944,
+      "calibration_log_radius": 0.32747547061398985,
+      "calibration_samples": 169,
+      "calibration_radius": 0.15105374331672525,
+      "historical_stress_radius": 0.32747547061398985,
+      "historical_stress_blocks": 45,
+      "interval_method": "split_conformal_plus_historical_stress"
     },
     "holt": {
       "samples": 232,
@@ -35,20 +39,28 @@
       "direction_accuracy": 0.5517241379310345,
       "naive_mae": 12.451120689655173,
       "mae_skill_vs_naive": -0.21811515984389573,
-      "interval_coverage": 0.7413793103448276,
-      "mean_interval_width": 39.596692361068904,
-      "calibration_log_radius": 0.23712996177048626,
-      "calibration_samples": 169
+      "interval_coverage": 0.9439655172413793,
+      "mean_interval_width": 87.96433656643775,
+      "calibration_log_radius": 0.5094163883886472,
+      "calibration_samples": 169,
+      "calibration_radius": 0.23712996177048626,
+      "historical_stress_radius": 0.5094163883886472,
+      "historical_stress_blocks": 45,
+      "interval_method": "split_conformal_plus_historical_stress"
     }
   },
   "warnings": [
     {
       "code": "no_predictive_gain",
-      "message": "Holt ne démontre pas un gain d’au moins 2 % en validation. Projection au dernier prix connu, sans tendance prédictive démontrée."
+      "message": "Holt did not improve validation accuracy by at least 2%. Projecting the last known price; no predictive trend was demonstrated."
+    },
+    {
+      "code": "stress_calibrated_intervals",
+      "message": "Long-horizon bands include the largest earlier non-overlapping forecast error as a conservative historical stress envelope."
     },
     {
       "code": "undercoverage",
-      "message": "La bande nominale à 95 % ne couvre que 66% des prix testés. Incertitude sous-estimée sur cette période."
+      "message": "The nominal 95% band covered only 87% of tested prices. Uncertainty was underestimated in this period."
     }
   ]
 }

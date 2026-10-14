@@ -20,10 +20,14 @@
       "direction_accuracy": 0,
       "naive_mae": 0.4586724890829694,
       "mae_skill_vs_naive": 0.0,
-      "interval_coverage": 0.7292576419213974,
-      "mean_interval_width": 1.0189424338963102,
-      "calibration_log_radius": 0.16387657128892977,
-      "calibration_samples": 167
+      "interval_coverage": 0.9781659388646288,
+      "mean_interval_width": 3.35252968390831,
+      "calibration_log_radius": 0.5181108499021968,
+      "calibration_samples": 167,
+      "calibration_radius": 0.16387657128892977,
+      "historical_stress_radius": 0.5181108499021968,
+      "historical_stress_blocks": 44,
+      "interval_method": "split_conformal_plus_historical_stress"
     },
     "holt": {
       "samples": 229,
@@ -35,20 +39,24 @@
       "direction_accuracy": 0.4104803493449782,
       "naive_mae": 0.4586724890829694,
       "mae_skill_vs_naive": -0.3261416980458154,
-      "interval_coverage": 0.6200873362445415,
-      "mean_interval_width": 1.2186907216058587,
-      "calibration_log_radius": 0.18900173648400564,
-      "calibration_samples": 167
+      "interval_coverage": 1,
+      "mean_interval_width": 4.331710609436867,
+      "calibration_log_radius": 0.6327234398842797,
+      "calibration_samples": 167,
+      "calibration_radius": 0.18900173648400564,
+      "historical_stress_radius": 0.6327234398842797,
+      "historical_stress_blocks": 44,
+      "interval_method": "split_conformal_plus_historical_stress"
     }
   },
   "warnings": [
     {
       "code": "no_predictive_gain",
-      "message": "Holt ne démontre pas un gain d’au moins 2 % en validation. Projection au dernier prix connu, sans tendance prédictive démontrée."
+      "message": "Holt did not improve validation accuracy by at least 2%. Projecting the last known price; no predictive trend was demonstrated."
     },
     {
-      "code": "undercoverage",
-      "message": "La bande nominale à 95 % ne couvre que 73% des prix testés. Incertitude sous-estimée sur cette période."
+      "code": "stress_calibrated_intervals",
+      "message": "Long-horizon bands include the largest earlier non-overlapping forecast error as a conservative historical stress envelope."
     }
   ]
 }

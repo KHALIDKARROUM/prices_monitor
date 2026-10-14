@@ -5,6 +5,8 @@
     "version": "controlled_lifecycle_v1",
     "shadow_min_samples": 30,
     "promotion_min_improvement": 0.05,
+    "promotion_min_interval_samples": 20,
+    "promotion_min_interval_coverage": 0.85,
     "rollback_max_degradation": 0.1,
     "rule": "Research candidates remain offline until a separately packaged runtime candidate completes paired live shadow evaluation."
   },
@@ -260,7 +262,7 @@
       "validation_selected": true,
       "holdout_mae": 12.451120689655173,
       "holdout_skill_vs_naive": 0.0,
-      "holdout_interval_coverage": 0.6594827586206896,
+      "holdout_interval_coverage": 0.8663793103448276,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -275,7 +277,7 @@
       "validation_selected": false,
       "holdout_mae": 15.166898869114949,
       "holdout_skill_vs_naive": -0.21811515984389573,
-      "holdout_interval_coverage": 0.7413793103448276,
+      "holdout_interval_coverage": 0.9439655172413793,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -290,7 +292,7 @@
       "validation_selected": false,
       "holdout_mae": 19.294346593129642,
       "holdout_skill_vs_naive": -0.5496072260515521,
-      "holdout_interval_coverage": 0.75,
+      "holdout_interval_coverage": 0.8189655172413793,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -305,7 +307,7 @@
       "validation_selected": false,
       "holdout_mae": 18.399986480441232,
       "holdout_skill_vs_naive": -0.47777753818807533,
-      "holdout_interval_coverage": 0.7370689655172413,
+      "holdout_interval_coverage": 0.8189655172413793,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -320,7 +322,7 @@
       "validation_selected": false,
       "holdout_mae": 14.59256121158169,
       "holdout_skill_vs_naive": -0.17198777325367187,
-      "holdout_interval_coverage": 0.6681034482758621,
+      "holdout_interval_coverage": 0.853448275862069,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -335,7 +337,7 @@
       "validation_selected": false,
       "holdout_mae": 12.680250418863569,
       "holdout_skill_vs_naive": -0.018402337823194115,
-      "holdout_interval_coverage": 0.7456896551724138,
+      "holdout_interval_coverage": 0.8663793103448276,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -350,7 +352,7 @@
       "validation_selected": false,
       "holdout_mae": 12.845250670683148,
       "holdout_skill_vs_naive": -0.031654177230442615,
-      "holdout_interval_coverage": 0.7155172413793104,
+      "holdout_interval_coverage": 0.853448275862069,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -365,7 +367,7 @@
       "validation_selected": false,
       "holdout_mae": 12.275807887609597,
       "holdout_skill_vs_naive": 0.014080082140014327,
-      "holdout_interval_coverage": 0.7672413793103449,
+      "holdout_interval_coverage": 0.875,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -380,7 +382,7 @@
       "validation_selected": true,
       "holdout_mae": 23.942736842105266,
       "holdout_skill_vs_naive": 0.0,
-      "holdout_interval_coverage": 0.5210526315789473,
+      "holdout_interval_coverage": 0.9105263157894737,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -395,7 +397,7 @@
       "validation_selected": false,
       "holdout_mae": 31.146831163174603,
       "holdout_skill_vs_naive": -0.3008885061293556,
-      "holdout_interval_coverage": 0.7157894736842105,
+      "holdout_interval_coverage": 1.0,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -410,7 +412,7 @@
       "validation_selected": false,
       "holdout_mae": 34.07071037068395,
       "holdout_skill_vs_naive": -0.4230081796984799,
-      "holdout_interval_coverage": 0.5631578947368421,
+      "holdout_interval_coverage": 0.8315789473684211,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -425,7 +427,7 @@
       "validation_selected": false,
       "holdout_mae": 32.73128903414876,
       "holdout_skill_vs_naive": -0.36706548002432626,
-      "holdout_interval_coverage": 0.5684210526315789,
+      "holdout_interval_coverage": 0.8421052631578947,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -440,7 +442,7 @@
       "validation_selected": false,
       "holdout_mae": 26.64324622661981,
       "holdout_skill_vs_naive": -0.1127903381440285,
-      "holdout_interval_coverage": 0.5789473684210527,
+      "holdout_interval_coverage": 0.9105263157894737,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -455,7 +457,7 @@
       "validation_selected": false,
       "holdout_mae": 20.313817167907665,
       "holdout_skill_vs_naive": 0.1515666190598498,
-      "holdout_interval_coverage": 0.7421052631578947,
+      "holdout_interval_coverage": 0.9736842105263158,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -470,7 +472,7 @@
       "validation_selected": false,
       "holdout_mae": 20.928213161606106,
       "holdout_skill_vs_naive": 0.1259055596016021,
-      "holdout_interval_coverage": 0.6526315789473685,
+      "holdout_interval_coverage": 0.9736842105263158,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -485,7 +487,7 @@
       "validation_selected": false,
       "holdout_mae": 20.891509130653503,
       "holdout_skill_vs_naive": 0.12743855189043918,
-      "holdout_interval_coverage": 0.6947368421052632,
+      "holdout_interval_coverage": 0.9631578947368421,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -740,7 +742,7 @@
       "validation_selected": true,
       "holdout_mae": 0.4586724890829694,
       "holdout_skill_vs_naive": 0.0,
-      "holdout_interval_coverage": 0.7292576419213974,
+      "holdout_interval_coverage": 0.9781659388646288,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -755,7 +757,7 @@
       "validation_selected": false,
       "holdout_mae": 0.6082647135193898,
       "holdout_skill_vs_naive": -0.3261416980458154,
-      "holdout_interval_coverage": 0.6200873362445415,
+      "holdout_interval_coverage": 1.0,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -770,7 +772,7 @@
       "validation_selected": false,
       "holdout_mae": 0.5146337232499597,
       "holdout_skill_vs_naive": -0.12200695594120847,
-      "holdout_interval_coverage": 0.6812227074235808,
+      "holdout_interval_coverage": 0.9868995633187773,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -785,7 +787,7 @@
       "validation_selected": false,
       "holdout_mae": 0.505465696623934,
       "holdout_skill_vs_naive": -0.10201877953159766,
-      "holdout_interval_coverage": 0.6812227074235808,
+      "holdout_interval_coverage": 0.9912663755458515,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -800,7 +802,7 @@
       "validation_selected": false,
       "holdout_mae": 0.47694182070515,
       "holdout_skill_vs_naive": -0.03983088599603324,
-      "holdout_interval_coverage": 0.6986899563318777,
+      "holdout_interval_coverage": 0.9912663755458515,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -815,7 +817,7 @@
       "validation_selected": false,
       "holdout_mae": 0.47167694766363083,
       "holdout_skill_vs_naive": -0.028352384087088733,
-      "holdout_interval_coverage": 0.8558951965065502,
+      "holdout_interval_coverage": 1.0,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -830,7 +832,7 @@
       "validation_selected": false,
       "holdout_mae": 0.4735439988380977,
       "holdout_skill_vs_naive": -0.032422938172858684,
-      "holdout_interval_coverage": 0.8733624454148472,
+      "holdout_interval_coverage": 0.9956331877729258,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -845,7 +847,7 @@
       "validation_selected": false,
       "holdout_mae": 0.4653534597959812,
       "holdout_skill_vs_naive": -0.0145658849659136,
-      "holdout_interval_coverage": 0.8951965065502183,
+      "holdout_interval_coverage": 0.9956331877729258,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -860,7 +862,7 @@
       "validation_selected": true,
       "holdout_mae": 0.7798730158730158,
       "holdout_skill_vs_naive": 0.0,
-      "holdout_interval_coverage": 0.5661375661375662,
+      "holdout_interval_coverage": 0.9629629629629629,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -875,7 +877,7 @@
       "validation_selected": false,
       "holdout_mae": 1.1886542970133034,
       "holdout_skill_vs_naive": -0.5241638995326492,
-      "holdout_interval_coverage": 0.6031746031746031,
+      "holdout_interval_coverage": 1.0,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -890,7 +892,7 @@
       "validation_selected": false,
       "holdout_mae": 0.9141094275168415,
       "holdout_skill_vs_naive": -0.17212598578443816,
-      "holdout_interval_coverage": 0.6137566137566137,
+      "holdout_interval_coverage": 0.9417989417989417,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -905,7 +907,7 @@
       "validation_selected": false,
       "holdout_mae": 0.8832804138759167,
       "holdout_skill_vs_naive": -0.13259517369907092,
-      "holdout_interval_coverage": 0.6084656084656085,
+      "holdout_interval_coverage": 0.9576719576719577,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -920,7 +922,7 @@
       "validation_selected": false,
       "holdout_mae": 0.804929067520533,
       "holdout_skill_vs_naive": -0.03212837364230192,
-      "holdout_interval_coverage": 0.6349206349206349,
+      "holdout_interval_coverage": 0.9947089947089947,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -935,7 +937,7 @@
       "validation_selected": false,
       "holdout_mae": 0.6884267047038811,
       "holdout_skill_vs_naive": 0.11725795008661333,
-      "holdout_interval_coverage": 0.9841269841269841,
+      "holdout_interval_coverage": 1.0,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     },
@@ -965,7 +967,7 @@
       "validation_selected": false,
       "holdout_mae": 0.7131063093895581,
       "holdout_skill_vs_naive": 0.0856122793384726,
-      "holdout_interval_coverage": 0.9947089947089947,
+      "holdout_interval_coverage": 1.0,
       "live_eligible": false,
       "promotion_path": "Package separately, then register as a shadow candidate; research results alone cannot switch production."
     }

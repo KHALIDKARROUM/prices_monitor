@@ -52,6 +52,8 @@ def test_live_forecast_ledger_keeps_issue_and_scores_only_the_same_instrument(em
     assert metrics["improvement_over_baseline"] == pytest.approx(.75)
     assert metrics["interval_coverage"] == 1
     assert metrics["interval_samples"] == 1
+    assert metrics["interval_status"] == "limited_sample"
+    assert metrics["interval_target_coverage"] == .95
     assert performance["records"][0]["actual_source_date"] == "2026-01-08"
     assert performance["records"][0]["actual_value"] == 108
 

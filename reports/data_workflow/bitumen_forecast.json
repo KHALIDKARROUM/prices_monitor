@@ -1,10 +1,10 @@
 {
   "product": "bitume",
-  "label": "Bitume · indice BLS WPU058",
+  "label": "Bitumen · BLS WPU058 index",
   "instrument": "asphalt_index",
   "unit": "indice (déc. 1984 = 100)",
   "model": "naive",
-  "model_version": "3_chronological_selection",
+  "model_version": "4_stress_calibrated_intervals",
   "evaluation_protocol": "chronological_endpoints_v1",
   "model_selection": {
     "1": {
@@ -27,7 +27,11 @@
           "interval_coverage": null,
           "mean_interval_width": null,
           "calibration_log_radius": null,
-          "calibration_samples": 8
+          "calibration_samples": 8,
+          "calibration_radius": null,
+          "historical_stress_radius": null,
+          "historical_stress_blocks": 0,
+          "interval_method": "unavailable"
         },
         "holt": {
           "samples": 11,
@@ -42,21 +46,29 @@
           "interval_coverage": null,
           "mean_interval_width": null,
           "calibration_log_radius": null,
-          "calibration_samples": 8
+          "calibration_samples": 8,
+          "calibration_radius": null,
+          "historical_stress_radius": null,
+          "historical_stress_blocks": 0,
+          "interval_method": "unavailable"
         }
       },
       "warnings": [
         {
           "code": "selection_unavailable",
-          "message": "Historique insuffisant pour comparer les modèles sur trois périodes de validation. Dernier prix connu retenu par défaut."
+          "message": "Insufficient history to compare models across three validation periods. Using the last known price by default."
         },
         {
           "code": "limited_evaluation",
-          "message": "Évaluation limitée : 11 prévisions testées sur la période finale."
+          "message": "Limited evaluation: 11 forecasts tested in the final period."
         },
         {
           "code": "uncalibrated_intervals",
-          "message": "Données de calibration insuffisantes pour certaines bandes à 95 %. Ces bandes ne sont pas affichées."
+          "message": "Insufficient calibration data for some 95% bands. Those bands are not shown."
+        },
+        {
+          "code": "limited_monthly_uncertainty_history",
+          "message": "Only 60 published monthly index values are available. At least 84 are required before long-horizon uncertainty can be trusted."
         }
       ],
       "calibration_start": "2024-12-01",
@@ -67,6 +79,15 @@
       "target_max_delay": 0,
       "calibration_samples_by_step": {
         "1": 8
+      },
+      "interval_details_by_step": {
+        "1": {
+          "radius": null,
+          "calibration_radius": null,
+          "stress_radius": null,
+          "stress_blocks": 0,
+          "method": "unavailable"
+        }
       }
     },
     "3": {
@@ -89,7 +110,11 @@
           "interval_coverage": null,
           "mean_interval_width": null,
           "calibration_log_radius": null,
-          "calibration_samples": 6
+          "calibration_samples": 6,
+          "calibration_radius": null,
+          "historical_stress_radius": null,
+          "historical_stress_blocks": 0,
+          "interval_method": "unavailable"
         },
         "holt": {
           "samples": 9,
@@ -104,21 +129,29 @@
           "interval_coverage": null,
           "mean_interval_width": null,
           "calibration_log_radius": null,
-          "calibration_samples": 6
+          "calibration_samples": 6,
+          "calibration_radius": null,
+          "historical_stress_radius": null,
+          "historical_stress_blocks": 0,
+          "interval_method": "unavailable"
         }
       },
       "warnings": [
         {
           "code": "selection_unavailable",
-          "message": "Historique insuffisant pour comparer les modèles sur trois périodes de validation. Dernier prix connu retenu par défaut."
+          "message": "Insufficient history to compare models across three validation periods. Using the last known price by default."
         },
         {
           "code": "limited_evaluation",
-          "message": "Évaluation limitée : 9 prévisions testées sur la période finale."
+          "message": "Limited evaluation: 9 forecasts tested in the final period."
         },
         {
           "code": "uncalibrated_intervals",
-          "message": "Données de calibration insuffisantes pour certaines bandes à 95 %. Ces bandes ne sont pas affichées."
+          "message": "Insufficient calibration data for some 95% bands. Those bands are not shown."
+        },
+        {
+          "code": "limited_monthly_uncertainty_history",
+          "message": "Only 60 published monthly index values are available. At least 84 are required before long-horizon uncertainty can be trusted."
         }
       ],
       "calibration_start": "2024-12-01",
@@ -131,6 +164,29 @@
         "1": 6,
         "2": 6,
         "3": 6
+      },
+      "interval_details_by_step": {
+        "1": {
+          "radius": null,
+          "calibration_radius": null,
+          "stress_radius": null,
+          "stress_blocks": 0,
+          "method": "unavailable"
+        },
+        "2": {
+          "radius": null,
+          "calibration_radius": null,
+          "stress_radius": null,
+          "stress_blocks": 0,
+          "method": "unavailable"
+        },
+        "3": {
+          "radius": null,
+          "calibration_radius": null,
+          "stress_radius": null,
+          "stress_blocks": 0,
+          "method": "unavailable"
+        }
       }
     },
     "6": {
@@ -153,7 +209,11 @@
           "interval_coverage": null,
           "mean_interval_width": null,
           "calibration_log_radius": null,
-          "calibration_samples": 3
+          "calibration_samples": 3,
+          "calibration_radius": null,
+          "historical_stress_radius": null,
+          "historical_stress_blocks": 0,
+          "interval_method": "unavailable"
         },
         "holt": {
           "samples": 6,
@@ -168,21 +228,29 @@
           "interval_coverage": null,
           "mean_interval_width": null,
           "calibration_log_radius": null,
-          "calibration_samples": 3
+          "calibration_samples": 3,
+          "calibration_radius": null,
+          "historical_stress_radius": null,
+          "historical_stress_blocks": 0,
+          "interval_method": "unavailable"
         }
       },
       "warnings": [
         {
           "code": "selection_unavailable",
-          "message": "Historique insuffisant pour comparer les modèles sur trois périodes de validation. Dernier prix connu retenu par défaut."
+          "message": "Insufficient history to compare models across three validation periods. Using the last known price by default."
         },
         {
           "code": "limited_evaluation",
-          "message": "Évaluation limitée : 6 prévisions testées sur la période finale."
+          "message": "Limited evaluation: 6 forecasts tested in the final period."
         },
         {
           "code": "uncalibrated_intervals",
-          "message": "Données de calibration insuffisantes pour certaines bandes à 95 %. Ces bandes ne sont pas affichées."
+          "message": "Insufficient calibration data for some 95% bands. Those bands are not shown."
+        },
+        {
+          "code": "limited_monthly_uncertainty_history",
+          "message": "Only 60 published monthly index values are available. At least 84 are required before long-horizon uncertainty can be trusted."
         }
       ],
       "calibration_start": "2024-12-01",
@@ -198,6 +266,50 @@
         "4": 3,
         "5": 3,
         "6": 3
+      },
+      "interval_details_by_step": {
+        "1": {
+          "radius": null,
+          "calibration_radius": null,
+          "stress_radius": null,
+          "stress_blocks": 0,
+          "method": "unavailable"
+        },
+        "2": {
+          "radius": null,
+          "calibration_radius": null,
+          "stress_radius": null,
+          "stress_blocks": 0,
+          "method": "unavailable"
+        },
+        "3": {
+          "radius": null,
+          "calibration_radius": null,
+          "stress_radius": null,
+          "stress_blocks": 0,
+          "method": "unavailable"
+        },
+        "4": {
+          "radius": null,
+          "calibration_radius": null,
+          "stress_radius": null,
+          "stress_blocks": 0,
+          "method": "unavailable"
+        },
+        "5": {
+          "radius": null,
+          "calibration_radius": null,
+          "stress_radius": null,
+          "stress_blocks": 0,
+          "method": "unavailable"
+        },
+        "6": {
+          "radius": null,
+          "calibration_radius": null,
+          "stress_radius": null,
+          "stress_blocks": 0,
+          "method": "unavailable"
+        }
       }
     }
   },
@@ -209,7 +321,7 @@
   ],
   "frequency": "monthly",
   "data_kind": "index",
-  "interval_method": "chronological_absolute_log_error_quantile",
+  "interval_method": "split_conformal_plus_historical_stress_envelope",
   "interval_nominal_level": 0.95,
   "interval_guarantee": false,
   "history_count": 60,
@@ -538,6 +650,10 @@
       "mean_interval_width": null,
       "calibration_log_radius": null,
       "calibration_samples": 8,
+      "calibration_radius": null,
+      "historical_stress_radius": null,
+      "historical_stress_blocks": 0,
+      "interval_method": "unavailable",
       "available": true,
       "mape": 5.8743725915501335,
       "model": "naive",
@@ -561,6 +677,10 @@
       "mean_interval_width": null,
       "calibration_log_radius": null,
       "calibration_samples": 6,
+      "calibration_radius": null,
+      "historical_stress_radius": null,
+      "historical_stress_blocks": 0,
+      "interval_method": "unavailable",
       "available": true,
       "mape": 11.936506318934681,
       "model": "naive",
@@ -584,6 +704,10 @@
       "mean_interval_width": null,
       "calibration_log_radius": null,
       "calibration_samples": 3,
+      "calibration_radius": null,
+      "historical_stress_radius": null,
+      "historical_stress_blocks": 0,
+      "interval_method": "unavailable",
       "available": true,
       "mape": 23.434831277397773,
       "model": "naive",
@@ -594,6 +718,196 @@
       "folds": 0
     }
   },
+  "_candidate_forecasts": {
+    "1": {
+      "naive": [
+        {
+          "date": "2026-09-01",
+          "value": 546.938,
+          "lower": null,
+          "upper": null
+        }
+      ],
+      "holt": [
+        {
+          "date": "2026-09-01",
+          "value": 552.257273,
+          "lower": null,
+          "upper": null
+        }
+      ]
+    },
+    "3": {
+      "naive": [
+        {
+          "date": "2026-09-01",
+          "value": 546.938,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2026-10-01",
+          "value": 546.938,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2026-11-01",
+          "value": 546.938,
+          "lower": null,
+          "upper": null
+        }
+      ],
+      "holt": [
+        {
+          "date": "2026-09-01",
+          "value": 552.257273,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2026-10-01",
+          "value": 562.31709,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2026-11-01",
+          "value": 572.226009,
+          "lower": null,
+          "upper": null
+        }
+      ]
+    },
+    "6": {
+      "naive": [
+        {
+          "date": "2026-09-01",
+          "value": 546.938,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2026-10-01",
+          "value": 546.938,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2026-11-01",
+          "value": 546.938,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2026-12-01",
+          "value": 546.938,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2027-01-01",
+          "value": 546.938,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2027-02-01",
+          "value": 546.938,
+          "lower": null,
+          "upper": null
+        }
+      ],
+      "holt": [
+        {
+          "date": "2026-09-01",
+          "value": 552.257273,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2026-10-01",
+          "value": 562.31709,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2026-11-01",
+          "value": 572.226009,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2026-12-01",
+          "value": 581.986295,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2027-01-01",
+          "value": 591.600177,
+          "lower": null,
+          "upper": null
+        },
+        {
+          "date": "2027-02-01",
+          "value": 601.06985,
+          "lower": null,
+          "upper": null
+        }
+      ]
+    }
+  },
+  "_candidate_metadata": {
+    "1": [
+      {
+        "model": "naive",
+        "model_version": "4_stress_calibrated_intervals",
+        "validation_mae": 26.42545454545456,
+        "validation_samples": 11,
+        "calibration_coverage": null
+      },
+      {
+        "model": "holt",
+        "model_version": "4_stress_calibrated_intervals",
+        "validation_mae": 38.22524635440001,
+        "validation_samples": 11,
+        "calibration_coverage": null
+      }
+    ],
+    "3": [
+      {
+        "model": "naive",
+        "model_version": "4_stress_calibrated_intervals",
+        "validation_mae": 59.35177777777779,
+        "validation_samples": 9,
+        "calibration_coverage": null
+      },
+      {
+        "model": "holt",
+        "model_version": "4_stress_calibrated_intervals",
+        "validation_mae": 61.49922537669034,
+        "validation_samples": 9,
+        "calibration_coverage": null
+      }
+    ],
+    "6": [
+      {
+        "model": "naive",
+        "model_version": "4_stress_calibrated_intervals",
+        "validation_mae": 124.16116666666669,
+        "validation_samples": 6,
+        "calibration_coverage": null
+      },
+      {
+        "model": "holt",
+        "model_version": "4_stress_calibrated_intervals",
+        "validation_mae": 116.35975963954583,
+        "validation_samples": 6,
+        "calibration_coverage": null
+      }
+    ]
+  },
   "last_actual": {
     "date": "2026-08-01",
     "value": 546.938
@@ -601,7 +915,7 @@
   "status": "ready",
   "training_start": "2021-09-01",
   "training_end": "2026-08-01",
-  "age_days": 73,
+  "age_days": 74,
   "is_stale": false,
   "forecast_origin": "2026-08-01"
 }

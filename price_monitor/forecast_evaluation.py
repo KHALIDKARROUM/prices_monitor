@@ -15,6 +15,9 @@ from typing import Callable
 PROTOCOL = "chronological_endpoints_v1"
 SELECTION_RULE = "Lowest mean purged-CV endpoint MAE; require 2% improvement over persistence."
 NOMINAL_LEVEL = .95
+MIN_STRESS_BLOCKS = 8
+LONG_HORIZON_DAYS = 30
+LONG_HORIZON_MONTHS = 3
 
 
 def forecast_metrics(actual, predicted, current) -> dict:
@@ -46,6 +49,74 @@ def interval_radius(residuals, level: float = NOMINAL_LEVEL) -> float:
     if not errors or rank > len(errors):
         raise ValueError("Not enough calibration observations for the requested level")
     return errors[rank - 1]
+
+
+def historical_stress_radius(
+    residuals, origins, horizon: int, *, minimum_blocks: int = MIN_STRESS_BLOCKS,
+) -> tuple[float | None, int]:
+    """Return a non-overlapping historical stress envelope for a horizon.
+
+    Endpoint errors overlap heavily at longer horizons. Grouping them by
+    non-overlapping origins avoids treating dozens of near-identical 90-day
+    outcomes as independent calibration evidence. The largest block error is
+    intentionally conservative: it is a historical stress envelope, never a
+    claim of guaranteed future coverage.
+    """
+    if len(residuals) != len(origins):
+        raise ValueError("Stress residuals and origins must have matching lengths")
+    if horizon < 1:
+        raise ValueError("Stress horizon must be positive")
+    entries = sorted(
+        (int(origin), abs(float(residual))) for origin, residual in zip(origins, residuals)
+        if math.isfinite(float(residual))
+    )
+    if not entries:
+        return None, 0
+    blocks: list[float] = []
+    block_start = entries[0][0]
+    block_errors: list[float] = []
+    for origin, error in entries:
+        if block_errors and origin >= block_start + horizon:
+            blocks.append(max(block_errors))
+            block_start = origin
+            block_errors = []
+        block_errors.append(error)
+    if block_errors:
+        blocks.append(max(block_errors))
+    return (max(blocks) if len(blocks) >= minimum_blocks else None), len(blocks)
+
+
+def calibrated_interval(
+    calibration_residuals, *, stress_residuals=(), stress_origins=(), horizon: int,
+    require_stress: bool = False,
+) -> dict:
+    """Combine split-conformal calibration with a long-horizon stress floor."""
+    try:
+        calibration_radius = interval_radius(calibration_residuals)
+    except ValueError:
+        return {
+            "radius": None, "calibration_radius": None, "stress_radius": None,
+            "stress_blocks": 0, "method": "unavailable",
+        }
+    stress_radius, stress_blocks = historical_stress_radius(stress_residuals, stress_origins, horizon)
+    if not require_stress:
+        # Short horizons retain the split-conformal interval used by the
+        # original protocol. Historical stress is reserved for longer
+        # horizons, where recent calibration can miss an earlier volatile
+        # market regime.
+        stress_radius = None
+        stress_blocks = 0
+    if require_stress and stress_radius is None:
+        return {
+            "radius": None, "calibration_radius": calibration_radius, "stress_radius": None,
+            "stress_blocks": stress_blocks, "method": "insufficient_historical_stress_blocks",
+        }
+    radius = max(calibration_radius, stress_radius) if stress_radius is not None else calibration_radius
+    return {
+        "radius": radius, "calibration_radius": calibration_radius, "stress_radius": stress_radius,
+        "stress_blocks": stress_blocks,
+        "method": "split_conformal_plus_historical_stress" if stress_radius is not None else "split_conformal",
+    }
 
 
 def select_model(scores: dict[str, float], baseline: str = "naive") -> str:
@@ -139,22 +210,30 @@ def evaluate_baselines(values: list[float], timeline: list[int], horizon: int, p
     for name in predictions:
         cal = plan["calibration"]
         errors = [math.log(values[plan["pairs"][i]["target"]] / predictions[name][i]) for i in cal]
-        try:
-            radius = interval_radius(errors)
-        except ValueError:
-            radius = None
+        prior = [*plan["development"], *cal]
+        stress_errors = [math.log(values[plan["pairs"][i]["target"]] / predictions[name][i]) for i in prior]
+        stress_origins = [timeline[plan["pairs"][i]["origin"]] for i in prior]
+        interval = calibrated_interval(
+            errors, stress_residuals=stress_errors, stress_origins=stress_origins, horizon=horizon,
+            require_stress=horizon >= (LONG_HORIZON_MONTHS if monthly else LONG_HORIZON_DAYS),
+        )
+        radius = interval["radius"]
         holdout = plan["holdout"]
         candidates[name] = {**score(name, holdout),
                             **interval_metrics([values[plan["pairs"][i]["target"]] for i in holdout],
                                                [predictions[name][i] for i in holdout], radius),
-                            "calibration_log_radius": radius, "calibration_samples": len(cal)}
+                            "calibration_log_radius": radius, "calibration_samples": len(cal),
+                            "calibration_radius": interval["calibration_radius"],
+                            "historical_stress_radius": interval["stress_radius"],
+                            "historical_stress_blocks": interval["stress_blocks"],
+                            "interval_method": interval["method"]}
 
     # Calibrate every candidate separately. The selected candidate provides
     # the displayed band; shadow candidates need their own issue-time bands so
     # their eventual live coverage is also measurable.
-    candidate_radii, candidate_counts = {}, {}
+    candidate_radii, candidate_counts, candidate_interval_details = {}, {}, {}
     for name in predictions:
-        radii, counts = {}, {}
+        radii, counts, details = {}, {}, {}
         for step in range(1, horizon + 1):
             errors = []
             for i in plan["calibration"]:
@@ -165,12 +244,24 @@ def evaluate_baselines(values: list[float], timeline: list[int], horizon: int, p
                 prediction = values[origin] if name == "naive" else paths[origin][timeline[target] - timeline[origin] - 1]
                 errors.append(math.log(values[target] / prediction))
             counts[str(step)] = len(errors)
-            try:
-                radii[str(step)] = interval_radius(errors)
-            except ValueError:
-                radii[str(step)] = None
+            stress_errors, stress_origins = [], []
+            for i in [*plan["development"], *plan["calibration"]]:
+                origin = plan["pairs"][i]["origin"]
+                target = target_position(timeline, origin, step, plan["max_delay"])
+                if target is None:
+                    continue
+                prediction = values[origin] if name == "naive" else paths[origin][timeline[target] - timeline[origin] - 1]
+                stress_errors.append(math.log(values[target] / prediction))
+                stress_origins.append(timeline[origin])
+            interval = calibrated_interval(
+                errors, stress_residuals=stress_errors, stress_origins=stress_origins, horizon=step,
+                require_stress=step >= (LONG_HORIZON_MONTHS if monthly else LONG_HORIZON_DAYS),
+            )
+            radii[str(step)] = interval["radius"]
+            details[str(step)] = interval
         candidate_radii[name] = radii
         candidate_counts[name] = counts
+        candidate_interval_details[name] = details
     radii = candidate_radii[selected]
     counts = candidate_counts[selected]
 
@@ -186,10 +277,15 @@ def evaluate_baselines(values: list[float], timeline: list[int], horizon: int, p
         warnings.append({"code": "weak_holdout", "message": "The selected model performed worse than the last known price in the final period."})
     if any(radius is None for radius in radii.values()):
         warnings.append({"code": "uncalibrated_intervals", "message": "Insufficient calibration data for some 95% bands. Those bands are not shown."})
+    if any(detail["method"] == "insufficient_historical_stress_blocks" for detail in candidate_interval_details[selected].values()):
+        warnings.append({"code": "limited_long_horizon_uncertainty", "message": f"Long-horizon bands are withheld: at least {MIN_STRESS_BLOCKS} non-overlapping historical blocks are required to form a stress envelope."})
+    if any(detail["stress_radius"] is not None for detail in candidate_interval_details[selected].values()):
+        warnings.append({"code": "stress_calibrated_intervals", "message": "Long-horizon bands include the largest earlier non-overlapping forecast error as a conservative historical stress envelope."})
     if chosen["interval_coverage"] is not None and chosen["interval_coverage"] < NOMINAL_LEVEL:
         warnings.append({"code": "undercoverage", "message": f"The nominal 95% band covered only {chosen['interval_coverage']:.0%} of tested prices. Uncertainty was underestimated in this period."})
     return {"protocol": PROTOCOL, "selection_rule": SELECTION_RULE, "selected_model": selected,
             "selection_available": bool(cv), "validation_mae": ranking, "candidates": candidates,
             "warnings": warnings, "radii": radii, "calibration_counts": counts,
             "candidate_radii": candidate_radii, "candidate_calibration_counts": candidate_counts,
+            "candidate_interval_details": candidate_interval_details,
             "plan": plan, "predictions": predictions, "cv": cv}

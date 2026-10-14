@@ -303,7 +303,7 @@ def test_independent_provider_arrivals_keep_the_canonical_price_for_alerts(empty
     result = coordinator.collect_provider("eia")
     assert received == [95, 95]
     assert result["source_comparison"]["mismatch_count"] == 1
-    assert "diffèrent" in empty_database.logs(limit=1)[0]["message"]
+    assert "differ" in empty_database.logs(limit=1)[0]["message"]
 
 
 def test_bls_fallback_requests_share_the_fred_budget(empty_database, monkeypatch):
@@ -321,7 +321,7 @@ def test_bls_fallback_requests_share_the_fred_budget(empty_database, monkeypatch
     assert empty_database.request_budget("fred", clock(), 1)["used"] == 1
     assert len(calls) == 2
     with guarded_requests(coordinator.guard):
-        with pytest.raises(RuntimeError, match="Quota"):
+        with pytest.raises(RuntimeError, match="quota"):
             collectors._request_text("https://fred.stlouisfed.org/graph/fredgraph.csv?id=WPU058")
     assert len(calls) == 2
 

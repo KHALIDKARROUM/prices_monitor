@@ -182,7 +182,7 @@ def test_index_alert_does_not_use_or_trigger_supplier_price_rules(empty_database
 
 
 def test_index_alert_basis_rejected_for_other_products(empty_database):
-    with pytest.raises(ValueError, match="base index"):
+    with pytest.raises(ValueError, match="Index basis"):
         empty_database.create_alert_rule({"product": "brent", "basis": "index", "direction": "above", "threshold": 540})
 
 

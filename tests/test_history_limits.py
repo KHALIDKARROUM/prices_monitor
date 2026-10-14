@@ -129,7 +129,7 @@ def test_download_exports_all_filtered_rows_above_ten_thousand(large_history, mo
         else:
             workbook = load_workbook(io.BytesIO(body), read_only=True)
             try:
-                rows = list(workbook["Relevés"].iter_rows(min_row=2, values_only=True))
+                rows = list(workbook["Observations"].iter_rows(min_row=2, values_only=True))
                 ids = [row[0] for row in rows]
                 assert rows[-1][2] == 10
                 assert {row[-1] for row in rows} == {"brent_spot"}
@@ -147,7 +147,7 @@ def test_excel_rolls_over_without_losing_records_or_headers(monkeypatch):
     monkeypatch.setattr(export, "MAX_EXCEL_DATA_ROWS", 2)
     rows = ({"id": i, "product": "brent", "price": 80 + i, "instrument": "brent_spot"} for i in range(5))
     workbook = load_workbook(io.BytesIO(export.xlsx_bytes(rows)))
-    assert workbook.sheetnames == ["Relevés", "Relevés 2", "Relevés 3"]
+    assert workbook.sheetnames == ["Observations", "Observations 2", "Observations 3"]
     actual = []
     for sheet in workbook:
         assert sheet.freeze_panes == "A2"

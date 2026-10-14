@@ -7,9 +7,9 @@ test('attention links distinguish stale data, active alerts, weak forecasts and 
     alerts:[{active:true,enabled:true},{active:true,muted:true},{active:false}],
     'forecast-brent':{product:{status:'ready'},warnings:[{message:'No demonstrated skill'}]},
     schedules:[{provider:'alpha_vantage',requests_last_24h:25,request_limit_24h:25,status:'deferred'},
-      {provider:'yahoo',status:'deferred',reason:'Marché fermé.',failures:1}, {provider:'fred',status:'running',failures:1}]});
+      {provider:'yahoo',status:'deferred',reason:'Market closed.',failures:1}, {provider:'fred',status:'running',failures:1}]});
   assert.equal(items.length,6);
-  assert.equal(items.filter(i=>i.id==='alerts')[0].text,'1 alerte(s) active(s)');
+  assert.equal(items.filter(i=>i.id==='alerts')[0].text,'1 active alert(s)');
   assert.ok(items.find(i=>i.href==='#tendances'));
   assert.ok(items.find(i=>i.id==='provider-alpha_vantage'));
   assert.ok(!items.find(i=>i.id==='provider-yahoo'||i.id==='provider-fred'));

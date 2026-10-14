@@ -31,7 +31,7 @@ function budget(fetch) {
 test('an empty purchase history is shown as a normal empty state', async () => {
   const { $, context } = budget(async () => ({ ok: true, json: async () => ({ purchases: [] }) }));
   await context.loadProcurements();
-  assert.match($('#procurement-history-message').textContent, /Aucun achat enregistré/);
+  assert.match($('#procurement-history-message').textContent, /No purchases recorded/);
   assert.equal($('#procurement-history-message').classList.contains('error-note'), false);
   assert.equal($('#procurement-history-table').hidden, true);
   assert.equal($('#procurement-history-state').hidden, false);
@@ -47,7 +47,7 @@ test('a failed request explains the cause and can recover on retry', async () =>
   assert.equal($('#procurement-history-message').classList.contains('error-note'), true);
   failing = false;
   await context.loadProcurements();
-  assert.match($('#procurement-history-message').textContent, /Aucun achat enregistré/);
+  assert.match($('#procurement-history-message').textContent, /No purchases recorded/);
   assert.equal($('#procurement-history-retry').hidden, true);
   assert.equal($('#procurement-history-message').classList.contains('error-note'), false);
 });
@@ -76,5 +76,5 @@ test('an older server cannot silently save a budget while dropping the new charg
   vm.runInContext(source.slice(start, end), context);
   await $('#procurement-form').listener({ preventDefault() {}, target: {} });
   assert.equal(saved, false);
-  assert.match(message, /calcul complet est indisponible/);
+  assert.match(message, /Full cost calculation unavailable/);
 });

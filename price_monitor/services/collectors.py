@@ -37,7 +37,7 @@ def _latest_valid_observation(rows, date_field: str, value_field: str, provider:
         except (KeyError, TypeError, ValueError):
             continue
     if not usable:
-        raise RuntimeError(f"{provider} n'a renvoyé aucune valeur exploitable")
+        raise RuntimeError(f"{provider} returned no usable value")
     return max(usable, key=lambda item: item[0])
 
 
@@ -113,7 +113,7 @@ def _latest_fred_csv_observation(series_id: str) -> tuple[str, float]:
 def _latest_eia_observation(series_id: str) -> tuple[str, float]:
     """Read a direct EIA v2 series, independently of the FRED mirror."""
     if not EIA_API_KEY:
-        raise RuntimeError("EIA_API_KEY non configurée")
+        raise RuntimeError("EIA_API_KEY is not configured")
     query = urlencode({"api_key": EIA_API_KEY, "length": 10, "sort[0][column]": "period", "sort[0][direction]": "desc"})
     data = _request_json(f"https://api.eia.gov/v2/seriesid/{series_id}?{query}")
     rows = (data.get("response") or {}).get("data") or []
@@ -130,7 +130,7 @@ def _latest_live_quote(symbol: str) -> tuple[float, datetime, int | None]:
     price = meta.get("regularMarketPrice")
     timestamp = meta.get("regularMarketTime")
     if price in (None, "") or timestamp in (None, ""):
-        raise RuntimeError(f"Cotation temps réel indisponible pour {symbol}")
+        raise RuntimeError(f"Live quote unavailable for {symbol}")
     try:
         quote_time = datetime.fromtimestamp(int(timestamp), timezone.utc)
         delay = meta.get("exchangeDataDelayedBy")
@@ -139,31 +139,31 @@ def _latest_live_quote(symbol: str) -> tuple[float, datetime, int | None]:
             raise ValueError("price or timestamp outside valid range")
         return quote_price, quote_time, int(delay) if delay is not None else None
     except (TypeError, ValueError, OverflowError) as exc:
-        raise RuntimeError(f"Cotation temps réel invalide pour {symbol}") from exc
+        raise RuntimeError(f"Invalid live quote for {symbol}") from exc
 
 
 def collect_live_brent() -> dict:
     price, quote_time, delay = _latest_live_quote("BZ=F")
-    delay_note = f"Délai déclaré par la place : {delay} min." if delay else "Flux sans délai déclaré par la place."
+    delay_note = f"Exchange-reported delay: {delay} min." if delay else "No exchange-reported delay."
     return {
         "product": "brent", "price": price, "unit": "USD/baril",
         "source": "Yahoo Finance - Brent futures BZ=F", "source_code": "live_brent",
         "source_date": quote_time.date().isoformat(),
         "quote_at": quote_time.isoformat(),
-        "notes": f"Cotation de marché à {quote_time.isoformat()}. {delay_note}",
+        "notes": f"Market quote at {quote_time.isoformat()}. {delay_note}",
     }
 
 
 def collect_live_gasoil() -> dict:
     """Use live heating-oil futures as a clearly labelled gasoil proxy."""
     price, quote_time, delay = _latest_live_quote("HO=F")
-    delay_note = f"Délai déclaré par la place : {delay} min." if delay else "Flux sans délai déclaré par la place."
+    delay_note = f"Exchange-reported delay: {delay} min." if delay else "No exchange-reported delay."
     return {
         "product": "gasoil", "price": price, "unit": "USD/gallon",
         "source": "Yahoo Finance - NY Harbor Heating Oil HO=F (proxy gasoil)", "source_code": "live_gasoil_proxy",
         "source_date": quote_time.date().isoformat(),
         "quote_at": quote_time.isoformat(),
-        "notes": f"Proxy temps réel du gasoil, cotation à {quote_time.isoformat()}. {delay_note}",
+        "notes": f"Live diesel proxy quoted at {quote_time.isoformat()}. {delay_note}",
     }
 
 
@@ -173,7 +173,7 @@ def collect_gasoil() -> dict:
             query = urlencode({"series_id": "DDFUELNYH", "api_key": FRED_API_KEY, "file_type": "json", "sort_order": "desc", "limit": 10})
             data = _request_json(f"https://api.stlouisfed.org/fred/series/observations?{query}")
             published, price = _latest_valid_observation(data.get("observations", []), "date", "value", "FRED (DDFUELNYH)")
-            return {"product": "gasoil", "price": price, "unit": "USD/gallon", "source": "EIA/FRED - DDFUELNYH", "source_code": "fred_diesel", "source_date": published, "notes": "Collecte API FRED"}
+            return {"product": "gasoil", "price": price, "unit": "USD/gallon", "source": "EIA/FRED - DDFUELNYH", "source_code": "fred_diesel", "source_date": published, "notes": "FRED API collection"}
         except ProviderDeferred:
             raise
         except Exception:
@@ -181,7 +181,7 @@ def collect_gasoil() -> dict:
             # expired or temporarily unavailable.
             pass
     date, price = _latest_fred_csv_observation("DDFUELNYH")
-    return {"product": "gasoil", "price": price, "unit": "USD/gallon", "source": "EIA/FRED - DDFUELNYH", "source_code": "fred_diesel", "source_date": date, "notes": "Collecte FRED publique"}
+    return {"product": "gasoil", "price": price, "unit": "USD/gallon", "source": "EIA/FRED - DDFUELNYH", "source_code": "fred_diesel", "source_date": date, "notes": "Public FRED collection"}
 
 
 def collect_brent() -> dict:
@@ -190,19 +190,19 @@ def collect_brent() -> dict:
             query = urlencode({"series_id": "DCOILBRENTEU", "api_key": FRED_API_KEY, "file_type": "json", "sort_order": "desc", "limit": 10})
             data = _request_json(f"https://api.stlouisfed.org/fred/series/observations?{query}")
             published, price = _latest_valid_observation(data.get("observations", []), "date", "value", "FRED (DCOILBRENTEU)")
-            return {"product": "brent", "price": price, "unit": "USD/baril", "source": "EIA/FRED - DCOILBRENTEU", "source_code": "fred_brent", "source_date": published, "notes": "Collecte API FRED"}
+            return {"product": "brent", "price": price, "unit": "USD/baril", "source": "EIA/FRED - DCOILBRENTEU", "source_code": "fred_brent", "source_date": published, "notes": "FRED API collection"}
         except ProviderDeferred:
             raise
         except Exception:
             pass
     date, price = _latest_fred_csv_observation("DCOILBRENTEU")
-    return {"product": "brent", "price": price, "unit": "USD/baril", "source": "EIA/FRED - DCOILBRENTEU", "source_code": "fred_brent", "source_date": date, "notes": "Collecte FRED publique"}
+    return {"product": "brent", "price": price, "unit": "USD/baril", "source": "EIA/FRED - DCOILBRENTEU", "source_code": "fred_brent", "source_date": date, "notes": "Public FRED collection"}
 
 
 def collect_alpha_brent() -> dict:
     """Collect the Alpha Vantage Brent series when its optional key is present."""
     if not ALPHA_VANTAGE_API_KEY:
-        raise RuntimeError("ALPHA_VANTAGE_API_KEY non configurée")
+        raise RuntimeError("ALPHA_VANTAGE_API_KEY is not configured")
     query = urlencode({"function": "BRENT", "interval": "daily", "apikey": ALPHA_VANTAGE_API_KEY, "datatype": "json"})
     data = _request_json(f"https://www.alphavantage.co/query?{query}")
     notice = str(data.get("Note") or data.get("Information") or "").lower()
@@ -210,23 +210,23 @@ def collect_alpha_brent() -> dict:
         raise rate_limit_error("alpha_vantage", daily=True)
     if data.get("Error Message"):
         # Do not echo upstream payloads that might contain the configured key.
-        raise RuntimeError("Alpha Vantage : requête refusée ou configuration invalide.")
+        raise RuntimeError("Alpha Vantage: request denied or invalid configuration.")
     rows = data.get("data") or data.get("observations") or []
     observations = [{"date": row.get("date") or row.get("timestamp"), "value": row.get("value") or row.get("price")} for row in rows]
     published, price = _latest_valid_observation(observations, "date", "value", "Alpha Vantage (BRENT)")
-    return {"product": "brent", "price": price, "unit": "USD/baril", "source": "Alpha Vantage - BRENT", "source_code": "alpha_brent", "source_date": published, "notes": "Collecte API Alpha Vantage"}
+    return {"product": "brent", "price": price, "unit": "USD/baril", "source": "Alpha Vantage - BRENT", "source_code": "alpha_brent", "source_date": published, "notes": "Alpha Vantage API collection"}
 
 
 def collect_eia_gasoil() -> dict:
     """Collect the EIA diesel benchmark directly, rather than via FRED."""
     date, price = _latest_eia_observation("PET.DDFUELNYH.D")
-    return {"product": "gasoil", "price": price, "unit": "USD/gallon", "source": "U.S. EIA - PET.DDFUELNYH.D", "source_code": "eia_diesel", "source_date": date, "notes": "Collecte API EIA directe"}
+    return {"product": "gasoil", "price": price, "unit": "USD/gallon", "source": "U.S. EIA - PET.DDFUELNYH.D", "source_code": "eia_diesel", "source_date": date, "notes": "Direct EIA API collection"}
 
 
 def collect_eia_brent() -> dict:
     """Collect the EIA Brent benchmark directly, rather than via FRED."""
     date, price = _latest_eia_observation("PET.RBRTE.D")
-    return {"product": "brent", "price": price, "unit": "USD/baril", "source": "U.S. EIA - PET.RBRTE.D", "source_code": "eia_brent", "source_date": date, "notes": "Collecte API EIA directe"}
+    return {"product": "brent", "price": price, "unit": "USD/baril", "source": "U.S. EIA - PET.RBRTE.D", "source_code": "eia_brent", "source_date": date, "notes": "Direct EIA API collection"}
 
 
 def _collect_bls_bitumen() -> dict:
@@ -266,7 +266,7 @@ def collect_bitumen_benchmark() -> dict:
             try:
                 result = _collect_bls_bitumen()
                 _bls_next_check = time.monotonic() + 6 * 3600
-                _bls_defer_reason = "Contrôles BLS directs espacés de six heures pour respecter le quota."
+                _bls_defer_reason = "Direct BLS checks are spaced six hours apart to respect the quota."
                 return result
             except Exception as error:
                 direct_error = error
@@ -279,7 +279,7 @@ def collect_bitumen_benchmark() -> dict:
     try:
         source_date, value = _latest_fred_csv_observation("WPU058")
         result = benchmark_payload(source_date, value, mirror=True)
-        result["notes"] += f" Relais FRED utilisé : {reason[:140]}"
+        result["notes"] += f" FRED mirror used: {reason[:140]}"
         return result
     except ProviderDeferred as fred_error:
         # If both transports were locally deferred, there was no new source
@@ -289,7 +289,7 @@ def collect_bitumen_benchmark() -> dict:
         retry_times = [fred_error.retry_at]
         if getattr(direct_error, "retry_at", None):
             retry_times.append(direct_error.retry_at)
-        raise ProviderDeferred(f"Indice bitume différé — BLS : {reason}; FRED : {fred_error}",
+        raise ProviderDeferred(f"Bitumen index deferred — BLS: {reason}; FRED: {fred_error}",
                                min(retry_times), deferred=not real_failure) from None
     except Exception as fred_error:
         raise RuntimeError(f"Indice bitume indisponible — BLS : {reason}; FRED : {fred_error}") from fred_error
@@ -300,9 +300,9 @@ def demo_observations() -> list[dict]:
     now = datetime.now(timezone.utc)
     jitter = random.uniform(-0.01, 0.01)
     return [
-        {"product": "gasoil", "price": round(2.33 + jitter, 4), "unit": "USD/gallon", "source": "Mode démonstration - EIA/FRED", "source_date": now.date().isoformat(), "notes": "Source API non configurée; valeur de démonstration."},
-        {"product": "brent", "price": round(81.4 + jitter * 10, 2), "unit": "USD/baril", "source": "Mode démonstration - Alpha Vantage", "source_date": now.date().isoformat(), "notes": "Source API non configurée; valeur de démonstration."},
-        {"product": "bitume", "price": round(522 + jitter * 40, 2), "unit": "USD/tonne", "source": "Mode démonstration - saisie interne", "source_date": now.date().isoformat(), "notes": "À remplacer par un devis, une commande ou une facture validée."},
+        {"product": "gasoil", "price": round(2.33 + jitter, 4), "unit": "USD/gallon", "source": "Demo mode - EIA/FRED", "source_date": now.date().isoformat(), "notes": "API source not configured; demo value."},
+        {"product": "brent", "price": round(81.4 + jitter * 10, 2), "unit": "USD/baril", "source": "Demo mode - Alpha Vantage", "source_date": now.date().isoformat(), "notes": "API source not configured; demo value."},
+        {"product": "bitume", "price": round(522 + jitter * 40, 2), "unit": "USD/tonne", "source": "Demo mode - internal entry", "source_date": now.date().isoformat(), "notes": "Replace with an approved quote, order, or invoice."},
     ]
 
 
@@ -314,7 +314,7 @@ def configured_providers() -> list[str]:
 
 def collect_all(provider: str | None = None) -> tuple[list[dict], list[str]]:
     if DEMO_MODE:
-        return CollectionBatch(demo_observations(), ["Mode démonstration actif."], [], [])
+        return CollectionBatch(demo_observations(), ["Demo mode is active."], [], [])
     observations: list[dict] = []
     benchmarks: list[dict] = []
     messages: list[str] = []
@@ -354,8 +354,8 @@ def collect_all(provider: str | None = None) -> tuple[list[dict], list[str]]:
                                   "deferred": bool(getattr(exc, "deferred", False)), "retry_at": getattr(exc, "retry_at", 0)})
     if not observations and not benchmarks and any(not row.get("deferred") for row in source_health):
         raise CollectionError(
-            (f"{provider} : aucune donnée reçue. {' '.join(messages)}" if provider else
-             "Aucune source publique disponible. Configurez FRED_API_KEY et vérifiez l'accès à l'API BLS."),
+            (f"{provider}: no data received. {' '.join(messages)}" if provider else
+             "No public source is available. Configure FRED_API_KEY and check BLS API access."),
             source_health,
         )
     return CollectionBatch(observations, messages, source_health, benchmarks)

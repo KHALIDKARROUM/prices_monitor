@@ -90,8 +90,8 @@ def test_public_fred_csv_fallback_collects_latest_prices_without_an_api_key(monk
     gasoil = collectors_module.collect_gasoil()
     brent = collectors_module.collect_brent()
 
-    assert (gasoil["price"], gasoil["source_date"], gasoil["notes"]) == (2.543, "2026-09-11", "Collecte FRED publique")
-    assert (brent["price"], brent["source_date"], brent["notes"]) == (68.25, "2026-09-11", "Collecte FRED publique")
+    assert (gasoil["price"], gasoil["source_date"], gasoil["notes"]) == (2.543, "2026-09-11", "Public FRED collection")
+    assert (brent["price"], brent["source_date"], brent["notes"]) == (68.25, "2026-09-11", "Public FRED collection")
 
 
 def test_direct_eia_connectors_read_their_own_series(monkeypatch):
@@ -352,5 +352,5 @@ def test_collect_all_fails_when_no_source_succeeds_and_demo_mode_is_off(monkeypa
         lambda: (_ for _ in ()).throw(RuntimeError("brent down")),
     )
 
-    with pytest.raises(RuntimeError, match="Aucune source publique disponible"):
+    with pytest.raises(RuntimeError, match="No public source is available"):
         collectors_module.collect_all()

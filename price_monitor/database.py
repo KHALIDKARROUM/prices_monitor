@@ -36,8 +36,8 @@ from .instruments import (
 
 PRODUCTS = {
     "gasoil": {"label": "Gasoil / diesel", "unit": "USD/gallon", "color": "#5eead4"},
-    "brent": {"label": "Pétrole Brent", "unit": "USD/baril", "color": "#f9b35c"},
-    "bitume": {"label": "Bitume", "unit": "USD/tonne", "color": "#a78bfa"},
+    "brent": {"label": "Brent crude oil", "unit": "USD/baril", "color": "#f9b35c"},
+    "bitume": {"label": "Bitumen", "unit": "USD/tonne", "color": "#a78bfa"},
 }
 
 PURCHASE_UNITS = {
@@ -81,82 +81,103 @@ DAILY_SOURCE_PRIORITY_SQL = "CASE source " + " ".join(
 SUPPLIER_CHANNEL_ROWS = [
     (
         "Shell Commercial Fuels", "gasoil", "global",
-        "Afrique, Amériques, Asie/Moyen-Orient et plusieurs marchés européens",
-        "Contact commercial B2B local ou distributeur agréé",
-        "Contrat local; livraison camion-citerne ou dépôt selon le pays",
-        "Demander EN 590 (soufre 10 ppm) ou la norme locale équivalente",
+        "Africa, the Americas, Asia/Middle East, and several European markets",
+        "Local B2B sales contact or authorized distributor",
+        "Local contract; road tanker or depot delivery depending on the country",
+        "Request EN 590 (10 ppm sulfur) or the equivalent local standard",
         "https://www.shell.com/business-customers/commercial-fuels.html",
         "https://www.shell.com/business-customers/commercial-fuels/contact-commercial-fuels.html",
-        "Vérifier la disponibilité, la licence d'importation et le volume minimum auprès de l'entité locale.",
+        "Check availability, import licensing, and minimum volume with the local entity.",
         10,
     ),
     (
-        "TotalEnergies - réseau entreprises", "gasoil", "global",
-        "Réseau international de filiales et de sites clients par pays",
-        "Filiale locale, service grands comptes ou distributeur B2B",
-        "Conditions, crédit et livraison négociés dans le pays de destination",
-        "Préciser EN 590/ASTM, teneur en soufre, quantité, terminal et date de livraison",
+        "TotalEnergies - business network", "gasoil", "global",
+        "International network of subsidiaries and country customer sites",
+        "Local subsidiary, key account team, or B2B distributor",
+        "Terms, credit, and delivery negotiated in the destination country",
+        "Specify EN 590/ASTM, sulfur content, quantity, terminal, and delivery date",
         "https://totalenergies.com/company/energy-expertise/ship-market",
         "https://totalenergies.com/clients-websites",
-        "Choisir le site officiel du pays de livraison et demander une offre écrite à l'entité contractante.",
+        "Use the official site for the delivery country and request a written offer from the contracting entity.",
         20,
     ),
     (
-        "Négociant ou distributeur agréé au terminal", "gasoil", "local",
-        "Terminal pétrolier ou dépôt agréé le plus proche de la destination",
-        "Appel d'offres auprès de trois distributeurs titulaires d'une licence",
-        "Ex-rack/EXW, FCA, DAP ou livraison camion selon l'infrastructure",
-        "Spécification nationale, certificat d'analyse, SDS et preuve d'origine",
+        "Licensed terminal trader or distributor", "gasoil", "local",
+        "Nearest licensed oil terminal or depot to the destination",
+        "Request bids from three licensed distributors",
+        "Ex-rack/EXW, FCA, DAP, or road delivery depending on infrastructure",
+        "National specification, certificate of analysis, SDS, and proof of origin",
         "",
         "",
-        "Contrôler le registre du commerce, la licence énergie, les sanctions et les coordonnées bancaires hors e-mail.",
+        "Check business registration, energy license, sanctions, and bank details through a channel other than email.",
         30,
     ),
     (
         "Shell Bitumen", "bitume", "global",
-        "Réseau de production, dépôts et distribution dans de nombreux marchés",
-        "Demande de devis B2B auprès de l'équipe bitume du pays",
-        "Vrac chauffé, camion ou navire selon la destination et le volume",
-        "Préciser EN 12591/ASTM D946, grade, température, emballage et application",
+        "Production, depot, and distribution network across many markets",
+        "Request a B2B quote from the local bitumen team",
+        "Heated bulk, road tanker, or vessel depending on destination and volume",
+        "Specify EN 12591/ASTM D946, grade, temperature, packaging, and use",
         "https://www.shell.com/business-customers/bitumen.html",
         "https://www.shell.com/business-customers/bitumen.html",
-        "La disponibilité et le point de chargement varient par pays; obtenir un devis avec Incoterm et validité.",
+        "Availability and loading point vary by country; obtain a quote with Incoterm and validity.",
         10,
     ),
     (
         "TotalEnergies Bitumen", "bitume", "europe",
-        "Sept raffineries et opérations annoncées dans quinze pays européens",
-        "Équipe commerciale locale ou portail Bitumen Online pour clients admis",
-        "Vrac chauffé; prix fixe ou formule selon le marché et le contrat",
-        "Bitume routier, modifié ou industriel; préciser grade et norme",
+        "Seven refineries and operations reported in fifteen European countries",
+        "Local sales team or Bitumen Online portal for eligible customers",
+        "Heated bulk; fixed or formula pricing depending on market and contract",
+        "Road, modified, or industrial bitumen; specify grade and standard",
         "https://bitumen.totalenergies.com/",
         "https://bitumen.totalenergies.com/digital-portal-bitumen-customers",
-        "L'accès au portail et aux prix est réservé aux clients; demander l'ouverture d'un compte fournisseur.",
+        "Portal and price access is limited to customers; request a supplier account.",
         20,
     ),
     (
         "Nynas Bitumen", "bitume", "europe",
-        "Pays nordiques, États baltes, Royaume-Uni et export selon disponibilité",
-        "Contact commercial régional ou export",
-        "Contrat annuel ou devis spot; logistique chauffée selon le site",
-        "Bitumes routiers et modifiés; demander PDS, SDS et déclaration de performance",
+        "Nordic countries, Baltic states, United Kingdom, and exports subject to availability",
+        "Regional or export sales contact",
+        "Annual contract or spot quote; heated logistics depending on site",
+        "Road and modified bitumen; request product data sheet, SDS, and declaration of performance",
         "https://nynas.com/en/products/bitumen/",
         "https://nynas.com/en/products/bitumen/our-offer/",
-        "Utiliser le sélecteur de marché officiel ou le contact export indiqué par Nynas.",
+        "Use Nynas's official market selector or listed export contact.",
         30,
     ),
     (
         "Puma Energy Bitumen", "bitume", "global",
-        "Marchés desservis par le réseau Puma Energy, notamment Afrique et Asie-Pacifique",
-        "Contact technique et commercial bitume",
-        "Vrac, conteneur bitume et solutions navire-camion selon le marché",
-        "Grades conformes notamment à EN 12591 ou AS 2008 selon le produit",
+        "Markets served by the Puma Energy network, including Africa and Asia-Pacific",
+        "Bitumen technical and sales contact",
+        "Bulk, bitumen containers, and vessel-to-road solutions depending on market",
+        "Grades compliant with EN 12591 or AS 2008, depending on product",
         "https://pumaenergy.com/bitumen/",
         "https://pumaenergy.com/bitumen/bitumen-products/",
-        "Confirmer le territoire couvert, le point de chargement et le coût du maintien en température.",
+        "Confirm covered territory, loading point, and temperature maintenance cost.",
         40,
     ),
 ]
+
+# Existing installations retain the original French seed rows. Render the
+# current English catalog without altering saved supplier records or IDs.
+_LEGACY_SUPPLIER_NAMES = {
+    "TotalEnergies - réseau entreprises": "TotalEnergies - business network",
+    "Négociant ou distributeur agréé au terminal": "Licensed terminal trader or distributor",
+}
+_SUPPLIER_DISPLAY_ROWS = {
+    name: row for row in SUPPLIER_CHANNEL_ROWS
+    for name in (row[0], *[old for old, new in _LEGACY_SUPPLIER_NAMES.items() if new == row[0]])
+}
+
+
+def _english_supplier_channel(item: dict[str, Any]) -> dict[str, Any]:
+    row = _SUPPLIER_DISPLAY_ROWS.get(item.get("name"))
+    if row is None:
+        return item
+    for key, index in (("name", 0), ("coverage", 3), ("channel", 4),
+                       ("typical_terms", 5), ("specifications", 6), ("buyer_note", 9)):
+        item[key] = row[index]
+    return item
 
 
 SCHEMA = """
@@ -481,11 +502,11 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
     def _source_date_value(value: Any) -> str:
         """Validate and normalize a publication date without silently truncating it."""
         if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-            raise ValueError("La date source doit être au format YYYY-MM-DD.")
+            raise ValueError("Source date must use YYYY-MM-DD format.")
         try:
             return date.fromisoformat(value).isoformat()
         except ValueError:
-            raise ValueError("La date source doit être une date calendaire valide.") from None
+            raise ValueError("Source date must be a valid calendar date.") from None
 
     @staticmethod
     def _collected_at_value(value: Any) -> str:
@@ -494,13 +515,13 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})",
             value,
         ):
-            raise ValueError("La date de collecte doit être un horodatage ISO 8601 avec fuseau.")
+            raise ValueError("Collection date must be an ISO 8601 timestamp with a timezone.")
         try:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:
-            raise ValueError("La date de collecte doit être un horodatage ISO 8601 valide.") from None
+            raise ValueError("Collection date must be a valid ISO 8601 timestamp.") from None
         if parsed.tzinfo is None:
-            raise ValueError("La date de collecte doit inclure un fuseau horaire.")
+            raise ValueError("Collection date must include a timezone.")
         return parsed.astimezone(timezone.utc).isoformat()
 
     @staticmethod
@@ -548,14 +569,14 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
     def _seed_sources(self, conn: sqlite3.Connection) -> None:
         rows = [
             ("fred_diesel", "Gasoil / diesel", "EIA/FRED - DDFUELNYH", "quotidienne"),
-            ("fred_brent", "Pétrole Brent", "EIA/FRED - DCOILBRENTEU", "quotidienne"),
-            ("alpha_brent", "Pétrole Brent", "Alpha Vantage - BRENT", "quotidienne"),
+            ("fred_brent", "Brent crude oil", "EIA/FRED - DCOILBRENTEU", "quotidienne"),
+            ("alpha_brent", "Brent crude oil", "Alpha Vantage - BRENT", "quotidienne"),
             ("eia_diesel", "Gasoil / diesel", "U.S. EIA - PET.DDFUELNYH.D", "quotidienne"),
-            ("eia_brent", "Pétrole Brent", "U.S. EIA - PET.RBRTE.D", "quotidienne"),
-            ("live_gasoil_proxy", "Gasoil / diesel", "Yahoo Finance - Heating Oil HO=F (proxy temps réel)", "temps réel"),
-            ("live_brent", "Pétrole Brent", "Yahoo Finance - Brent futures BZ=F", "temps réel"),
-            ("internal_bitumen", "Bitume", "Devis et factures internes", "à la demande"),
-            ("bls_asphalt_ppi", "Indice bitume/asphalte (proxy)", "U.S. BLS - WPU058", "mensuelle"),
+            ("eia_brent", "Brent crude oil", "U.S. EIA - PET.RBRTE.D", "quotidienne"),
+            ("live_gasoil_proxy", "Diesel / heating oil proxy", "Yahoo Finance - Heating Oil HO=F (live proxy)", "temps réel"),
+            ("live_brent", "Brent crude oil", "Yahoo Finance - Brent futures BZ=F", "temps réel"),
+            ("internal_bitumen", "Bitumen", "Internal quotes and invoices", "à la demande"),
+            ("bls_asphalt_ppi", "Bitumen/asphalt index (proxy)", "U.S. BLS - WPU058", "mensuelle"),
         ]
         conn.executemany(
             "INSERT OR IGNORE INTO data_sources(code, label, provider, frequency) VALUES(?,?,?,?)",
@@ -619,7 +640,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (product, DEFAULT_INSTRUMENTS[product], price, unit, "USD", source, source_date,
                          self._datetime_value(f"{source_date}T12:00:00+00:00"), variation, variation_pct, 0,
-                         "Historique réel EIA importé depuis FRED; horodatage de collecte approximé pour le backfill."),
+                         "Historical EIA data imported from FRED; collection time approximated for backfill."),
                     )
                     existing.add(identity)
                     previous[product] = price
@@ -638,10 +659,10 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         for row in rows:
             source_date = self._source_date_value(row["date"])
             if row.get("series") != "WPU058":
-                raise ValueError("L'historique bitume doit utiliser la série BLS WPU058.")
+                raise ValueError("Bitumen history must use the BLS WPU058 series.")
             value = float(row["bitume"])
             if not math.isfinite(value) or value <= 0:
-                raise ValueError("Indice bitume invalide dans le snapshot.")
+                raise ValueError("Invalid bitumen index in the snapshot.")
             existing = conn.execute(
                 "SELECT id FROM market_benchmarks WHERE code=? AND source_date=? AND value=?",
                 (INDEX_CODE, source_date, value),
@@ -661,7 +682,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (INDEX_CODE, "bitume", payload["label"], value, INDEX_UNIT, payload["geography"],
                  payload["source"], source_date, now, payload["source_url"],
-                 payload["notes"] + " Historique BLS/FRED importé; date de publication historique inconnue.",
+                 payload["notes"] + " Historical BLS/FRED data imported; original publication date unknown.",
                  round(delta, 6) if delta is not None else None,
                  round(delta / float(prior["value"]) * 100, 4) if prior else None),
             )
@@ -673,7 +694,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         now = datetime.now(timezone.utc).replace(microsecond=0)
         base = {"gasoil": 2.33, "brent": 81.40, "bitume": 522.00}
         units = {k: v["unit"] for k, v in PRODUCTS.items()}
-        labels = {"gasoil": "Mode démonstration - EIA/FRED", "brent": "Mode démonstration - Alpha Vantage", "bitume": "Mode démonstration - saisie interne"}
+        labels = {"gasoil": "Demo mode - EIA/FRED", "brent": "Demo mode - Alpha Vantage", "bitume": "Demo mode - internal entry"}
         for days_ago in range(29, -1, -1):
             for product, value in base.items():
                 wave = ((days_ago * 17 + len(product) * 5) % 19 - 9) / 100
@@ -686,7 +707,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                      variation, variation_pct, is_unchanged, notes)
                     VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (product, DEFAULT_INSTRUMENTS[product], price, units[product], "USD", labels[product], source_date,
-                     collected_at, None, None, 0, "Donnée de démonstration à remplacer par une source configurée."),
+                     collected_at, None, None, 0, "Demo value to be replaced by a configured source."),
                 )
 
     def seed_if_empty(self) -> None:
@@ -699,13 +720,13 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
     def insert_observation(self, payload: dict[str, Any]) -> dict[str, Any]:
         product = str(payload.get("product", "")).lower().strip()
         if product not in PRODUCTS:
-            raise ValueError("Produit inconnu. Utilisez gasoil, brent ou bitume.")
+            raise ValueError("Unknown product. Use gasoil, brent, or bitume.")
         try:
             price = float(payload.get("price"))
         except (TypeError, ValueError):
-            raise ValueError("Le prix doit être numérique.") from None
+            raise ValueError("Price must be numeric.") from None
         if not math.isfinite(price) or price <= 0 or price > 1_000_000:
-            raise ValueError("Le prix doit être compris entre 0 et 1 000 000.")
+            raise ValueError("Price must be between 0 and 1,000,000.")
         source_date_input = payload.get("source_date")
         source_date = self._source_date_value(
             datetime.now(timezone.utc).date().isoformat() if source_date_input is None else source_date_input
@@ -721,9 +742,9 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         unit_input = payload.get("unit")
         unit = PRODUCTS[product]["unit"] if unit_input is None else unit_input
         if not isinstance(unit, str) or unit.strip() != PRODUCTS[product]["unit"]:
-            raise ValueError(f"Unité invalide pour {product}. Utilisez {PRODUCTS[product]['unit']}.")
+            raise ValueError(f"Invalid unit for {product}. Use {PRODUCTS[product]['unit']}.")
         unit = unit.strip()
-        source = str(payload.get("source") or "Saisie validée")[:150]
+        source = str(payload.get("source") or "Validated entry")[:150]
         instrument = resolve_instrument(product, source, payload.get("instrument"))
         supplier = str(payload.get("supplier") or "").strip()[:150]
         if not supplier and product == "bitume":
@@ -762,7 +783,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                 previous_source_date = previous_source_date.isoformat()[:10]
             unchanged = 1 if previous and previous_source_date == source_date else 0
             if unchanged:
-                notes = (notes + " | Publication source inchangée.").strip(" |")
+                notes = (notes + " | Source publication unchanged.").strip(" |")
             try:
                 cur = conn.execute(
                     """INSERT INTO price_observations
@@ -791,24 +812,24 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         """Persist a non-tradable market indicator without mixing it with quotes."""
         code = str(payload.get("code") or "").strip().lower()
         if not re.fullmatch(r"[a-z0-9_-]{2,64}", code):
-            raise ValueError("Le code de l'indicateur est invalide.")
+            raise ValueError("Invalid indicator code.")
         product = str(payload.get("product") or "").strip().lower()
         if product not in PROCUREMENT_PRODUCTS:
             raise ValueError("L'indicateur doit concerner le gasoil ou le bitume.")
         try:
             value = float(payload.get("value"))
         except (TypeError, ValueError):
-            raise ValueError("La valeur de l'indicateur doit être numérique.") from None
+            raise ValueError("Indicator value must be numeric.") from None
         if not math.isfinite(value) or value <= 0:
-            raise ValueError("La valeur de l'indicateur doit être supérieure à zéro.")
+            raise ValueError("Indicator value must be greater than zero.")
         label = str(payload.get("label") or "").strip()[:180]
         unit = str(payload.get("unit") or "").strip()[:64]
         source = str(payload.get("source") or "").strip()[:180]
         if not label or not unit or not source:
-            raise ValueError("Le libellé, l'unité et la source de l'indicateur sont obligatoires.")
+            raise ValueError("Indicator label, unit, and source are required.")
         source_date = self._source_date_value(payload.get("source_date"))
         if code == INDEX_CODE and (product != "bitume" or unit != INDEX_UNIT or not source_date.endswith("-01")):
-            raise ValueError("WPU058 doit garder son unité d'indice et une date mensuelle (premier jour du mois).")
+            raise ValueError("WPU058 must retain its index unit and a monthly date (first day of the month).")
         collected_at = self._collected_at_value(
             payload.get("collected_at")
             or datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -871,7 +892,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         if product is not None:
             product = product.strip().lower()
             if product not in PROCUREMENT_PRODUCTS:
-                raise ValueError("Produit inconnu. Utilisez gasoil ou bitume.")
+                raise ValueError("Unknown product. Use gasoil or bitume.")
         safe_limit = max(1, min(int(limit), 100))
         clauses = ["product=?"] if product else []
         params: list[Any] = [product] if product else []
@@ -905,13 +926,13 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         if product:
             product = product.strip().lower()
             if product not in PROCUREMENT_PRODUCTS:
-                raise ValueError("Produit inconnu. Utilisez gasoil ou bitume.")
+                raise ValueError("Unknown product. Use gasoil or bitume.")
             clauses.append("product=?")
             params.append(product)
         normalized_region = str(region or "").strip().lower()
         if normalized_region and normalized_region not in {"all", "global"}:
             if not re.fullmatch(r"[a-z_]{2,32}", normalized_region):
-                raise ValueError("Région invalide.")
+                raise ValueError("Invalid region.")
             clauses.append("region IN ('global', ?)")
             params.append(normalized_region)
         with self.connect() as conn:
@@ -922,7 +943,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                 ORDER BY product, sort_order, name""",
                 params,
             ).fetchall()
-        return [dict(row) for row in rows]
+        return [_english_supplier_channel(dict(row)) for row in rows]
 
     def create_procurement(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Create a purchase estimate and compare it with the latest USD market price."""
@@ -930,16 +951,16 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         if payload.get("quote_id") not in (None, ""):
             linked_quote = self.quote(int(payload["quote_id"]))
             if str(payload.get("quote_version")) != str(linked_quote["version"]):
-                raise QuoteConflict("Ce devis a changé. Rechargez-le avant de préparer le budget.")
+                raise QuoteConflict("This quote has changed. Reload it before preparing the budget.")
             payload = {**payload, **{key: linked_quote[key] for key in
                        ("product", "supplier", "quantity", "unit", "currency", "unit_price", "exchange_rate", *COST_FIELDS, "other_costs")}}
         product = str(payload.get("product", "")).lower().strip()
         if product not in PRODUCTS:
-            raise ValueError("Produit inconnu. Utilisez gasoil, brent ou bitume.")
+            raise ValueError("Unknown product. Use gasoil, brent, or bitume.")
 
         supplier = str(payload.get("supplier") or "").strip()
         if not supplier:
-            raise ValueError("Le fournisseur est obligatoire.")
+            raise ValueError("Supplier is required.")
         supplier = supplier[:150]
 
         def positive_number(field: str, label: str, default: float | None = None) -> float:
@@ -947,19 +968,19 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             try:
                 value = float(raw)
             except (TypeError, ValueError):
-                raise ValueError(f"{label} doit être numérique.") from None
+                raise ValueError(f"{label} must be numeric.") from None
             if not math.isfinite(value) or value <= 0:
-                raise ValueError(f"{label} doit être supérieur à zéro.")
+                raise ValueError(f"{label} must be greater than zero.")
             return value
 
-        quantity = positive_number("quantity", "La quantité")
+        quantity = positive_number("quantity", "Quantity")
         unit = str(payload.get("unit") or PURCHASE_UNITS[product]).strip().lower()
         if unit != PURCHASE_UNITS[product]:
-            raise ValueError(f"Unité invalide pour {product}. Utilisez {PURCHASE_UNITS[product]}.")
+            raise ValueError(f"Invalid unit for {product}. Use {PURCHASE_UNITS[product]}.")
         currency = str(payload.get("currency") or "USD").strip().upper()
         if not re.fullmatch(r"[A-Z]{3}", currency):
-            raise ValueError("La devise doit être un code ISO de trois lettres, par exemple USD ou EUR.")
-        unit_price = positive_number("unit_price", "Le prix unitaire")
+            raise ValueError("Currency must be a three-letter ISO code, such as USD or EUR.")
+        unit_price = positive_number("unit_price", "Unit price")
 
         exchange_input = payload.get("exchange_rate")
         if exchange_input in (None, "") and currency == "USD":
@@ -967,9 +988,9 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         try:
             exchange_rate = float(exchange_input)
         except (TypeError, ValueError):
-            raise ValueError("Le taux de change doit être numérique.") from None
+            raise ValueError("Exchange rate must be numeric.") from None
         if not math.isfinite(exchange_rate) or exchange_rate <= 0:
-            raise ValueError("Le taux de change doit être supérieur à zéro.")
+            raise ValueError("Exchange rate must be greater than zero.")
 
         costs = landed_costs(payload)
         quantity, unit_price, exchange_rate = costs["quantity"], costs["unit_price"], costs["exchange_rate"]
@@ -983,9 +1004,9 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             try:
                 budget_amount = float(budget_raw)
             except (TypeError, ValueError):
-                raise ValueError("Le budget doit être numérique.") from None
+                raise ValueError("Budget must be numeric.") from None
             if not math.isfinite(budget_amount) or budget_amount < 0:
-                raise ValueError("Le budget doit être positif ou nul.")
+                raise ValueError("Budget must be non-negative.")
 
         purchase_date = self._source_date_value(
             datetime.now(timezone.utc).date().isoformat()
@@ -994,7 +1015,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         )
         notes = str(payload.get("notes") or "")[:500]
         if linked_quote and (linked_quote["status"] != "active" or not linked_quote["quote_date"] <= purchase_date <= linked_quote["valid_until"]):
-            raise ValueError("Le devis doit être actif et valide à la date d’achat prévue.")
+            raise ValueError("The quote must be active and valid on the planned purchase date.")
         total_cost = costs["total_cost"]
         total_cost_usd = costs["total_cost_usd"]
         budget_variance = round(total_cost - budget_amount, 6) if budget_amount is not None else None
@@ -1005,7 +1026,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             if linked_quote:
                 current = conn.execute("SELECT version FROM supplier_quotes WHERE id=?", (linked_quote["id"],)).fetchone()
                 if current is None or dict(current)["version"] != linked_quote["version"]:
-                    raise QuoteConflict("Ce devis a changé. Rechargez-le avant de préparer le budget.")
+                    raise QuoteConflict("This quote has changed. Reload it before preparing the budget.")
             market_price_usd = float(market_row["price"]) if market_row else None
             unit_price_usd = unit_price * exchange_rate
             price_impact_unit_usd = (
@@ -1147,7 +1168,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         period_b_from = self._source_date_value(period_b_from)
         period_b_to = self._source_date_value(period_b_to)
         if period_a_from > period_a_to or period_b_from > period_b_to:
-            raise ValueError("La date de début doit précéder la date de fin.")
+            raise ValueError("Start date must be before end date.")
 
         first = list(self.iter_history(
             product, supplier, source, period_a_from, period_a_to, min_price, max_price,
@@ -1205,7 +1226,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         if product:
             product = product.strip().lower()
             if product not in PRODUCTS:
-                raise ValueError("Produit inconnu. Utilisez gasoil, brent ou bitume.")
+                raise ValueError("Unknown product. Use gasoil, brent, or bitume.")
             clauses.append("product=?")
             params.append(product)
         if supplier:
@@ -1221,8 +1242,8 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             clauses.append("source_date <= ?")
             params.append(self._source_date_value(date_to))
         numeric_filters: list[tuple[str, Any, str]] = [
-            ("price >= ?", min_price, "Le prix minimum"),
-            ("price <= ?", max_price, "Le prix maximum"),
+            ("price >= ?", min_price, "Minimum price"),
+            ("price <= ?", max_price, "Maximum price"),
         ]
         for clause, raw, label in numeric_filters:
             if raw is None or raw == "":
@@ -1230,16 +1251,16 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             try:
                 value = float(raw)
             except (TypeError, ValueError):
-                raise ValueError(f"{label} doit être numérique.") from None
+                raise ValueError(f"{label} must be numeric.") from None
             if not math.isfinite(value) or value < 0:
-                raise ValueError(f"{label} doit être positif ou nul.")
+                raise ValueError(f"{label} must be non-negative.")
             clauses.append(clause)
             params.append(value)
         if min_price is not None and max_price is not None and float(min_price) > float(max_price):
-            raise ValueError("Le prix minimum doit être inférieur au prix maximum.")
+            raise ValueError("Minimum price must be lower than maximum price.")
         if data_kind:
             if data_kind not in {"quote", "index"}:
-                raise ValueError("Le type de donnée doit être quote ou index.")
+                raise ValueError("Data type must be quote or index.")
             clauses.append("data_kind=?")
             params.append(data_kind)
         if instrument:
@@ -1277,7 +1298,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             else:
                 conn.execute(
                     "UPDATE data_sources SET last_error=? WHERE code=?",
-                    (str(error or "Échec de collecte")[:500], source_code),
+                    (str(error or "Collection failed")[:500], source_code),
                 )
 
     def source_health(self) -> list[dict[str, Any]]:
@@ -1286,7 +1307,22 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                 """SELECT code, label, provider, frequency, active, last_success_at, last_error, last_quote_at
                 FROM data_sources WHERE active=1 ORDER BY id"""
             ).fetchall()
-            return [dict(row) for row in rows]
+            labels = {
+                "fred_diesel": ("Diesel", "EIA/FRED - DDFUELNYH"),
+                "fred_brent": ("Brent crude oil", "EIA/FRED - DCOILBRENTEU"),
+                "alpha_brent": ("Brent crude oil", "Alpha Vantage - BRENT"),
+                "eia_diesel": ("Diesel", "U.S. EIA - PET.DDFUELNYH.D"),
+                "eia_brent": ("Brent crude oil", "U.S. EIA - PET.RBRTE.D"),
+                "live_gasoil_proxy": ("Diesel / heating oil proxy", "Yahoo Finance - Heating Oil HO=F (live proxy)"),
+                "live_brent": ("Brent crude oil", "Yahoo Finance - Brent futures BZ=F"),
+                "internal_bitumen": ("Bitumen", "Internal quotes and invoices"),
+                "bls_asphalt_ppi": ("Bitumen/asphalt index (proxy)", "U.S. BLS - WPU058"),
+            }
+            result = [dict(row) for row in rows]
+            for item in result:
+                if item["code"] in labels:
+                    item["label"], item["provider"] = labels[item["code"]]
+            return result
 
     def latest(self) -> list[dict[str, Any]]:
         """Latest spot benchmarks and supplier quote; never substitute a proxy."""
@@ -1599,22 +1635,22 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             return True
         if isinstance(value, str) and value.strip().lower() in {"0", "false", "no", "off"}:
             return False
-        raise ValueError("Le champ muted doit être booléen.")
+        raise ValueError("The muted field must be boolean.")
 
     @classmethod
     def _validate_alert_rule(cls, payload: dict[str, Any], current: dict[str, Any] | None = None) -> dict[str, Any]:
         current = current or {}
         product = str(payload.get("product", current.get("product", ""))).strip().lower()
         if product not in PRODUCTS:
-            raise ValueError("Produit inconnu. Utilisez gasoil, brent ou bitume.")
+            raise ValueError("Unknown product. Use gasoil, brent, or bitume.")
         direction = str(payload.get("direction", current.get("direction", ""))).strip().lower()
         if direction not in {"above", "below", "stale"}:
-            raise ValueError("La condition doit être above, below ou stale.")
+            raise ValueError("Condition must be above, below, or stale.")
         if direction == "stale" and product not in {"gasoil", "brent"}:
-            raise ValueError("La surveillance du flux en direct concerne le gasoil et le Brent.")
+            raise ValueError("Live feed monitoring applies to diesel and Brent.")
         basis = str(payload.get("basis", current.get("basis", "quote"))).strip().lower()
         if basis not in {"quote", "index"} or (basis == "index" and (product != "bitume" or direction == "stale")):
-            raise ValueError("La base index concerne uniquement les seuils de l'indice bitume.")
+            raise ValueError("Index basis applies only to bitumen index thresholds.")
         same_basis = product == current.get("product") and basis == current.get("basis", "quote") and (direction == "stale") == (current.get("direction") == "stale")
         default_instrument = LIVE_INSTRUMENTS[product] if direction == "stale" else "asphalt_index" if basis == "index" else DEFAULT_INSTRUMENTS[product]
         instrument = resolve_instrument(
@@ -1622,21 +1658,21 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             index=basis == "index",
         )
         if direction == "stale" and instrument != LIVE_INSTRUMENTS[product]:
-            raise ValueError("La fraîcheur doit suivre le contrat à terme en direct.")
+            raise ValueError("Freshness alerts must track the live futures contract.")
         threshold_input = payload.get("threshold", current.get("threshold"))
         try:
             threshold = float(threshold_input)
         except (TypeError, ValueError):
-            raise ValueError("Le seuil doit être numérique.") from None
+            raise ValueError("Threshold must be numeric.") from None
         if not math.isfinite(threshold) or threshold <= 0 or threshold > 1_000_000:
-            raise ValueError("Le seuil doit être compris entre 0 et 1 000 000.")
+            raise ValueError("Threshold must be between 0 and 1,000,000.")
         if direction == "stale" and (threshold < 2 or threshold > 1440 or not threshold.is_integer()):
-            raise ValueError("Le délai sans nouvelle cotation doit être un entier de 2 à 1440 minutes.")
+            raise ValueError("The no-new-quote interval must be an integer from 2 to 1,440 minutes.")
         channel = str(payload.get("channel", current.get("channel", "webhook"))).strip().lower()
         if channel not in {"webhook", "email", "both"}:
-            raise ValueError("Le canal doit être webhook, email ou both.")
+            raise ValueError("Channel must be webhook, email, or both.")
         if direction == "stale" and channel not in {"email", "both"}:
-            raise ValueError("Une règle de fraîcheur doit inclure la notification par email.")
+            raise ValueError("A freshness rule must include email notification.")
         return {
             "product": product,
             "basis": basis,
@@ -1698,7 +1734,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                 (rule["product"], rule["instrument"], rule["direction"], rule["basis"]),
             ).fetchone()
             if duplicate:
-                raise ValueError("Une règle existe déjà pour ce produit et cette direction.")
+                raise ValueError("A rule already exists for this product and direction.")
             cursor = conn.execute(
                 """INSERT INTO alert_rules
                 (product, instrument, direction, threshold, channel, muted, enabled, created_at, updated_at, basis)
@@ -1714,12 +1750,12 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         try:
             rule_id = int(rule_id)
         except (TypeError, ValueError):
-            raise ValueError("Identifiant de règle invalide.") from None
+            raise ValueError("Invalid rule ID.") from None
         now = self._datetime_value(datetime.now(timezone.utc).replace(microsecond=0).isoformat())
         with self._lock, self.connect() as conn:
             existing_row = conn.execute("SELECT * FROM alert_rules WHERE id=?", (rule_id,)).fetchone()
             if not existing_row:
-                raise ValueError("Règle introuvable.")
+                raise ValueError("Rule not found.")
             existing = dict(existing_row)
             rule = self._validate_alert_rule(payload, existing)
             duplicate = conn.execute(
@@ -1727,7 +1763,7 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                 (rule["product"], rule["instrument"], rule["direction"], rule["basis"], rule_id),
             ).fetchone()
             if duplicate:
-                raise ValueError("Une règle existe déjà pour ce produit et cette direction.")
+                raise ValueError("A rule already exists for this product and direction.")
             conn.execute(
                 """UPDATE alert_rules SET product=?, instrument=?, direction=?, threshold=?, channel=?, muted=?, enabled=?, updated_at=?, basis=?
                 WHERE id=?""",
@@ -1739,11 +1775,11 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
         try:
             rule_id = int(rule_id)
         except (TypeError, ValueError):
-            raise ValueError("Identifiant de règle invalide.") from None
+            raise ValueError("Invalid rule ID.") from None
         with self._lock, self.connect() as conn:
             deleted = conn.execute("DELETE FROM alert_rules WHERE id=?", (rule_id,)).rowcount
             if not deleted:
-                raise ValueError("Règle introuvable.")
+                raise ValueError("Rule not found.")
 
 
 def _get_mysql_connector() -> Any:
@@ -1852,14 +1888,14 @@ class MySQLDatabase(SQLiteDatabase):
     def _seed_sources(self, connection: _MySQLConnection) -> None:
         rows = [
             ("fred_diesel", "Gasoil / diesel", "EIA/FRED - DDFUELNYH", "quotidienne"),
-            ("fred_brent", "Pétrole Brent", "EIA/FRED - DCOILBRENTEU", "quotidienne"),
-            ("alpha_brent", "Pétrole Brent", "Alpha Vantage - BRENT", "quotidienne"),
+            ("fred_brent", "Brent crude oil", "EIA/FRED - DCOILBRENTEU", "quotidienne"),
+            ("alpha_brent", "Brent crude oil", "Alpha Vantage - BRENT", "quotidienne"),
             ("eia_diesel", "Gasoil / diesel", "U.S. EIA - PET.DDFUELNYH.D", "quotidienne"),
-            ("eia_brent", "Pétrole Brent", "U.S. EIA - PET.RBRTE.D", "quotidienne"),
-            ("live_gasoil_proxy", "Gasoil / diesel", "Yahoo Finance - Heating Oil HO=F (proxy temps réel)", "temps réel"),
-            ("live_brent", "Pétrole Brent", "Yahoo Finance - Brent futures BZ=F", "temps réel"),
-            ("internal_bitumen", "Bitume", "Devis et factures internes", "à la demande"),
-            ("bls_asphalt_ppi", "Indice bitume/asphalte (proxy)", "U.S. BLS - WPU058", "mensuelle"),
+            ("eia_brent", "Brent crude oil", "U.S. EIA - PET.RBRTE.D", "quotidienne"),
+            ("live_gasoil_proxy", "Diesel / heating oil proxy", "Yahoo Finance - Heating Oil HO=F (live proxy)", "temps réel"),
+            ("live_brent", "Brent crude oil", "Yahoo Finance - Brent futures BZ=F", "temps réel"),
+            ("internal_bitumen", "Bitumen", "Internal quotes and invoices", "à la demande"),
+            ("bls_asphalt_ppi", "Bitumen/asphalt index (proxy)", "U.S. BLS - WPU058", "mensuelle"),
         ]
         connection.executemany(
             "INSERT IGNORE INTO data_sources(code, label, provider, frequency) VALUES(?,?,?,?)",

@@ -56,7 +56,7 @@ class CollectionStoreMixin:
             # For a reduced quota, wait until enough old attempts have expired.
             retry_at = max(retry_at, float(rows[used - limit]["attempted_at"]) + 86400)
         return {"used": used, "limit": limit or None, "retry_at": retry_at,
-                "reason": state["reason"] if float(state["blocked_until"]) > now else "Quota de requêtes sur 24 heures atteint."}
+                "reason": state["reason"] if float(state["blocked_until"]) > now else "24-hour request quota reached."}
 
     def reserve_provider_request(self, provider: str, now: float, limit: int = 0) -> dict:
         with self._lock, self.connect() as conn:
@@ -75,7 +75,7 @@ class CollectionStoreMixin:
                 retry_at = max(retry_at, float(rows[len(rows) - limit]["attempted_at"]) + 86400)
             if retry_at > now:
                 return {"allowed": False, "retry_at": retry_at,
-                        "reason": state["reason"] if float(state["blocked_until"]) > now else "Quota de requêtes sur 24 heures atteint."}
+                        "reason": state["reason"] if float(state["blocked_until"]) > now else "24-hour request quota reached."}
             conn.execute("INSERT INTO provider_requests(provider,attempted_at) VALUES(?,?)", (provider, now))
             return {"allowed": True, "retry_at": 0, "reason": ""}
 

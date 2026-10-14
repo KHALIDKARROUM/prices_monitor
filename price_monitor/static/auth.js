@@ -44,8 +44,8 @@
     });
     document.querySelector('#collect-btn').disabled = rank < roles.editor;
     document.querySelector('#profile-button').textContent = state.user ? state.user.full_name.slice(0, 2).toUpperCase() : 'PM';
-    document.querySelector('#account-name').textContent = state.user ? `${state.user.full_name} · ${state.user.username}` : 'Accès local personnel';
-    document.querySelector('#account-role').textContent = ({ viewer: 'Lecteur — consultation et exports', editor: 'Éditeur — consultation et modifications', admin: 'Administrateur — accès et équipe' }[state.role] || 'Connexion requise');
+    document.querySelector('#account-name').textContent = state.user ? `${state.user.full_name} · ${state.user.username}` : 'Personal local access';
+    document.querySelector('#account-role').textContent = ({ viewer: 'Viewer — read and export', editor: 'Editor — read and edit', admin: 'Administrator — access and team' }[state.role] || 'Sign-in required');
     document.querySelector('#logout-button').hidden = !state.user && !state.api_key_mode;
     document.querySelector('#account-login-button').hidden = Boolean(state.user);
     document.querySelector('#personal-account-controls').hidden = !state.user;
@@ -55,7 +55,7 @@
     const headers = new Headers();
     if (!state.team_mode && !state.user && storedKey()) headers.set('X-API-Key', storedKey());
     const response = await nativeFetch('/api/auth/session', { headers, cache: 'no-store' });
-    if (!response.ok) throw new Error('Connexion indisponible. Réessayez.');
+    if (!response.ok) throw new Error('Sign-in unavailable. Please try again.');
     state = await response.json();
     if (!state.team_mode && state.api_key_mode && !state.role && storedKey()) {
       const retry = await nativeFetch('/api/auth/session', { headers: { 'X-API-Key': storedKey() }, cache: 'no-store' });
@@ -87,12 +87,12 @@
       if (state.api_key_mode) {
         sessionStorage.setItem('priceMonitorApiKey', form.elements.api_key.value.trim());
         await refreshSession();
-        if (!state.role) throw new Error('Clé incorrecte.');
+        if (!state.role) throw new Error('Incorrect key.');
       } else {
         const response = await nativeFetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: form.elements.username.value, password: form.elements.password.value }) });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Connexion refusée.');
+        if (!response.ok) throw new Error(data.error || 'Sign-in denied.');
         try { sessionStorage.removeItem('priceMonitorApiKey'); } catch {}
       }
       form.reset();

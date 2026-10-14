@@ -41,25 +41,25 @@ def test_csv_export_has_utf8_bom_headers_and_all_values():
 def test_excel_export_creates_readable_workbook_with_frozen_header():
     body = xlsx_bytes([sample_row()])
     workbook = load_workbook(io.BytesIO(body), read_only=False)
-    sheet = workbook["Relevés"]
+    sheet = workbook["Observations"]
 
     assert sheet.freeze_panes == "A2"
     assert [cell.value for cell in sheet[1]] == [
         "ID",
-        "Produit",
-        "Prix / indice",
-        "Unité",
-        "Devise",
+        "Product",
+        "Price / index",
+        "Unit",
+        "Currency",
         "Source",
-        "Fournisseur",
-        "Date source",
-        "Date collecte",
-        "Variation",
-        "Variation %",
-        "Inchangée",
-        "Remarque",
-        "Type de donnée",
-        "Code indicateur",
+        "Supplier",
+        "Source date",
+        "Collection date",
+        "Change",
+        "Change %",
+        "Unchanged",
+        "Notes",
+        "Data type",
+        "Indicator code",
         "Instrument",
     ]
     assert [cell.value for cell in sheet[2]] == list(sample_row().values()) + [None, None, None]

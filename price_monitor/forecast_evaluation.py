@@ -169,18 +169,18 @@ def evaluate_baselines(values: list[float], timeline: list[int], horizon: int, p
 
     warnings = []
     if not cv:
-        warnings.append({"code": "selection_unavailable", "message": "Historique insuffisant pour comparer les modèles sur trois périodes de validation. Dernier prix connu retenu par défaut."})
+        warnings.append({"code": "selection_unavailable", "message": "Insufficient history to compare models across three validation periods. Using the last known price by default."})
     elif selected == "naive":
-        warnings.append({"code": "no_predictive_gain", "message": "Holt ne démontre pas un gain d’au moins 2 % en validation. Projection au dernier prix connu, sans tendance prédictive démontrée."})
+        warnings.append({"code": "no_predictive_gain", "message": "Holt did not improve validation accuracy by at least 2%. Projecting the last known price; no predictive trend was demonstrated."})
     chosen = candidates[selected]
     if chosen["samples"] < 30:
-        warnings.append({"code": "limited_evaluation", "message": f"Évaluation limitée : {chosen['samples']} prévisions testées sur la période finale."})
+        warnings.append({"code": "limited_evaluation", "message": f"Limited evaluation: {chosen['samples']} forecasts tested in the final period."})
     if selected != "naive" and chosen["mae"] is not None and chosen["mae"] >= chosen["naive_mae"]:
-        warnings.append({"code": "weak_holdout", "message": "Le modèle retenu fait moins bien que le dernier prix connu sur la période finale."})
+        warnings.append({"code": "weak_holdout", "message": "The selected model performed worse than the last known price in the final period."})
     if any(radius is None for radius in radii.values()):
-        warnings.append({"code": "uncalibrated_intervals", "message": "Données de calibration insuffisantes pour certaines bandes à 95 %. Ces bandes ne sont pas affichées."})
+        warnings.append({"code": "uncalibrated_intervals", "message": "Insufficient calibration data for some 95% bands. Those bands are not shown."})
     if chosen["interval_coverage"] is not None and chosen["interval_coverage"] < NOMINAL_LEVEL:
-        warnings.append({"code": "undercoverage", "message": f"La bande nominale à 95 % ne couvre que {chosen['interval_coverage']:.0%} des prix testés. Incertitude sous-estimée sur cette période."})
+        warnings.append({"code": "undercoverage", "message": f"The nominal 95% band covered only {chosen['interval_coverage']:.0%} of tested prices. Uncertainty was underestimated in this period."})
     return {"protocol": PROTOCOL, "selection_rule": SELECTION_RULE, "selected_model": selected,
             "selection_available": bool(cv), "validation_mae": ranking, "candidates": candidates,
             "warnings": warnings, "radii": radii, "calibration_counts": counts,

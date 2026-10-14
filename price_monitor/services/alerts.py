@@ -271,15 +271,15 @@ class AlertManager:
 
             def make_event(status: str) -> AlertEvent:
                 label = PRODUCTS[product]["label"]
-                quote_description = f"Dernière cotation : {anchor.isoformat()}" if quote_at else "Aucune cotation reçue"
+                quote_description = f"Latest quote: {anchor.isoformat()}" if quote_at else "No quote received"
                 return AlertEvent(
                     key=key, kind="live_quote_stale", status=status,
-                    title=f"Cotation en direct — {label}",
+                    title=f"Live quote — {label}",
                     message=(
-                        f"{label} sans nouvelle cotation depuis {age_minutes:.0f} min "
-                        f"(limite {threshold:g} min). {quote_description}."
+                        f"No new quote for {label} in {age_minutes:.0f} min "
+                        f"(limit {threshold:g} min). {quote_description}."
                         if status == "triggered"
-                        else f"Une cotation récente est à nouveau disponible pour {label}. {quote_description}."
+                        else f"A recent quote is available again for {label}. {quote_description}."
                     ),
                     occurred_at=occurred_at, product=product,
                     source_code=source_codes[product], value=age_minutes,
@@ -334,12 +334,12 @@ class AlertManager:
                         key=key,
                         kind="index_threshold" if is_index else "price_threshold",
                         status=status,
-                        title=f"{label} — seuil {direction}",
+                        title=f"{label} — {'above' if direction == 'above' else 'below'} threshold",
                         message=(
-                            f"{'L’indice' if is_index else 'Le prix'} est de {price:g} {unit} "
-                            f"({'au-dessus' if direction == 'above' else 'en-dessous'} du seuil {threshold:g})."
+                            f"{'The index' if is_index else 'The price'} is {price:g} {unit} "
+                            f"({'above' if direction == 'above' else 'below'} the {threshold:g} threshold)."
                             if status == "triggered"
-                            else f"{'L’indice' if is_index else 'Le prix'} est revenu à {price:g} {unit} ; le seuil {threshold:g} n'est plus atteint."
+                            else f"{'The index' if is_index else 'The price'} returned to {price:g} {unit}; the {threshold:g} threshold is no longer met."
                         ),
                         occurred_at=occurred_at,
                         product=product,
@@ -384,11 +384,11 @@ class AlertManager:
                     key=failure_key,
                     kind="source_failure",
                     status=status,
-                    title=f"Source indisponible — {label}",
+                    title=f"Source unavailable — {label}",
                     message=(
-                        f"La source {label} ({code}) a échoué : {last_error}."
+                        f"Source {label} ({code}) failed: {last_error}."
                         if status == "triggered"
-                        else f"La source {label} ({code}) fonctionne à nouveau."
+                        else f"Source {label} ({code}) is working again."
                     ),
                     occurred_at=occurred_at,
                     source_code=code,
@@ -402,6 +402,7 @@ class AlertManager:
             if failed or not source.get("last_success_at"):
                 continue
             frequency = str(source.get("frequency") or "").strip().lower()
+            frequency_label = {"temps réel": "live", "quotidienne": "daily", "mensuelle": "monthly"}.get(frequency, frequency)
             freshness_window = FRESHNESS_WINDOWS.get(frequency)
             if freshness_window is None:
                 continue
@@ -422,16 +423,16 @@ class AlertManager:
                 active=stale,
                 value=age.total_seconds() / 3600,
                 occurred_at=occurred_at,
-                event_factory=lambda status, code=code, label=label, age=age, frequency=frequency: AlertEvent(
+                event_factory=lambda status, code=code, label=label, age=age, frequency_label=frequency_label: AlertEvent(
                     key=stale_key,
                     kind="source_stale",
                     status=status,
-                    title=f"Source obsolète — {label}",
+                    title=f"Stale source — {label}",
                     message=(
-                        f"La dernière donnée de {label} date de {self._format_age(age)} "
-                        f"(fréquence attendue : {frequency})."
+                        f"The latest {label} data is {self._format_age(age)} old "
+                        f"(expected frequency: {frequency_label})."
                         if status == "triggered"
-                        else f"La source {label} fournit à nouveau des données fraîches."
+                        else f"Source {label} is providing fresh data again."
                     ),
                     occurred_at=occurred_at,
                     source_code=code,
@@ -529,5 +530,5 @@ class AlertManager:
     def _format_age(age: timedelta) -> str:
         hours = max(0, int(age.total_seconds() // 3600))
         if hours < 48:
-            return f"{hours} heure(s)"
-        return f"{hours // 24} jour(s)"
+            return f"{hours} hour(s)"
+        return f"{hours // 24} day(s)"

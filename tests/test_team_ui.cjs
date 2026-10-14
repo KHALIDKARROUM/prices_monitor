@@ -25,7 +25,7 @@ test('downloads use the session and team mode ignores a saved shared key', () =>
 test('audit rendering labels actions and treats names as text', () => {
   const rows = auditRows([{ occurred_at: '2026-10-13T12:00:00Z', actor: '<script>other user</script>',
     action: 'quote.corrected', resource: 'quote', resource_id: '123', outcome: 'success' }]);
-  assert.match(rows, /Devis corrigé/);
+  assert.match(rows, /Quote corrected/);
   assert.match(rows, /&lt;script&gt;/);
   assert.doesNotMatch(rows, /<script>/);
 });

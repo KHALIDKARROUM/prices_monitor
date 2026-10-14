@@ -93,24 +93,24 @@ def _is_loopback_host(host: str) -> bool:
 def validate_security_configuration() -> None:
     public = ENVIRONMENT in {"production", "prod"} or not _is_loopback_host(HOST)
     if public and not TEAM_MODE:
-        raise RuntimeError("Activez PRICE_MONITOR_TEAM_MODE pour un déploiement partagé ou public.")
+        raise RuntimeError("Enable PRICE_MONITOR_TEAM_MODE for a shared or public deployment.")
     if TEAM_MODE and not database.active_admin_count():
-        raise RuntimeError("Créez le premier administrateur avec price-monitor-users bootstrap avant le démarrage.")
+        raise RuntimeError("Create the first administrator with price-monitor-users bootstrap before starting.")
     if public and (not SECURE_COOKIES or not PUBLIC_ORIGIN):
-        raise RuntimeError("Configurez PRICE_MONITOR_PUBLIC_ORIGIN en HTTPS et les cookies sécurisés.")
+        raise RuntimeError("Configure PRICE_MONITOR_PUBLIC_ORIGIN with HTTPS and secure cookies.")
     if PUBLIC_ORIGIN:
         parsed = urlparse(PUBLIC_ORIGIN)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
-            raise RuntimeError("PRICE_MONITOR_PUBLIC_ORIGIN doit être une origine HTTP(S) sans chemin.")
+            raise RuntimeError("PRICE_MONITOR_PUBLIC_ORIGIN must be an HTTP(S) origin without a path.")
         if public and parsed.scheme != "https":
-            raise RuntimeError("Une origine HTTPS est obligatoire pour le déploiement public.")
+            raise RuntimeError("An HTTPS origin is required for public deployment.")
     if URL_SCHEME not in {"http", "https"}:
-        raise RuntimeError("PRICE_MONITOR_URL_SCHEME doit être http ou https.")
+        raise RuntimeError("PRICE_MONITOR_URL_SCHEME must be http or https.")
     if TRUSTED_PROXY:
         try:
             ipaddress.ip_address(TRUSTED_PROXY)
         except ValueError:
-            raise RuntimeError("PRICE_MONITOR_TRUSTED_PROXY doit être l'adresse IP exacte du proxy de confiance.") from None
+            raise RuntimeError("PRICE_MONITOR_TRUSTED_PROXY must be the exact IP address of the trusted proxy.") from None
 
 
 def _authorization_value(handler) -> str:
@@ -186,12 +186,12 @@ class Handler(WSGIRequest):
             method = "GET" if self.command == "HEAD" else self.command
             route = getattr(self, f"do_{method}", None)
             if route is None:
-                return self.send_data(json_bytes({"error": "Méthode non autorisée."}), "application/json", 405,
+                return self.send_data(json_bytes({"error": "Method not allowed."}), "application/json", 405,
                                       {"Allow": "GET, HEAD, POST, PUT, DELETE"})
             route()
         except Exception:
             logger.exception("Request failed", extra={"event": "http_handler_error"})
-            self.send_json({"error": "Erreur interne. Réessayez plus tard."}, 500)
+            self.send_json({"error": "Internal error. Try again later."}, 500)
         finally:
             duration = time.perf_counter() - started
             method = getattr(self, "command", "UNKNOWN")
@@ -310,9 +310,9 @@ class Handler(WSGIRequest):
         if not self._rate_limit():
             return False
         if not self._origin_allowed():
-            return self._deny(403, "Accès réservé à l'application de même origine.")
+            return self._deny(403, "Access is restricted to the same-origin application.")
         if self._team_required() and PUBLIC_ORIGIN.startswith("https:") and self.environ.get("wsgi.url_scheme") != "https":
-            return self._deny(403, "Une connexion HTTPS est requise.")
+            return self._deny(403, "An HTTPS connection is required.")
         self.principal = self._identity()
         if (path == "/api/auth/session" and self.command in {"GET", "HEAD"}) or (path == "/api/auth/login" and self.command == "POST"):
             return True
@@ -320,11 +320,11 @@ class Handler(WSGIRequest):
             return self._deny(401, "Authentification requise.")
         if self.command not in {"GET", "HEAD"} and self.principal.get("kind") == "session":
             if not hmac.compare_digest(self.headers.get("X-CSRF-Token", "").encode(), self.principal["csrf_token"].encode()):
-                return self._deny(403, "Session invalide. Rechargez la page puis réessayez.")
+                return self._deny(403, "Invalid session. Reload the page and try again.")
         permission = "admin" if path in {"/metrics", "/api/users", "/api/audit"} or path.startswith("/api/users/") else (
             "viewer" if self.command in {"GET", "HEAD"} or path.startswith("/api/auth/") else "editor")
         if ROLES.get(self.principal.get("role"), 0) < ROLES[permission]:
-            return self._deny(403, "Votre rôle ne permet pas cette action.")
+            return self._deny(403, "Your role does not allow this action.")
         return True
 
     def _mutation(self, action, resource, operation, payload=None, resource_id=""):
@@ -342,7 +342,7 @@ class Handler(WSGIRequest):
     def _json_payload(self, limit=1024 * 1024):
         length = int(self.headers.get("Content-Length", "0"))
         if length < 0 or length > limit:
-            raise QuotePayloadTooLarge("La requête est trop volumineuse.")
+            raise QuotePayloadTooLarge("The request is too large.")
         if length and self.headers.get("Content-Type", "").split(";", 1)[0] != "application/json":
             raise ValueError("Envoyez un objet JSON.")
         value = json.loads(self.rfile.read(length) or b"{}")
@@ -386,10 +386,10 @@ class Handler(WSGIRequest):
             return self.send_data(json_bytes({"status": "success"}), "application/json", headers={"Set-Cookie": self._cookie("", True)})
         user_id = self.principal.get("id")
         if not user_id:
-            return self.send_json({"error": "Connectez-vous à un compte individuel pour cette action."}, 403)
+            return self.send_json({"error": "Sign in to an individual account for this action."}, 403)
         if path == "/api/auth/password":
             self._mutation("password.changed", "account", lambda: database.change_password(user_id, payload.get("current_password"), payload.get("new_password")), resource_id=user_id)
-            return self.send_data(json_bytes({"status": "success", "message": "Mot de passe modifié. Reconnectez-vous."}), "application/json",
+            return self.send_data(json_bytes({"status": "success", "message": "Password changed. Sign in again."}), "application/json",
                                   headers={"Set-Cookie": self._cookie("", True)})
         if path == "/api/auth/tokens":
             result = self._mutation("token.created", "api_token", lambda: database.create_user_token(user_id, payload.get("label"), payload.get("days", 30)))
@@ -406,7 +406,7 @@ class Handler(WSGIRequest):
         if allowed:
             return True
         self.send_data(
-            json_bytes({"error": "Trop de requêtes. Réessayez plus tard."}),
+            json_bytes({"error": "Too many requests. Try again later."}),
             "application/json; charset=utf-8",
             HTTPStatus.TOO_MANY_REQUESTS,
             headers={"Retry-After": str(retry_after)},
@@ -428,7 +428,7 @@ class Handler(WSGIRequest):
         length = int(self.headers.get("Content-Length", "0"))
         if length < 0 or length > 8 * 1024 * 1024:
             self.close_connection = True
-            raise QuotePayloadTooLarge("La requête est trop volumineuse. Un document est limité à 5 Mo.")
+            raise QuotePayloadTooLarge("The request is too large. Each document is limited to 5 MB.")
         if self.headers.get("Content-Type", "").split(";", 1)[0] != "application/json":
             raise ValueError("Envoyez un objet JSON.")
         payload = json.loads(self.rfile.read(length) or b"{}")
@@ -495,8 +495,8 @@ class Handler(WSGIRequest):
             return self.send_json(OPENAPI_SPEC)
         if parsed.path == "/docs":
             return self.send_data(
-                b"<!doctype html><html lang='fr'><meta charset='utf-8'><title>Price Monitor API</title>"
-                b"<h1>Price Monitor API</h1><p>Specification OpenAPI disponible sur "
+                b"<!doctype html><html lang='en'><meta charset='utf-8'><title>Price Monitor API</title>"
+                b"<h1>Price Monitor API</h1><p>OpenAPI specification available at "
                 b"<a href='/openapi.json'>/openapi.json</a>.</p></html>",
                 "text/html; charset=utf-8",
             )
@@ -560,7 +560,7 @@ class Handler(WSGIRequest):
                 required = ("period_a_from", "period_a_to", "period_b_from", "period_b_to")
                 missing = [name for name in required if not query.get(name, [""])[0]]
                 if missing:
-                    return self.send_json({"error": f"Paramètres manquants : {', '.join(missing)}"}, 400)
+                    return self.send_json({"error": f"Missing parameters: {', '.join(missing)}"}, 400)
                 filters = history_filters(query)
                 filters.pop("date_from", None)
                 filters.pop("date_to", None)

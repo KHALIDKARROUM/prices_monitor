@@ -13,6 +13,7 @@ function view(mode, available=true) {
   const context=vm.createContext({$,chart:null,chartMode:mode,Chart,window:{Chart:available?Chart:null},Date,
     PRODUCT_META:{gasoil:{short:'Diesel',color:'#abc'},brent:{short:'Brent',color:'#def'},bitume:{short:'Bitume',color:'#aaa'}},
     ALERT_INSTRUMENTS:{},reducedMotion:{matches:true},formatDate:String,formatNumber:String,formatPct:String,
+    displayUnit: unit => unit === 'USD/baril' ? 'USD/barrel' : unit,
     escapeHtml:value=>String(value??'').replace(/</g,'&lt;').replace(/>/g,'&gt;')});
   vm.runInContext(source.slice(source.indexOf('function renderChart('),source.indexOf('function renderLatest(')),context);
   return {$,charts,render:context.renderChart};
@@ -35,14 +36,14 @@ test('relative changes share only a dimensionless base-100 axis and disclose dif
   const {$,charts,render}=view('indexed');render(data);
   assert.deepEqual(Object.keys(charts[0].options.scales),['x','y']);
   assert.ok(charts[0].data.datasets.every(d=>d.yAxisID==='y'));
-  assert.match($('#chart-note').textContent,/dates de départ peuvent différer/);
+  assert.match($('#chart-note').textContent,/starting dates may differ/);
 });
 test('text summaries survive a missing chart library and clear when the period is empty',()=>{
   const {$,render}=view('absolute',false);render(data);
-  assert.match($('#price-chart-summary').innerHTML,/Dernière valeur 90 USD\/baril/);
+  assert.match($('#price-chart-summary').innerHTML,/Latest value 90 USD\/barrel/);
   assert.match($('#price-chart-summary').innerHTML,/minimum 80, maximum 90/);
   render({});
-  assert.equal($('#price-chart-summary').textContent,'Aucun relevé daté pour la période sélectionnée.');
+  assert.equal($('#price-chart-summary').textContent,'No dated observations for the selected period.');
 });
 test('an empty product never creates an unlabelled secondary axis',()=>{
   const {charts,render}=view('absolute');render({brent:data.brent});

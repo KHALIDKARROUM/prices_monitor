@@ -15,7 +15,8 @@ function dashboard() {
   const context = vm.createContext({
     $, PRODUCT_META: { brent: { short: 'Brent' } },
     escapeHtml: value => String(value ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
-    formatDate: value => value || '—', formatNumber: value => String(value)
+    formatDate: value => value || '—', formatNumber: value => String(value),
+    displayUnit: unit => unit === 'USD/baril' ? 'USD/barrel' : unit
   });
   const start = appSource.indexOf('function renderSourceComparison(data) {');
   const end = appSource.indexOf('async function loadDashboard()', start);
@@ -27,13 +28,13 @@ function comparison(mismatch = true) {
   return {
     mismatch_count: mismatch ? 1 : 0,
     comparable_pair_count: 1,
-    message: mismatch ? 'Les prix des API diffèrent : un problème est possible.' : 'Les prix sont cohérents.',
-    warnings: mismatch ? ['FRED = 100, EIA = 101 USD/baril ; écart de 1 USD/baril (1 %).'] : [],
+    message: mismatch ? 'API prices differ: there may be a problem.' : 'Prices are consistent.',
+    warnings: mismatch ? ['FRED = 100, EIA = 101 USD/barrel; difference of 1 USD/barrel (1%).'] : [],
     sources: [
       { code: 'fred_brent', product: 'brent', provider: 'FRED', price: 100, unit: 'USD/baril', availability: 'available' },
       { code: 'eia_brent', product: 'brent', provider: 'EIA', price: mismatch ? 101 : 100, unit: 'USD/baril', availability: 'available' }
     ],
-    pairs: [{ product: 'brent', left: 'fred_brent', right: 'eia_brent', status: mismatch ? 'mismatch' : 'match', difference: mismatch ? 1 : 0, difference_pct: mismatch ? 1 : 0, unit: 'USD/baril', reason: 'Même série et même date.' }],
+    pairs: [{ product: 'brent', left: 'fred_brent', right: 'eia_brent', status: mismatch ? 'mismatch' : 'match', difference: mismatch ? 1 : 0, difference_pct: mismatch ? 1 : 0, unit: 'USD/baril', reason: 'Same series and date.' }],
     note: ''
   };
 }
@@ -43,15 +44,15 @@ test('each dashboard refresh keeps the warning and price details visible until a
   for (let i = 0; i < 3; i++) {
     render(comparison());
     assert.equal($('#api-price-warning').hidden, false);
-    assert.match($('#api-price-warning-message').textContent, /un problème est possible/);
+    assert.match($('#api-price-warning-message').textContent, /there may be a problem/);
     assert.match($('#api-price-warning-details').textContent, /FRED = 100, EIA = 101/);
-    assert.match($('#api-comparison-table').innerHTML, /À vérifier/);
+    assert.match($('#api-comparison-table').innerHTML, /Needs review/);
   }
   render(comparison(false));
   assert.equal($('#api-price-warning').hidden, true);
   assert.equal($('#api-price-warning-message').textContent, '');
   assert.equal($('#api-price-warning-details').textContent, '');
-  assert.match($('#comparison-summary').textContent, /cohérente/);
+  assert.match($('#comparison-summary').textContent, /consistent/);
 });
 
 test('warning text is displayed as text and cannot inject markup', () => {
@@ -67,10 +68,10 @@ test('missing or non-comparable prices are not presented as a verified discrepan
   const { $, render } = dashboard();
   render({ ...comparison(false), comparable_pair_count: 0, pairs: [], warnings: [] });
   assert.equal($('#api-price-warning').hidden, true);
-  assert.match($('#comparison-summary').textContent, /Aucune paire équivalente vérifiée/);
+  assert.match($('#comparison-summary').textContent, /No equivalent pairs verified/);
   render(null);
   assert.equal($('#api-price-warning').hidden, true);
-  assert.match($('#comparison-summary').textContent, /indisponible/);
+  assert.match($('#comparison-summary').textContent, /unavailable/);
 });
 
 test('manual collections show the discrepancy immediately and use a warning toast', async () => {
@@ -90,7 +91,7 @@ test('manual collections show the discrepancy immediately and use a warning toas
   vm.runInContext(appSource.slice(start, end), context);
   await collect();
   assert.equal($('#api-price-warning').hidden, false);
-  assert.match(notices[0].message, /un problème est possible/);
+  assert.match(notices[0].message, /there may be a problem/);
   assert.equal(notices[0].warning, true);
   assert.equal($('#collect-btn').disabled, false);
   assert.equal(refreshes, 2);
@@ -103,7 +104,7 @@ test('a quota-limited manual refresh explains why collection is waiting', async 
   const notices = [];
   $('#collect-btn').addEventListener = (_, callback) => { collect = callback; };
   context.protectedFetch = async () => ({ ok: true, json: async () => ({ status: 'deferred', rows: 0,
-    message: 'Alpha Vantage : quota atteint, prochaine collecte demain.', providers: [{ status: 'deferred' }] }) });
+    message: 'Alpha Vantage: quota reached, next collection tomorrow.', providers: [{ status: 'deferred' }] }) });
   context.showToast = message => notices.push(message);
   context.loadDashboard = context.loadLogs = () => {};
   context.document = { dispatchEvent() {} };
@@ -112,6 +113,6 @@ test('a quota-limited manual refresh explains why collection is waiting', async 
   const end = appSource.indexOf("$('#bitumen-form').addEventListener", start);
   vm.runInContext(appSource.slice(start, end), context);
   await collect();
-  assert.match(notices[0], /quota atteint/);
+  assert.match(notices[0], /quota reached/);
   assert.equal($('#collect-btn').disabled, false);
 });

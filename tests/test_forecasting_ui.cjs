@@ -23,6 +23,7 @@ function dashboard(product, chartAvailable = true) {
     PRODUCT_META: { brent: { color: '#aaa' } }, reducedMotion: { matches: true },
     escapeHtml: value => String(value ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
     formatNumber: String, formatPct: String, formatDate: String,
+    displayUnit: unit => unit === 'USD/baril' ? 'USD/barrel' : unit,
   });
   vm.runInContext(source.slice(source.indexOf('function forecastDate('), source.indexOf('const ALERT_UNITS')), context);
   return { $, charts, context, render: () => context.renderForecastProduct('brent') };
@@ -34,8 +35,8 @@ function product() {
     forecasts: { '7': [{ date: '2026-01-08', value: 80, lower: null, upper: null }],
       '30': [{ date: '2026-01-31', value: 85, lower: 75, upper: 95 }] },
     model_selection: {
-      '7': { selected_model: 'naive', warnings: [{ message: 'Gain prédictif non démontré. Calibration insuffisante.' }] },
-      '30': { selected_model: 'holt', warnings: [{ message: 'Couverture faible : 60 % au lieu de 95 %.' }] },
+      '7': { selected_model: 'naive', warnings: [{ message: 'No demonstrated predictive gain. Insufficient calibration.' }] },
+      '30': { selected_model: 'holt', warnings: [{ message: 'Low coverage: 60% instead of 95%.' }] },
     },
     backtest: { '7': { samples: 12 }, '30': { samples: 30, mape: 12, interval_coverage: .6, mae_skill_vs_naive: -.2 } }
   };
@@ -44,15 +45,15 @@ function product() {
 test('model and prominent quality warnings follow the selected horizon', () => {
   const { $, charts, render } = dashboard(product());
   render();
-  assert.match($('#forecast-brent-quality').innerHTML, /Dernier prix connu/);
-  assert.match($('#forecast-brent-quality').innerHTML, /Gain prédictif non démontré/);
-  assert.match($('#forecast-brent-stats').innerHTML, /12 prévisions/);
+  assert.match($('#forecast-brent-quality').innerHTML, /Last known price/);
+  assert.match($('#forecast-brent-quality').innerHTML, /No demonstrated predictive gain/);
+  assert.match($('#forecast-brent-stats').innerHTML, /12 forecasts/);
   $('#forecast-horizon').value = '30';
   render();
-  assert.match($('#forecast-brent-quality').innerHTML, /Holt amorti/);
-  assert.match($('#forecast-brent-quality').innerHTML, /Couverture faible/);
-  assert.doesNotMatch($('#forecast-brent-quality').innerHTML, /Calibration insuffisante/);
-  assert.equal(charts.at(-1).data.datasets[3].label, 'Holt amorti');
+  assert.match($('#forecast-brent-quality').innerHTML, /Damped Holt/);
+  assert.match($('#forecast-brent-quality').innerHTML, /Low coverage/);
+  assert.doesNotMatch($('#forecast-brent-quality').innerHTML, /Insufficient calibration/);
+  assert.equal(charts.at(-1).data.datasets[3].label, 'Damped Holt');
 });
 
 test('absent calibration bands stay null instead of drawing a zero-price band', () => {
@@ -78,7 +79,7 @@ test('unavailable forecasts clear previous quality text and hide the chart', () 
   const { $, render } = dashboard(data);
   render();
   data.status = 'insufficient_data';
-  data.message = 'Historique trop court.';
+  data.message = 'History too short.';
   render();
   assert.equal($('#forecast-brent-quality').hidden, true);
   assert.equal($('#forecast-brent-quality').innerHTML, '');
@@ -92,8 +93,8 @@ test('a server awaiting restart keeps legacy Holt and heuristic bands honestly l
   data.interval_method = 'heuristic_residual_sqrt_time';
   const { $, charts, render } = dashboard(data);
   render();
-  assert.match($('#forecast-brent-quality').innerHTML, /Holt amorti/);
-  assert.match($('#forecast-brent-quality').innerHTML, /Comparaison des modèles indisponible/);
-  assert.doesNotMatch($('#forecast-brent-quality').innerHTML, /Dernier prix connu/);
-  assert.equal(charts[0].data.datasets[1].label, 'Bande indicative');
+  assert.match($('#forecast-brent-quality').innerHTML, /Damped Holt/);
+  assert.match($('#forecast-brent-quality').innerHTML, /Model comparison unavailable/);
+  assert.doesNotMatch($('#forecast-brent-quality').innerHTML, /Last known price/);
+  assert.equal(charts[0].data.datasets[1].label, 'Indicative interval');
 });

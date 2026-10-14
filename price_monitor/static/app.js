@@ -1,7 +1,7 @@
 const PRODUCT_META = {
-  gasoil: { label: 'Gasoil / diesel', short: 'Gasoil', color: '#a9d5bc', purchaseUnit: 'gallon' },
-  brent: { label: 'Pétrole Brent', short: 'Brent', color: '#dfbb83', purchaseUnit: 'baril' },
-  bitume: { label: 'Bitume', short: 'Bitume', color: '#b4aed4', purchaseUnit: 'tonne' }
+  gasoil: { label: 'Diesel / gasoil', short: 'Diesel', color: '#a9d5bc', purchaseUnit: 'gallon' },
+  brent: { label: 'Brent crude oil', short: 'Brent', color: '#dfbb83', purchaseUnit: 'barrel' },
+  bitume: { label: 'Bitumen', short: 'Bitumen', color: '#b4aed4', purchaseUnit: 'tonne' }
 };
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 let chart;
@@ -12,10 +12,11 @@ let alertRules = [];
 let editingAlertId = null;
 let dashboardRequest = 0;
 const $ = (selector) => document.querySelector(selector);
-const formatPrice = (value, unit) => value == null ? '—' : `${Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} <small>${unit || ''}</small>`;
-const formatPct = (value) => value == null ? '—' : `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(2).replace('.', ',')} %`;
-const formatDate = (value, withTime = false) => value ? new Date(value).toLocaleString('fr-FR', withTime ? { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-const formatNumber = (value, digits = 2) => Number(value).toLocaleString('fr-FR', { maximumFractionDigits: digits });
+const displayUnit = unit => ({ 'USD/baril': 'USD/barrel', 'baril': 'barrel', 'indice (déc. 1984 = 100)': 'index (Dec. 1984 = 100)', 'indice': 'index' }[unit] || unit || '');
+const formatPrice = (value, unit) => value == null ? '—' : `${Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 })} <small>${escapeHtml(displayUnit(unit))}</small>`;
+const formatPct = (value) => value == null ? '—' : `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(2)} %`;
+const formatDate = (value, withTime = false) => value ? new Date(value).toLocaleString('en-US', withTime ? { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+const formatNumber = (value, digits = 2) => Number(value).toLocaleString('en-US', { maximumFractionDigits: digits });
 const formatMoney = (value, currency = 'USD') => value == null ? '—' : `${formatNumber(value)} ${currency}`;
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const API_KEY_STORAGE = 'priceMonitorApiKey';
@@ -36,7 +37,7 @@ async function protectedFetch(url, options = {}, allowPrompt = true, overrideApi
   if (apiKey) headers.set('X-API-Key', apiKey);
   const response = await fetch(url, { ...options, headers });
   if (response.status !== 401 || !allowPrompt) return response;
-  const enteredKey = window.prompt('Cette action nécessite la clé API Price Monitor :');
+  const enteredKey = window.prompt('This action requires the Price Monitor API key:');
   if (!enteredKey?.trim()) return response;
   storeApiKey(enteredKey.trim());
   return protectedFetch(url, options, false, enteredKey.trim());
@@ -68,27 +69,27 @@ function renderMetrics(metrics) {
     const m = metrics[key] || {}; const cls = m.variation > 0 ? 'up' : m.variation < 0 ? 'down' : 'flat';
     const range = m.min == null ? '—' : `${formatNumber(m.min)}–${formatNumber(m.max)}`;
     const freshness = m.current == null
-      ? '<span class="freshness missing">Aucune donnée</span>'
+      ? '<span class="freshness missing">No data</span>'
       : m.data_kind === 'index'
-        ? `<span class="freshness ${m.is_stale ? 'stale' : 'current'}">Indice mensuel · ${new Date(m.source_date).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}${m.is_stale ? ' · ancien' : ''}</span>`
+        ? `<span class="freshness ${m.is_stale ? 'stale' : 'current'}">Monthly index · ${new Date(m.source_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}${m.is_stale ? ' · old' : ''}</span>`
       : m.market_closed
-        ? `<span class="freshness" title="Prochaine ouverture : ${escapeHtml(formatDate(m.next_market_open_at, true))}">Marché fermé · ${m.quote_at ? formatDate(m.quote_at, true) : 'heure inconnue'}</span>`
+        ? `<span class="freshness" title="Next opening: ${escapeHtml(formatDate(m.next_market_open_at, true))}">Market closed · ${m.quote_at ? formatDate(m.quote_at, true) : 'time unknown'}</span>`
       : m.is_live
-        ? `<span class="freshness current" title="${escapeHtml(m.source || 'Flux de marché')}">En direct · ${formatDate(m.quote_at, true)}</span>`
+        ? `<span class="freshness current" title="${escapeHtml(m.source || 'Market feed')}">Live · ${formatDate(m.quote_at, true)}</span>`
       : m.quote_at
-        ? `<span class="freshness stale" title="${escapeHtml(m.source || 'Flux de marché')}">Dernière cotation · ${formatDate(m.quote_at, true)}</span>`
+        ? `<span class="freshness stale" title="${escapeHtml(m.source || 'Market feed')}">Latest quote · ${formatDate(m.quote_at, true)}</span>`
       : m.source?.startsWith('Yahoo Finance - ')
-        ? '<span class="freshness stale">Heure de cotation indisponible</span>'
+        ? '<span class="freshness stale">Quote time unavailable</span>'
       : m.is_stale
-        ? `<span class="freshness stale" title="Dernière publication : ${escapeHtml(m.source_date)}">Donnée ancienne · ${m.age_days} j</span>`
-        : `<span class="freshness current">À jour · ${formatDate(m.source_date)}</span>`;
-    const context = m.data_kind === 'index' ? `<small class="metric-context">Tendance BLS WPU058 · ${m.is_stale ? 'Dernier indice conservé' : 'Dernier mois publié'}. ${m.supplier_quote ? `Dernier devis : ${formatPrice(m.supplier_quote.price, m.supplier_quote.unit)} · ${formatDate(m.supplier_quote.source_date)}` : 'Devis fournisseur : aucun enregistré.'}</small>` : '';
-    return `<article class="metric-card" style="color:${meta.color}"><div class="metric-head"><span class="metric-label">${escapeHtml(m.label || meta.label)}</span>${freshness}<i class="metric-dot" style="background:${meta.color}"></i></div><div class="metric-price">${formatPrice(m.current, m.unit)}</div><span class="trend ${cls}">${m.variation == null ? '—' : (m.variation >= 0 ? '▲' : '▼') + ' ' + formatPct(m.variation)} <span class="muted">${m.data_kind === 'index' ? 'vs mois précédent' : 'vs précédent'}</span></span>${context}<span class="metric-foot"><span>Moy. ${m.average == null ? '—' : formatNumber(m.average)}</span><span class="range">Min–max ${range}</span><span class="count">${m.count || 0} relevés${m.data_kind === 'index' ? ' mensuels' : ''}</span></span></article>`;
+        ? `<span class="freshness stale" title="Last publication: ${escapeHtml(m.source_date)}">Stale data · ${m.age_days} d</span>`
+        : `<span class="freshness current">Up to date · ${formatDate(m.source_date)}</span>`;
+    const context = m.data_kind === 'index' ? `<small class="metric-context">BLS WPU058 trend · ${m.is_stale ? 'Last known index retained' : 'Latest published month'}. ${m.supplier_quote ? `Latest quote: ${formatPrice(m.supplier_quote.price, m.supplier_quote.unit)} · ${formatDate(m.supplier_quote.source_date)}` : 'No supplier quote recorded.'}</small>` : '';
+    return `<article class="metric-card" style="color:${meta.color}"><div class="metric-head"><span class="metric-label">${escapeHtml(m.label || meta.label)}</span>${freshness}<i class="metric-dot" style="background:${meta.color}"></i></div><div class="metric-price">${formatPrice(m.current, m.unit)}</div><span class="trend ${cls}">${m.variation == null ? '—' : (m.variation >= 0 ? '▲' : '▼') + ' ' + formatPct(m.variation)} <span class="muted">${m.data_kind === 'index' ? 'vs previous month' : 'vs previous'}</span></span>${context}<span class="metric-foot"><span>Avg. ${m.average == null ? '—' : formatNumber(m.average)}</span><span class="range">Min–max ${range}</span><span class="count">${m.count || 0} observation(s)${m.data_kind === 'index' ? ' · monthly' : ''}</span></span></article>`;
   }).join('');
 }
 
 function forecastDate(value) {
-  return new Date(`${value}T00:00:00Z`).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  return new Date(`${value}T00:00:00Z`).toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
 }
 
 function renderForecastProduct(key) {
@@ -103,21 +104,21 @@ function renderForecastProduct(key) {
     canvas.hidden = true;
     quality.hidden = true;
     quality.innerHTML = '';
-    stats.innerHTML = `<span class="error-note">${escapeHtml(product?.message || 'Prévision indisponible.')}</span>`;
+    stats.innerHTML = `<span class="error-note">${escapeHtml(product?.message || 'Forecast unavailable.')}</span>`;
     const summary = $(`#forecast-${key}-summary`);
-    if (summary) summary.textContent = product?.message || 'Prévision indisponible.';
+    if (summary) summary.textContent = product?.message || 'Forecast unavailable.';
     return;
   }
   const horizon = $(key === 'bitume' ? '#forecast-bitume-horizon' : '#forecast-horizon').value;
   const selection = product.model_selection?.[horizon] || {};
   const selectedModel = selection.selected_model || (product.model === 'damped_holt' ? 'holt' : product.model);
-  const modelLabel = selectedModel === 'holt' ? 'Holt amorti' : selectedModel === 'naive' ? 'Dernier prix connu' : 'Modèle non renseigné';
-  const warnings = selection.warnings || [{ message: 'Comparaison des modèles indisponible pour cette projection.' }];
+  const modelLabel = selectedModel === 'holt' ? 'Damped Holt' : selectedModel === 'naive' ? 'Last known price' : 'Model unspecified';
+  const warnings = selection.warnings || [{ message: 'Model comparison unavailable for this forecast.' }];
   globalThis.PriceMonitorAttention?.update(`forecast-${key}`, { product, warnings });
-  const bandLabel = product.interval_method === 'chronological_absolute_log_error_quantile' ? 'Bande calibrée · 95 % nominal' : 'Bande indicative';
+  const bandLabel = product.interval_method === 'chronological_absolute_log_error_quantile' ? 'Calibrated interval · nominal 95%' : 'Indicative interval';
   quality.hidden = false;
   quality.classList.toggle('has-warning', warnings.length > 0);
-  quality.innerHTML = `<strong>Modèle retenu : ${modelLabel}</strong>${warnings.map(warning => `<p>${escapeHtml(warning.message)}</p>`).join('')}`;
+  quality.innerHTML = `<strong>Selected model: ${modelLabel}</strong>${warnings.map(warning => `<p>${escapeHtml(warning.message)}</p>`).join('')}`;
   const actual = product.history || [];
   const future = product.forecasts?.[horizon] || [];
   const actualValues = actual.map(row => Number(row.value));
@@ -133,8 +134,8 @@ function renderForecastProduct(key) {
   const backtest = product.backtest?.[horizon] || {};
   const change = lastActual?.value && finalForecast ? ((finalForecast.value - lastActual.value) / lastActual.value) * 100 : null;
   const summary = $(`#forecast-${key}-summary`);
-  if (summary) summary.textContent = `Dernière valeur publiée : ${formatNumber(lastActual?.value)} ${product.unit}, le ${formatDate(lastActual?.date)}. Projection à ${horizon} ${key === 'bitume' ? 'mois' : 'jours'} : ${finalForecast ? formatNumber(finalForecast.value) : 'indisponible'} ${product.unit}. ${modelLabel}. ${finalForecast?.lower == null || finalForecast?.upper == null ? 'Bande à 95 % indisponible.' : `Bande à 95 % nominal : ${formatNumber(finalForecast.lower)} à ${formatNumber(finalForecast.upper)} ${product.unit}.`} ${warnings.map(warning => warning.message).join(' ')}`;
-  stats.innerHTML = `<div><span>Dernier réel</span><strong>${formatNumber(lastActual?.value, lastActual?.value < 10 ? 3 : 2)}</strong></div><div><span>${key === 'bitume' ? 'À M+' : 'À J+'}${horizon}</span><strong>${finalForecast ? formatNumber(finalForecast.value, finalForecast.value < 10 ? 3 : 2) : '—'}</strong><em class="${change >= 0 ? 'up' : 'down'}">${formatPct(change)}</em></div><div><span>MAPE · test final (${backtest.samples || 0} prévisions)</span><strong>${backtest.mape == null ? '—' : `${formatNumber(backtest.mape, 1)} %`}</strong></div><div><span>Gain MAE vs prix constant</span><strong>${backtest.mae_skill_vs_naive == null ? '—' : `${formatNumber(100 * backtest.mae_skill_vs_naive, 1)} %`}</strong></div><div><span>Couverture · test final / 95 % nominal</span><strong>${backtest.interval_coverage == null ? '—' : `${formatNumber(100 * backtest.interval_coverage, 1)} %`}</strong></div><div><span>Origine de la prévision</span><strong>${formatDate(product.forecast_origin || lastActual?.date)}</strong></div>`;
+  if (summary) summary.textContent = `Latest published value: ${formatNumber(lastActual?.value)} ${displayUnit(product.unit)}, on ${formatDate(lastActual?.date)}. ${horizon}-${key === 'bitume' ? 'month' : 'day'} forecast: ${finalForecast ? formatNumber(finalForecast.value) : 'unavailable'} ${displayUnit(product.unit)}. ${modelLabel}. ${finalForecast?.lower == null || finalForecast?.upper == null ? '95% interval unavailable.' : `Nominal 95% interval: ${formatNumber(finalForecast.lower)} to ${formatNumber(finalForecast.upper)} ${displayUnit(product.unit)}.`} ${warnings.map(warning => warning.message).join(' ')}`;
+  stats.innerHTML = `<div><span>Latest actual</span><strong>${formatNumber(lastActual?.value, lastActual?.value < 10 ? 3 : 2)}</strong></div><div><span>${key === 'bitume' ? 'Month +' : 'Day +'}${horizon}</span><strong>${finalForecast ? formatNumber(finalForecast.value, finalForecast.value < 10 ? 3 : 2) : '—'}</strong><em class="${change >= 0 ? 'up' : 'down'}">${formatPct(change)}</em></div><div><span>MAPE · final test (${backtest.samples || 0} forecasts)</span><strong>${backtest.mape == null ? '—' : `${formatNumber(backtest.mape, 1)} %`}</strong></div><div><span>MAE gain vs constant price</span><strong>${backtest.mae_skill_vs_naive == null ? '—' : `${formatNumber(100 * backtest.mae_skill_vs_naive, 1)} %`}</strong></div><div><span>Coverage · final test / nominal 95%</span><strong>${backtest.interval_coverage == null ? '—' : `${formatNumber(100 * backtest.interval_coverage, 1)} %`}</strong></div><div><span>Forecast origin</span><strong>${formatDate(product.forecast_origin || lastActual?.date)}</strong></div>`;
   canvas.hidden = false;
   if (!window.Chart) {
     canvas.hidden = true;
@@ -144,12 +145,12 @@ function renderForecastProduct(key) {
   forecastCharts[key] = new Chart(chartContext, {
     type: 'line',
     data: { labels: labels.map(forecastDate), datasets: [
-      { label: 'Borne basse', data: lower, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: false, spanGaps: false },
+      { label: 'Lower bound', data: lower, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: false, spanGaps: false },
       { label: bandLabel, data: upper, borderColor: 'transparent', backgroundColor: 'rgba(200, 200, 200, .1)', pointRadius: 0, fill: '-1', spanGaps: false },
-      { label: 'Réel', data: actualSeries, borderColor: meta.color, backgroundColor: meta.color, borderWidth: 2, pointRadius: 0, tension: .3, spanGaps: true },
+      { label: 'Actual', data: actualSeries, borderColor: meta.color, backgroundColor: meta.color, borderWidth: 2, pointRadius: 0, tension: .3, spanGaps: true },
       { label: modelLabel, data: forecast, borderColor: '#f0f7f9', backgroundColor: '#f0f7f9', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, tension: .3, spanGaps: true }
     ] },
-    options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#202020', padding: 10, callbacks: { label: item => ` ${item.dataset.label}: ${formatNumber(item.raw, item.raw < 10 ? 3 : 2)} ${escapeHtml(product.unit)}` } } }, scales: { x: { grid: { display: false }, ticks: { color: '#a0a0a0', maxTicksLimit: 8, font: { size: 10 } } }, y: { grid: { color: 'rgba(255,255,255,.07)' }, ticks: { color: '#a0a0a0', font: { size: 10 }, callback: value => formatNumber(value, value < 10 ? 3 : 0) }, border: { display: false } } } }
+    options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#202020', padding: 10, callbacks: { label: item => ` ${item.dataset.label}: ${formatNumber(item.raw, item.raw < 10 ? 3 : 2)} ${displayUnit(product.unit)}` } } }, scales: { x: { grid: { display: false }, ticks: { color: '#a0a0a0', maxTicksLimit: 8, font: { size: 10 } } }, y: { grid: { color: 'rgba(255,255,255,.07)' }, ticks: { color: '#a0a0a0', font: { size: 10 }, callback: value => formatNumber(value, value < 10 ? 3 : 0) }, border: { display: false } } } }
   });
 }
 
@@ -162,34 +163,34 @@ function renderForecast() {
 async function loadForecast() {
   try {
     const response = await fetch('/api/forecast?history_days=1825');
-    if (!response.ok) throw new Error('Impossible de calculer les prévisions.');
+    if (!response.ok) throw new Error('Could not calculate forecasts.');
     forecastData = await response.json();
-    const generated = forecastData.generated_at ? formatDate(forecastData.generated_at, true) : 'à l’instant';
+    const generated = forecastData.generated_at ? formatDate(forecastData.generated_at, true) : 'just now';
     const stale = Object.values(forecastData.products || {}).filter(product => product.is_stale);
     const compared = Object.values(forecastData.products || {}).every(product => product.status !== 'ready' || product.model_selection);
-    $('#forecast-status').textContent = `${compared ? 'Modèle choisi par horizon' : 'Comparaison des modèles indisponible'} · prix : jours calendaires · indice bitume : mois · calculé ${generated}${stale.length ? ' · Attention : dernières données anciennes, projections ancrées sur leur date source.' : ''}`;
+    $('#forecast-status').textContent = `${compared ? 'Model selected by horizon' : 'Model comparison unavailable'} · prices: calendar days · bitumen index: months · calculated ${generated}${stale.length ? ' · Caution: latest data is stale; forecasts start at the source date.' : ''}`;
     $('#forecast-status').classList.toggle('error-note', stale.length > 0);
     renderForecast();
   } catch (error) {
     $('#forecast-status').textContent = error.message;
-    ['gasoil', 'brent', 'bitume'].forEach(key => { $(`#forecast-${key}-stats`).innerHTML = '<span class="error-note">Prévision momentanément indisponible.</span>'; });
+    ['gasoil', 'brent', 'bitume'].forEach(key => { $(`#forecast-${key}-stats`).innerHTML = '<span class="error-note">Forecast temporarily unavailable.</span>'; });
   }
 }
 
-const ALERT_UNITS = { gasoil: 'USD/gallon', brent: 'USD/baril', bitume: 'USD/tonne' };
+const ALERT_UNITS = { gasoil: 'USD/gallon', brent: 'USD/barrel', bitume: 'USD/tonne' };
 const ALERT_INSTRUMENTS = {
-  gasoil: [['diesel_spot', 'Diesel New York Harbor · spot'], ['heating_oil_futures', 'Heating oil HO=F · proxy gasoil']],
-  brent: [['brent_spot', 'Brent Europe · spot'], ['brent_futures', 'Brent BZ=F · contrat à terme']],
-  bitume: [['bitumen_quote', 'Bitume · devis fournisseur'], ['asphalt_index', 'Bitume · indice BLS']]
+  gasoil: [['diesel_spot', 'New York Harbor diesel · spot'], ['heating_oil_futures', 'Heating oil HO=F · diesel proxy']],
+  brent: [['brent_spot', 'European Brent · spot'], ['brent_futures', 'Brent BZ=F · futures']],
+  bitume: [['bitumen_quote', 'Bitumen · supplier quote'], ['asphalt_index', 'Bitumen · BLS index']]
 };
 const ALERT_CHANNEL_LABELS = { webhook: 'Webhook', email: 'Email', both: 'Webhook + email' };
-const ALERT_STATUS_LABELS = { active: 'Active', recovered: 'Rétablie', muted: 'En pause', normal: 'Surveillée' };
+const ALERT_STATUS_LABELS = { active: 'Active', recovered: 'Recovered', muted: 'Paused', normal: 'Monitoring' };
 
 function resetAlertForm() {
   editingAlertId = null;
   $('#alert-form').reset();
-  $('#alert-form-title').textContent = 'Créer une règle';
-  $('#alert-save').innerHTML = `Créer l'alerte <span>→</span>`;
+  $('#alert-form-title').textContent = 'Create a rule';
+  $('#alert-save').innerHTML = `Create alert <span>→</span>`;
   $('#alert-cancel').hidden = true;
   updateAlertConditionFields();
 }
@@ -197,7 +198,7 @@ function resetAlertForm() {
 function updateAlertConditionFields() {
   const form = $('#alert-form');
   const freshness = form.direction.value === 'stale';
-  $('#alert-threshold-label').textContent = freshness ? 'Délai sans nouvelle cotation (minutes)' : 'Seuil de prix';
+  $('#alert-threshold-label').textContent = freshness ? 'Time without a new quote (minutes)' : 'Price threshold';
   $('#alert-freshness-help').hidden = !freshness;
   form.threshold.min = freshness ? '2' : '0.000001';
   form.threshold.max = freshness ? '1440' : '';
@@ -217,7 +218,7 @@ function updateAlertConditionFields() {
   form.instrument.innerHTML = choices.map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
   form.instrument.value = choices.some(([id]) => id === previousInstrument) ? previousInstrument : choices[0][0];
   $('#alert-instrument-field').hidden = bitumen;
-  if (!freshness) $('#alert-threshold-label').textContent = bitumen && form.basis.value === 'index' ? 'Seuil de l’indice BLS (déc. 1984 = 100)' : `Seuil de prix (${ALERT_UNITS[form.product.value]})`;
+  if (!freshness) $('#alert-threshold-label').textContent = bitumen && form.basis.value === 'index' ? 'BLS index threshold (Dec. 1984 = 100)' : `Price threshold (${ALERT_UNITS[form.product.value]})`;
 }
 
 function renderAlertRules() {
@@ -225,24 +226,24 @@ function renderAlertRules() {
     const meta = { ...(PRODUCT_META[rule.product] || {}), label: ALERT_INSTRUMENTS[rule.product]?.find(([id]) => id === rule.instrument)?.[1] || rule.product };
     const status = ALERT_STATUS_LABELS[rule.status] || ALERT_STATUS_LABELS.normal;
     const freshness = rule.direction === 'stale';
-    const condition = freshness ? 'Cotation non actualisée depuis' : rule.direction === 'above' ? 'au-dessus de' : 'en-dessous de';
-    const threshold = freshness ? `${formatNumber(rule.threshold, 0)} min` : `${formatNumber(rule.threshold, rule.threshold < 10 ? 3 : 2)} ${rule.basis === 'index' ? 'indice (déc. 1984 = 100)' : ALERT_UNITS[rule.product]}`;
-    const lastValue = rule.last_value == null ? 'Pas encore évaluée' : freshness ? `Âge de la cotation : ${formatNumber(rule.last_value, 0)} min` : `${rule.basis === 'index' ? 'Dernier indice' : 'Dernier prix'} : ${formatNumber(rule.last_value, rule.last_value < 10 ? 3 : 2)} ${rule.basis === 'index' ? 'indice (déc. 1984 = 100)' : ALERT_UNITS[rule.product]}`;
-    return `<article class="alert-rule ${rule.status}"><div class="alert-rule-main"><span class="alert-dot"></span><div><strong>${escapeHtml(meta.label)}</strong><p>${condition} <b>${threshold}</b></p><small>${lastValue} · ${escapeHtml(ALERT_CHANNEL_LABELS[rule.channel] || rule.channel)}</small></div></div><div class="alert-rule-actions"><span class="alert-status ${rule.status}">${status}</span><button class="text-btn" type="button" data-permission="editor" data-alert-action="edit" data-alert-id="${rule.id}">Modifier</button><button class="text-btn" type="button" data-permission="editor" data-alert-action="mute" data-alert-id="${rule.id}">${rule.muted ? 'Réactiver' : 'Mettre en pause'}</button><button class="text-btn danger-btn" type="button" data-permission="editor" data-alert-action="delete" data-alert-id="${rule.id}">Supprimer</button></div></article>`;
-  }).join('') : '<div class="empty">Aucune règle configurée. Créez un seuil pour commencer la surveillance.</div>';
+    const condition = freshness ? 'No new quote for' : rule.direction === 'above' ? 'above' : 'below';
+    const threshold = freshness ? `${formatNumber(rule.threshold, 0)} min` : `${formatNumber(rule.threshold, rule.threshold < 10 ? 3 : 2)} ${rule.basis === 'index' ? 'index (Dec. 1984 = 100)' : ALERT_UNITS[rule.product]}`;
+    const lastValue = rule.last_value == null ? 'Not evaluated yet' : freshness ? `Quote age: ${formatNumber(rule.last_value, 0)} min` : `${rule.basis === 'index' ? 'Latest index' : 'Latest price'}: ${formatNumber(rule.last_value, rule.last_value < 10 ? 3 : 2)} ${rule.basis === 'index' ? 'index (Dec. 1984 = 100)' : ALERT_UNITS[rule.product]}`;
+    return `<article class="alert-rule ${rule.status}"><div class="alert-rule-main"><span class="alert-dot"></span><div><strong>${escapeHtml(meta.label)}</strong><p>${condition} <b>${threshold}</b></p><small>${lastValue} · ${escapeHtml(ALERT_CHANNEL_LABELS[rule.channel] || rule.channel)}</small></div></div><div class="alert-rule-actions"><span class="alert-status ${rule.status}">${status}</span><button class="text-btn" type="button" data-permission="editor" data-alert-action="edit" data-alert-id="${rule.id}">Edit</button><button class="text-btn" type="button" data-permission="editor" data-alert-action="mute" data-alert-id="${rule.id}">${rule.muted ? 'Resume' : 'Pause'}</button><button class="text-btn danger-btn" type="button" data-permission="editor" data-alert-action="delete" data-alert-id="${rule.id}">Delete</button></div></article>`;
+  }).join('') : '<div class="empty">No alert rules configured. Create a threshold to start monitoring.</div>';
   globalThis.PriceMonitorAuth?.applyPermissions();
 }
 
 function renderAlertChannels(channels = {}) {
   const configured = Object.entries(channels).filter(([key, value]) => key !== 'both' && value).map(([key]) => ALERT_CHANNEL_LABELS[key]);
-  $('#alert-channel-status').textContent = configured.length ? `Canaux configurés : ${configured.join(' · ')}.${!channels.email ? ' Pour les alertes email, configurez PRICE_MONITOR_ALERT_EMAIL_TO et les paramètres SMTP dans .env.' : ''}` : 'Aucun canal de notification configuré. Pour recevoir les alertes email, renseignez PRICE_MONITOR_ALERT_EMAIL_TO et les paramètres SMTP dans .env.';
+  $('#alert-channel-status').textContent = configured.length ? `Configured channels: ${configured.join(' · ')}.${!channels.email ? ' For email alerts, set PRICE_MONITOR_ALERT_EMAIL_TO and SMTP settings in .env.' : ''}` : 'No notification channel configured. To receive email alerts, set PRICE_MONITOR_ALERT_EMAIL_TO and SMTP settings in .env.';
   $('#alert-channel-status').classList.toggle('error-note', !configured.length);
 }
 
 async function loadAlerts() {
   try {
     const response = await fetch('/api/alerts');
-    if (!response.ok) throw new Error('Impossible de charger les alertes.');
+    if (!response.ok) throw new Error('Could not load alerts.');
     const data = await response.json();
     alertRules = data.alerts || [];
     globalThis.PriceMonitorAttention?.update('alerts', alertRules);
@@ -266,8 +267,8 @@ function editAlert(id) {
   form.threshold.value = rule.threshold;
   form.channel.value = rule.channel;
   form.muted.checked = rule.muted;
-  $('#alert-form-title').textContent = 'Modifier la règle';
-  $('#alert-save').innerHTML = `Enregistrer les changements <span>→</span>`;
+  $('#alert-form-title').textContent = 'Edit rule';
+  $('#alert-save').innerHTML = `Save changes <span>→</span>`;
   $('#alert-cancel').hidden = false;
   form.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -275,7 +276,7 @@ function editAlert(id) {
 async function mutateAlert(id, payload) {
   const response = await protectedFetch(`/api/alerts/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Impossible de modifier cette alerte.');
+  if (!response.ok) throw new Error(result.error || 'Could not update this alert.');
   return result;
 }
 
@@ -297,10 +298,10 @@ function renderChart(series) {
   if (!labels.length) {
     ctx.hidden = true;
     empty.hidden = false;
-    empty.innerHTML = '<strong>Aucun relevé pour cette période</strong><span>Choisissez 12 mois ou 5 ans, ou lancez une nouvelle collecte.</span>';
+    empty.innerHTML = '<strong>No observations for this period</strong><span>Choose 12 months or 5 years, or start a new collection.</span>';
     $('#legend').innerHTML = '';
-    $('#chart-note').textContent = 'Le graphique apparaîtra dès qu’un relevé daté de cette période sera disponible.';
-    if (summary) summary.textContent = 'Aucun relevé daté pour la période sélectionnée.';
+    $('#chart-note').textContent = 'The chart will appear when a dated observation is available for this period.';
+    if (summary) summary.textContent = 'No dated observations for the selected period.';
     return;
   }
   empty.hidden = true;
@@ -322,7 +323,7 @@ function renderChart(series) {
       const latestPrice = Number(latest.price);
       const displayedLatestPrice = chartMode === 'indexed' && first ? (latestPrice / first) * 100 : latestPrice;
       latestSegments.push({
-        label: `${meta.short} · dernière cotation`,
+        label: `${meta.short} · latest quote`,
         data: labels.map(date => date === latestDate || date === today ? displayedLatestPrice : null),
         actualData: labels.map(date => date === latestDate || date === today ? latestPrice : null),
         borderColor: meta.color,
@@ -332,51 +333,51 @@ function renderChart(series) {
         pointRadius: 0,
         tension: 0,
         spanGaps: true,
-        unit: latest.unit || '', isLatestCarryForward: true, yAxisID: chartMode === 'indexed' ? 'y' : `y_${key}`
+        unit: displayUnit(latest.unit), isLatestCarryForward: true, yAxisID: chartMode === 'indexed' ? 'y' : `y_${key}`
       });
     }
-    return { label: key === 'bitume' && rows.some(row => row.data_kind === 'index') ? 'Bitume · indice BLS' : ALERT_INSTRUMENTS[key]?.find(([id]) => id === rows[0]?.instrument)?.[1] || meta.short, unit: rows[0]?.unit || '', yAxisID: chartMode === 'indexed' ? 'y' : `y_${key}`, data, actualData: labels.map(date => byDate[date] ?? null), borderColor: meta.color, backgroundColor: meta.color, borderWidth: 2, pointRadius: 0, tension: .35, spanGaps: true };
+    return { label: key === 'bitume' && rows.some(row => row.data_kind === 'index') ? 'Bitumen · BLS index' : ALERT_INSTRUMENTS[key]?.find(([id]) => id === rows[0]?.instrument)?.[1] || meta.short, unit: displayUnit(rows[0]?.unit), yAxisID: chartMode === 'indexed' ? 'y' : `y_${key}`, data, actualData: labels.map(date => byDate[date] ?? null), borderColor: meta.color, backgroundColor: meta.color, borderWidth: 2, pointRadius: 0, tension: .35, spanGaps: true };
   });
   $('#legend').innerHTML = datasets.map(d => `<span><i style="background:${d.borderColor}"></i>${d.label}</span>`).join('');
   datasets.push(...latestSegments);
-  const bitumenNote = (series.bitume || []).some(row => row.data_kind === 'index') ? ' Bitume : indice BLS mensuel; le dernier mois connu sert de point de départ si la période commence après sa publication.' : '';
-  const chartDescription = (chartMode === 'indexed' ? 'Évolution relative depuis le premier relevé disponible de chaque série ; leurs dates de départ peuvent différer.' : 'Valeurs brutes sur des axes indépendants, avec l’unité de chaque série. Les hauteurs des courbes ne comparent pas des prix de même unité.') + bitumenNote;
+  const bitumenNote = (series.bitume || []).some(row => row.data_kind === 'index') ? ' Bitumen: monthly BLS index; the latest published month anchors periods that begin afterward.' : '';
+  const chartDescription = (chartMode === 'indexed' ? 'Relative change from each series’ first available observation; starting dates may differ.' : 'Absolute values use separate axes with each series’ unit. Vertical positions across different units are not comparable.') + bitumenNote;
   if (summary) summary.innerHTML = `<ul>${Object.entries(PRODUCT_META).map(([key, meta]) => {
     const rows = [...(series[key] || [])].sort((a, b) => marketDate(a).localeCompare(marketDate(b)) || String(a.collected_at || '').localeCompare(String(b.collected_at || '')));
-    if (!rows.length) return `<li>${escapeHtml(meta.short)} : aucun relevé dans cette période.</li>`;
+    if (!rows.length) return `<li>${escapeHtml(meta.short)}: no observations in this period.</li>`;
     const first = rows[0], last = rows.at(-1), values = rows.map(row => Number(row.price));
     const change = Number(first.price) ? (Number(last.price) / Number(first.price) - 1) * 100 : null;
-    return `<li><strong>${escapeHtml(datasets[Object.keys(PRODUCT_META).indexOf(key)].label)}</strong> : ${rows.length} point(s) affiché(s), de ${formatDate(first.source_date || marketDate(first))} à ${formatDate(last.source_date || marketDate(last))}. Dernière valeur ${formatNumber(last.price)} ${escapeHtml(last.unit || '')} ; minimum ${formatNumber(Math.min(...values))}, maximum ${formatNumber(Math.max(...values))} ; évolution ${formatPct(change)}. Les segments prolongés ne sont pas de nouvelles observations.</li>`;
+    return `<li><strong>${escapeHtml(datasets[Object.keys(PRODUCT_META).indexOf(key)].label)}</strong>: ${rows.length} point(s), from ${formatDate(first.source_date || marketDate(first))} to ${formatDate(last.source_date || marketDate(last))}. Latest value ${formatNumber(last.price)} ${escapeHtml(displayUnit(last.unit))}; minimum ${formatNumber(Math.min(...values))}, maximum ${formatNumber(Math.max(...values))}; change ${formatPct(change)}. Extended segments are not new observations.</li>`;
   }).join('')}</ul>`;
   ctx.parentElement.classList.toggle('absolute-chart', chartMode === 'absolute');
   $('#chart-note').textContent = latestSegments.length
-    ? `${chartDescription} Le trait pointillé prolonge la dernière cotation publiée jusqu’à maintenant ; il ne représente pas un nouveau prix.`
-    : `${chartDescription} Toutes les séries disponibles sont publiées aujourd’hui.`;
-  if (!window.Chart) { ctx.hidden = true; empty.hidden = true; if (!ctx.parentElement.querySelector('.chart-fallback')) ctx.insertAdjacentHTML('afterend', '<div class="empty chart-fallback">Le graphique sera disponible après chargement de Chart.js.</div>'); return; }
+    ? `${chartDescription} The dashed line extends the last published quote to today; it does not represent a new price.`
+    : `${chartDescription} All available series were published today.`;
+  if (!window.Chart) { ctx.hidden = true; empty.hidden = true; if (!ctx.parentElement.querySelector('.chart-fallback')) ctx.insertAdjacentHTML('afterend', '<div class="empty chart-fallback">The chart will appear when Chart.js loads.</div>'); return; }
   ctx.hidden = false; ctx.parentElement.querySelector('.chart-fallback')?.remove();
   const axis = (label, color) => ({ type: 'linear', axis: 'y', position: 'left', stack: 'markets', stackWeight: 1, grid: { color: 'rgba(255,255,255,.07)' }, ticks: { color, font: { size: 10 }, callback: (value, index, ticks) => chartMode === 'absolute' && ticks.length > 3 && (index === 0 || index === ticks.length - 1) ? '' : formatNumber(value, value < 10 ? 3 : 1) }, title: { display: true, text: label, color, font: { size: 10, weight: '600' } }, border: { display: false } });
   const scales = { x: { grid: { display: false }, ticks: { color: '#a0a0a0', maxTicksLimit: 7, font: { size: 10 } } } };
-  if (chartMode === 'indexed') scales.y = { ...axis('Base 100 · dates de départ propres à chaque série', '#a0a0a0'), stack: undefined };
-  else Object.entries(PRODUCT_META).forEach(([key, meta]) => { if (series[key]?.length) scales[`y_${key}`] = axis(`${meta.short} · ${series[key][0].unit || 'unité inconnue'}`, meta.color); });
+  if (chartMode === 'indexed') scales.y = { ...axis('Base 100 · each series starts on its own date', '#a0a0a0'), stack: undefined };
+  else Object.entries(PRODUCT_META).forEach(([key, meta]) => { if (series[key]?.length) scales[`y_${key}`] = axis(`${meta.short} · ${displayUnit(series[key][0].unit) || 'unknown unit'}`, meta.color); });
   // Omit empty series so Chart.js cannot create an unlabelled default axis.
   const visibleDatasets = datasets.filter(dataset => dataset.actualData.some(value => value != null));
-  chart = new Chart(ctx, { type: 'line', data: { labels: labels.map(d => new Date(`${d}T00:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })), datasets: visibleDatasets }, options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#202020', padding: 12, titleColor: '#fff', bodyColor: '#cccccc', callbacks: { label: item => { const actual = item.dataset.actualData?.[item.dataIndex]; const value = chartMode === 'indexed' ? `${formatNumber(item.raw, 1)} · ${actual == null ? '—' : formatNumber(actual)}` : formatNumber(actual ?? item.raw); const label = item.dataset.isLatestCarryForward ? 'Dernière cotation connue (prolongée)' : item.dataset.label; return ` ${label}: ${value} ${item.dataset.unit || ''}`; } } } }, scales } });
+  chart = new Chart(ctx, { type: 'line', data: { labels: labels.map(d => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { day: '2-digit', month: 'short' })), datasets: visibleDatasets }, options: { animation: reducedMotion.matches ? false : { duration: 350 }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#202020', padding: 12, titleColor: '#fff', bodyColor: '#cccccc', callbacks: { label: item => { const actual = item.dataset.actualData?.[item.dataIndex]; const value = chartMode === 'indexed' ? `${formatNumber(item.raw, 1)} · ${actual == null ? '—' : formatNumber(actual)}` : formatNumber(actual ?? item.raw); const label = item.dataset.isLatestCarryForward ? 'Last known quote (extended)' : item.dataset.label; return ` ${label}: ${value} ${item.dataset.unit || ''}`; } } } }, scales } });
 }
 
 function renderLatest(rows) {
   $('#latest-table').innerHTML = rows.length ? rows.map(row => {
     const meta = PRODUCT_META[row.product]; const pct = row.variation_pct; const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
-    return `<tr><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}${row.data_kind === 'index' ? ' · indice BLS' : row.product === 'bitume' ? ' · devis' : ''}</strong></div></td><td class="price-cell">${formatPrice(row.price, row.unit)}</td><td><span class="variation trend ${cls}">${formatPct(pct)}</span></td><td>${formatDate(row.source_date)}</td><td>${formatDate(row.collected_at, true)}</td><td class="source-cell">${escapeHtml(row.source)}<br>${row.is_unchanged ? '<span class="unchanged">Publication inchangée</span>' : ''}</td><td></td></tr>`;
-  }).join('') : '<tr><td colspan="7" class="empty">Aucun relevé sur la période.</td></tr>';
+    return `<tr><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}${row.data_kind === 'index' ? ' · BLS index' : row.product === 'bitume' ? ' · quote' : ''}</strong></div></td><td class="price-cell">${formatPrice(row.price, row.unit)}</td><td><span class="variation trend ${cls}">${formatPct(pct)}</span></td><td>${formatDate(row.source_date)}</td><td>${formatDate(row.collected_at, true)}</td><td class="source-cell">${escapeHtml(row.source)}<br>${row.is_unchanged ? '<span class="unchanged">Publication unchanged</span>' : ''}</td><td></td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="empty">No observations in this period.</td></tr>';
 }
 
 function renderProcurementSummary(purchase) {
   const summary = $('#procurement-summary');
   const budgetClass = purchase.budget_variance == null ? '' : purchase.budget_variance > 0 ? 'up' : 'down';
   const impactClass = purchase.price_impact_unit_usd == null ? '' : purchase.price_impact_unit_usd > 0 ? 'up' : 'down';
-  summary.innerHTML = `<div class="purchase-stat"><span>Coût total</span><strong>${formatMoney(purchase.total_cost, purchase.currency)}</strong><small>${formatMoney(purchase.total_cost_usd, 'USD')}</small></div><div class="purchase-stat"><span>Écart au budget</span><strong class="${budgetClass}">${formatMoney(purchase.budget_variance, purchase.currency)}</strong><small>${purchase.budget_variance_usd == null ? 'Budget non renseigné' : formatMoney(purchase.budget_variance_usd, 'USD')}</small></div><div class="purchase-stat"><span>Prix marché de référence</span><strong>${formatMoney(purchase.market_price_usd, 'USD')}</strong><small>Dernier relevé ${PRODUCT_META[purchase.product]?.purchaseUnit || ''}</small></div><div class="purchase-stat"><span>Impact du prix</span><strong class="${impactClass}">${formatMoney(purchase.price_impact_unit_usd, 'USD')} / ${PRODUCT_META[purchase.product]?.purchaseUnit || 'unité'}</strong><small>${purchase.price_impact_pct == null ? 'Référence indisponible' : `${formatPct(purchase.price_impact_pct)} · ${formatMoney(purchase.price_impact_total_usd, 'USD')} au total`}</small></div>`;
+  summary.innerHTML = `<div class="purchase-stat"><span>Total cost</span><strong>${formatMoney(purchase.total_cost, purchase.currency)}</strong><small>${formatMoney(purchase.total_cost_usd, 'USD')}</small></div><div class="purchase-stat"><span>Budget difference</span><strong class="${budgetClass}">${formatMoney(purchase.budget_variance, purchase.currency)}</strong><small>${purchase.budget_variance_usd == null ? 'No budget entered' : formatMoney(purchase.budget_variance_usd, 'USD')}</small></div><div class="purchase-stat"><span>Reference market price</span><strong>${formatMoney(purchase.market_price_usd, 'USD')}</strong><small>Latest observation per ${PRODUCT_META[purchase.product]?.purchaseUnit || ''}</small></div><div class="purchase-stat"><span>Price impact</span><strong class="${impactClass}">${formatMoney(purchase.price_impact_unit_usd, 'USD')} / ${PRODUCT_META[purchase.product]?.purchaseUnit || 'unit'}</strong><small>${purchase.price_impact_pct == null ? 'Reference unavailable' : `${formatPct(purchase.price_impact_pct)} · ${formatMoney(purchase.price_impact_total_usd, 'USD')} in total`}</small></div>`;
   summary.hidden = false;
-  $('#procurement-breakdown').innerHTML = `<h3>Détail du coût rendu</h3>${costBreakdownHtml(purchase)}<p class="field-help">Coût rendu par unité : ${formatNumber(purchase.landed_unit_cost_usd, 6)} USD/${escapeHtml(PRODUCT_META[purchase.product]?.purchaseUnit || purchase.unit)}.${purchase.quote_id ? ` Devis #${purchase.quote_id}, version ${purchase.quote_version}, conservé avec cette estimation.` : ''} La comparaison au relevé de marché reste indicative : grade, origine et livraison ne sont pas vérifiés.</p>`;
+  $('#procurement-breakdown').innerHTML = `<h3>Landed cost breakdown</h3>${costBreakdownHtml(purchase)}<p class="field-help">Landed cost per unit: ${formatNumber(purchase.landed_unit_cost_usd, 6)} USD/${escapeHtml(PRODUCT_META[purchase.product]?.purchaseUnit || purchase.unit)}.${purchase.quote_id ? ` Quote #${purchase.quote_id}, version ${purchase.quote_version}, saved with this estimate.` : ''} Market price comparison is indicative: grade, origin, and delivery terms have not been verified.</p>`;
   $('#procurement-breakdown').hidden = false;
 }
 
@@ -391,7 +392,7 @@ function setProcurementHistoryMessage(message, error = false) {
 function renderProcurements(rows) {
   if (!rows.length) {
     $('#procurement-table').innerHTML = '';
-    setProcurementHistoryMessage('Aucun achat enregistré. Vos estimations de budget apparaîtront ici après un calcul.');
+    setProcurementHistoryMessage('No purchases recorded. Budget estimates will appear here after calculation.');
     return;
   }
   $('#procurement-history-state').hidden = true;
@@ -402,57 +403,57 @@ function renderProcurements(rows) {
     const impactClass = row.price_impact_pct == null ? '' : row.price_impact_pct > 0 ? 'negative' : 'positive';
     const budgetPct = row.budget_amount > 0 ? ` (${formatPct(row.budget_variance / row.budget_amount * 100)})` : '';
     const detail = (row.cost_breakdown || []).filter(item => item.key !== 'merchandise' && item.amount > 0).map(item => `<div>${escapeHtml(item.label)} : ${formatMoney(item.amount, row.currency)}</div>`).join('');
-    return `<tr><td>${formatDate(row.purchase_date)}</td><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}</strong></div></td><td>${escapeHtml(row.supplier)}${row.quote_id ? `<br><small>Devis #${row.quote_id} · v${row.quote_version}</small>` : ''}</td><td>${formatNumber(row.quantity, 2)} ${meta.purchaseUnit}</td><td class="price-cell">${formatMoney(row.total_cost, row.currency)}<br><span class="source-cell">${formatMoney(row.total_cost_usd, 'USD')}</span>${detail ? `<details><summary>Voir les frais</summary>${detail}</details>` : ''}</td><td class="${varianceClass}">${row.budget_variance == null ? '—' : `${formatMoney(row.budget_variance, row.currency)}${budgetPct}`}</td><td class="${impactClass}">${row.price_impact_pct == null ? '—' : `${formatPct(row.price_impact_pct)}<br><span class="source-cell">${formatMoney(row.price_impact_total_usd, 'USD')}</span>`}</td></tr>`;
-  }).join('') : '<tr><td colspan="7" class="empty">Aucun achat enregistré.</td></tr>';
+    return `<tr><td>${formatDate(row.purchase_date)}</td><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}</strong></div></td><td>${escapeHtml(row.supplier)}${row.quote_id ? `<br><small>Quote #${row.quote_id} · v${row.quote_version}</small>` : ''}</td><td>${formatNumber(row.quantity, 2)} ${meta.purchaseUnit}</td><td class="price-cell">${formatMoney(row.total_cost, row.currency)}<br><span class="source-cell">${formatMoney(row.total_cost_usd, 'USD')}</span>${detail ? `<details><summary>View costs</summary>${detail}</details>` : ''}</td><td class="${varianceClass}">${row.budget_variance == null ? '—' : `${formatMoney(row.budget_variance, row.currency)}${budgetPct}`}</td><td class="${impactClass}">${row.price_impact_pct == null ? '—' : `${formatPct(row.price_impact_pct)}<br><span class="source-cell">${formatMoney(row.price_impact_total_usd, 'USD')}</span>`}</td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="empty">No purchases recorded.</td></tr>';
 }
 
 async function loadProcurements() {
   try {
     const response = await protectedFetch('/api/procurements?limit=20');
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Impossible de charger les achats.');
+    if (!response.ok) throw new Error(data.error || 'Could not load purchases.');
     renderProcurements(data.purchases || []);
   } catch (error) {
-    setProcurementHistoryMessage(`Historique des achats indisponible. ${error.message}`, true);
+    setProcurementHistoryMessage(`Purchase history unavailable. ${error.message}`, true);
   }
 }
 
 const REGION_LABELS = {
-  global: 'International', europe: 'Europe', africa_middle_east: 'Afrique & Moyen-Orient',
-  asia_pacific: 'Asie-Pacifique', americas: 'Amériques', local: 'Local'
+  global: 'International', europe: 'Europe', africa_middle_east: 'Africa & Middle East',
+  asia_pacific: 'Asia-Pacific', americas: 'Americas', local: 'Local'
 };
 
 function renderMarketContext(data) {
   const context = data.market_context || {};
   const price = context.latest_price;
-  const priceLabel = data.product === 'bitume' ? 'Dernier devis enregistré' : 'Dernier benchmark gasoil';
+  const priceLabel = data.product === 'bitume' ? 'Latest saved quote' : 'Latest diesel benchmark';
   const priceDetail = price
-    ? `<strong>${formatNumber(price.price, price.price < 10 ? 3 : 2)} ${escapeHtml(price.unit)}</strong><small>${formatDate(price.source_date)} · ${escapeHtml(price.source)}</small>`
-    : '<strong>—</strong><small>Aucun relevé disponible.</small>';
+    ? `<strong>${formatNumber(price.price, price.price < 10 ? 3 : 2)} ${escapeHtml(displayUnit(price.unit))}</strong><small>${formatDate(price.source_date)} · ${escapeHtml(price.source)}</small>`
+    : '<strong>—</strong><small>No observations available.</small>';
   const benchmarkCards = (context.benchmarks || []).map(row =>
-    `<div class="market-card"><span>${escapeHtml(row.label)}</span><strong>${formatNumber(row.value, 3)} ${escapeHtml(row.unit)}</strong><small>${formatDate(row.source_date)} · ${escapeHtml(row.geography)} · ${formatPct(row.variation_pct)}</small></div>`
+    `<div class="market-card"><span>${escapeHtml(row.label)}</span><strong>${formatNumber(row.value, 3)} ${escapeHtml(displayUnit(row.unit))}</strong><small>${formatDate(row.source_date)} · ${escapeHtml(row.geography)} · ${formatPct(row.variation_pct)}</small></div>`
   ).join('');
-  $('#market-context').innerHTML = `<div class="market-card"><span>${priceLabel}</span>${priceDetail}</div>${benchmarkCards}<div class="market-card market-warning"><strong>À lire avant de négocier</strong>${escapeHtml(context.warning || '')}</div>`;
+  $('#market-context').innerHTML = `<div class="market-card"><span>${priceLabel}</span>${priceDetail}</div>${benchmarkCards}<div class="market-card market-warning"><strong>Before negotiating</strong>${escapeHtml(context.warning || '')}</div>`;
 }
 
 function renderSupplierDirectory(rows) {
   $('#supplier-directory').innerHTML = rows.length ? rows.map(row => {
     const links = [
-      row.website_url ? `<a class="text-btn" href="${escapeHtml(row.website_url)}" target="_blank" rel="noopener noreferrer">Site officiel ↗</a>` : '',
-      row.contact_url && row.contact_url !== row.website_url ? `<a class="text-btn" href="${escapeHtml(row.contact_url)}" target="_blank" rel="noopener noreferrer">Contact / commande ↗</a>` : ''
+      row.website_url ? `<a class="text-btn" href="${escapeHtml(row.website_url)}" target="_blank" rel="noopener noreferrer">Official website ↗</a>` : '',
+      row.contact_url && row.contact_url !== row.website_url ? `<a class="text-btn" href="${escapeHtml(row.contact_url)}" target="_blank" rel="noopener noreferrer">Contact / order ↗</a>` : ''
     ].filter(Boolean).join('');
-    return `<article class="supplier-card"><div class="supplier-card-head"><h4>${escapeHtml(row.name)}</h4><span class="supplier-region">${escapeHtml(REGION_LABELS[row.region] || row.region)}</span></div><p>${escapeHtml(row.coverage)}</p><dl><dt>Accès</dt><dd>${escapeHtml(row.channel)}</dd><dt>Livraison</dt><dd>${escapeHtml(row.typical_terms)}</dd><dt>Spécification</dt><dd>${escapeHtml(row.specifications)}</dd></dl><small class="field-help">${escapeHtml(row.buyer_note)}</small><div class="supplier-links">${links}</div></article>`;
-  }).join('') : '<div class="empty">Aucun canal fournisseur enregistré pour ces critères.</div>';
+    return `<article class="supplier-card"><div class="supplier-card-head"><h4>${escapeHtml(row.name)}</h4><span class="supplier-region">${escapeHtml(REGION_LABELS[row.region] || row.region)}</span></div><p>${escapeHtml(row.coverage)}</p><dl><dt>Access</dt><dd>${escapeHtml(row.channel)}</dd><dt>Delivery</dt><dd>${escapeHtml(row.typical_terms)}</dd><dt>Specification</dt><dd>${escapeHtml(row.specifications)}</dd></dl><small class="field-help">${escapeHtml(row.buyer_note)}</small><div class="supplier-links">${links}</div></article>`;
+  }).join('') : '<div class="empty">No supplier channels match these criteria.</div>';
 }
 
 function renderProcurementGuide(data) {
   renderMarketContext(data);
   renderSupplierDirectory(data.suppliers || []);
   $('#buy-steps').innerHTML = (data.steps || []).map(step => `<li><span class="step-number">${step.number}</span><b>${escapeHtml(step.title)}</b><span>${escapeHtml(step.detail)}</span></li>`).join('');
-  $('#buy-specification').innerHTML = `<strong>Spécification :</strong> ${escapeHtml(data.specification)}`;
-  $('#buy-logistics').innerHTML = `<strong>Logistique :</strong> ${escapeHtml(data.logistics)}`;
+  $('#buy-specification').innerHTML = `<strong>Specification:</strong> ${escapeHtml(data.specification)}`;
+  $('#buy-logistics').innerHTML = `<strong>Logistics:</strong> ${escapeHtml(data.logistics)}`;
   $('#rfq-checklist').innerHTML = (data.rfq_fields || []).map(item => `<li>${escapeHtml(item)}</li>`).join('');
-  $('#landed-cost-formula').innerHTML = `<strong>Formule de comparaison :</strong> ${escapeHtml(data.landed_cost_formula)}`;
+  $('#landed-cost-formula').innerHTML = `<strong>Comparison formula:</strong> ${escapeHtml(data.landed_cost_formula)}`;
   $('#buy-disclaimer').textContent = data.disclaimer || '';
 }
 
@@ -461,11 +462,11 @@ async function loadProcurementGuide() {
   const region = $('#buy-region').value;
   try {
     const response = await fetch(`/api/procurement-guide?product=${encodeURIComponent(product)}&region=${encodeURIComponent(region)}`);
-    if (!response.ok) { const body = await response.json(); throw new Error(body.error || 'Guide d’achat indisponible.'); }
+    if (!response.ok) { const body = await response.json(); throw new Error(body.error || 'Purchasing guide unavailable.'); }
     renderProcurementGuide(await response.json());
   } catch (error) {
     $('#market-context').innerHTML = `<div class="empty error-note">${escapeHtml(error.message)}</div>`;
-    $('#supplier-directory').innerHTML = '<div class="empty error-note">Canaux fournisseurs indisponibles.</div>';
+    $('#supplier-directory').innerHTML = '<div class="empty error-note">Supplier channels unavailable.</div>';
   }
 }
 
@@ -489,16 +490,16 @@ function renderBitumenHistory(data) {
   const rows = data.items || [];
   bitumenHistoryPage = data.page || 1;
   bitumenHistoryPages = data.pages || 0;
-  $('#bitumen-history-count').textContent = `${data.total || 0} mois publiés`;
-  $('#bitumen-history-page-label').textContent = bitumenHistoryPages ? `Page ${bitumenHistoryPage} / ${bitumenHistoryPages}` : 'Aucune page';
+  $('#bitumen-history-count').textContent = `${data.total || 0} published months`;
+  $('#bitumen-history-page-label').textContent = bitumenHistoryPages ? `Page ${bitumenHistoryPage} of ${bitumenHistoryPages}` : 'No pages';
   $('#bitumen-history-prev').disabled = bitumenHistoryPage <= 1;
   $('#bitumen-history-next').disabled = !bitumenHistoryPages || bitumenHistoryPage >= bitumenHistoryPages;
   $('#bitumen-history-table').innerHTML = rows.length ? rows.map(row => {
-    const month = new Date(`${row.source_date.slice(0, 10)}T00:00:00Z`).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const month = new Date(`${row.source_date.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
     const pct = row.variation_pct;
     const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
     return `<tr><td>${month}</td><td class="price-cell">${formatNumber(row.price, 3)}</td><td><span class="trend ${cls}">${formatPct(pct)}</span></td></tr>`;
-  }).join('') : '<tr><td colspan="3" class="empty">Aucun indice mensuel du bitume enregistré.</td></tr>';
+  }).join('') : '<tr><td colspan="3" class="empty">No monthly bitumen index recorded.</td></tr>';
 }
 
 async function loadBitumenHistory(page = 1) {
@@ -506,13 +507,13 @@ async function loadBitumenHistory(page = 1) {
   const params = new URLSearchParams({ product: 'bitume', data_kind: 'index', page, page_size: '12' });
   try {
     const response = await protectedFetch(`/api/history?${params}`);
-    if (!response.ok) throw new Error('Historique du bitume indisponible.');
+    if (!response.ok) throw new Error('Bitumen history unavailable.');
     const data = await response.json();
     if (request === bitumenHistoryRequest) renderBitumenHistory(data);
   } catch (error) {
     if (request !== bitumenHistoryRequest) return;
-    $('#bitumen-history-table').innerHTML = '<tr><td colspan="3" class="empty error-note">Historique du bitume momentanément indisponible. Utilisez Actualiser pour réessayer.</td></tr>';
-    $('#bitumen-history-count').textContent = 'Indisponible';
+    $('#bitumen-history-table').innerHTML = '<tr><td colspan="3" class="empty error-note">Bitumen history temporarily unavailable. Use Refresh to try again.</td></tr>';
+    $('#bitumen-history-count').textContent = 'Unavailable';
   }
 }
 
@@ -534,17 +535,17 @@ function updateHistoryExportLinks() {
 
 function renderHistory(data) {
   const rows = data.items || [];
-  $('#history-count').textContent = `${data.total || 0} relevé(s)`;
+  $('#history-count').textContent = `${data.total || 0} observation(s)`;
   historyPage = data.page || 1;
   historyPages = data.pages || 0;
-  $('#history-page-label').textContent = historyPages ? `Page ${historyPage} / ${historyPages}` : 'Aucune page';
+  $('#history-page-label').textContent = historyPages ? `Page ${historyPage} of ${historyPages}` : 'No pages';
   $('#history-prev').disabled = historyPage <= 1;
   $('#history-next').disabled = !historyPages || historyPage >= historyPages;
   $('#history-table').innerHTML = rows.length ? rows.map(row => {
     const meta = PRODUCT_META[row.product] || { label: row.product, color: '#a7bac2' };
     const pct = row.variation_pct; const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
-    return `<tr><td>${formatDate(row.source_date)}</td><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}${row.data_kind === 'index' ? ' · indice BLS' : row.product === 'bitume' ? ' · devis' : ''}</strong></div></td><td class="price-cell">${formatPrice(row.price, row.unit)}</td><td>${escapeHtml(row.supplier || '—')}</td><td class="source-cell">${escapeHtml(row.source)}</td><td>${formatDate(row.collected_at, true)}</td><td><span class="trend ${cls}">${formatPct(pct)}</span></td></tr>`;
-  }).join('') : '<tr><td colspan="7" class="empty">Aucun relevé pour ces critères.</td></tr>';
+    return `<tr><td>${formatDate(row.source_date)}</td><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${meta.label}${row.data_kind === 'index' ? ' · BLS index' : row.product === 'bitume' ? ' · quote' : ''}</strong></div></td><td class="price-cell">${formatPrice(row.price, row.unit)}</td><td>${escapeHtml(row.supplier || '—')}</td><td class="source-cell">${escapeHtml(row.source)}</td><td>${formatDate(row.collected_at, true)}</td><td><span class="trend ${cls}">${formatPct(pct)}</span></td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="empty">No observations match these filters.</td></tr>';
   updateHistoryExportLinks();
 }
 
@@ -555,13 +556,13 @@ async function loadHistory(page = 1) {
   params.set('page_size', '50');
   try {
     const response = await protectedFetch(`/api/history?${params.toString()}`);
-    if (!response.ok) throw new Error('Impossible de charger l’historique.');
+    if (!response.ok) throw new Error('Could not load history.');
     const data = await response.json();
     if (request === historyRequest) renderHistory(data);
   } catch (error) {
     if (request !== historyRequest) return;
-    $('#history-table').innerHTML = '<tr><td colspan="7" class="empty error-note">Historique momentanément indisponible.</td></tr>';
-    $('#history-count').textContent = 'Indisponible';
+    $('#history-table').innerHTML = '<tr><td colspan="7" class="empty error-note">History temporarily unavailable.</td></tr>';
+    $('#history-count').textContent = 'Unavailable';
   }
 }
 
@@ -580,8 +581,8 @@ function renderComparison(data) {
   $('#compare-table').innerHTML = Object.entries(data.products || {}).map(([key, row]) => {
     const meta = PRODUCT_META[key] || { label: key, color: PRODUCT_META.bitume.color };
     const changeClass = row.average_change > 0 ? 'negative' : row.average_change < 0 ? 'positive' : '';
-    return `<tr><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${escapeHtml(row.label || meta.label)}</strong></div></td><td>${formatPrice(row.period_a.average, row.unit)}</td><td>${formatPrice(row.period_b.average, row.unit)}</td><td class="${changeClass}">${row.average_change == null ? '—' : `${formatNumber(row.average_change)} ${escapeHtml(row.unit || '')} · ${formatPct(row.average_change_pct)}`}</td><td>${row.period_a.count} / ${row.period_b.count}</td></tr>`;
-  }).join('') || '<tr><td colspan="5" class="empty">Aucune donnée à comparer.</td></tr>';
+    return `<tr><td><div class="product-cell"><i style="background:${meta.color}"></i><strong>${escapeHtml(meta.label)}</strong></div></td><td>${formatPrice(row.period_a.average, row.unit)}</td><td>${formatPrice(row.period_b.average, row.unit)}</td><td class="${changeClass}">${row.average_change == null ? '—' : `${formatNumber(row.average_change)} ${escapeHtml(displayUnit(row.unit))} · ${formatPct(row.average_change_pct)}`}</td><td>${row.period_a.count} / ${row.period_b.count}</td></tr>`;
+  }).join('') || '<tr><td colspan="5" class="empty">No data to compare.</td></tr>';
 }
 
 async function compareHistory() {
@@ -590,7 +591,7 @@ async function compareHistory() {
   historyFilterParams(false).forEach((value, key) => params.set(key, value));
   try {
     const response = await protectedFetch(`/api/history/compare?${params.toString()}`);
-    if (!response.ok) { const result = await response.json(); throw new Error(result.error || 'Impossible de comparer les périodes.'); }
+    if (!response.ok) { const result = await response.json(); throw new Error(result.error || 'Could not compare periods.'); }
     renderComparison(await response.json());
   } catch (error) {
     $('#compare-table').innerHTML = `<tr><td colspan="5" class="empty error-note">${escapeHtml(error.message)}</td></tr>`;
@@ -606,56 +607,56 @@ function renderSourceComparison(data) {
   const prices = $('#api-price-table');
   const comparisons = $('#api-comparison-table');
   if (!data) {
-    summary.textContent = 'Comparaison indisponible';
+    summary.textContent = 'Comparison unavailable';
     summary.className = 'comparison-badge';
-    prices.innerHTML = '<tr><td colspan="6" class="empty">Impossible de vérifier les données des API.</td></tr>';
-    comparisons.innerHTML = '<tr><td colspan="5" class="empty">Comparaison non vérifiée.</td></tr>';
+    prices.innerHTML = '<tr><td colspan="6" class="empty">Could not check API data.</td></tr>';
+    comparisons.innerHTML = '<tr><td colspan="5" class="empty">Comparison unverified.</td></tr>';
     $('#comparison-note').textContent = '';
     return;
   }
   const availability = {
-    available: 'Donnée reçue', no_data: 'Aucune donnée collectée',
-    not_configured: 'API non configurée / désactivée', unavailable: 'Collecte en échec · prix conservé'
+    available: 'Data received', no_data: 'No data collected',
+    not_configured: 'API not configured / disabled', unavailable: 'Collection failed · saved price retained'
   };
   const verdicts = {
-    match: ['Cohérent', 'match'], mismatch: ['À vérifier', 'mismatch'],
-    not_comparable: ['Non comparable', ''], unverified: ['Non vérifié', '']
+    match: ['Consistent', 'match'], mismatch: ['Needs review', 'mismatch'],
+    not_comparable: ['Not comparable', ''], unverified: ['Unverified', '']
   };
   const byCode = Object.fromEntries(data.sources.map(row => [row.code, row]));
   summary.textContent = data.mismatch_count
-    ? `${data.mismatch_count} écart(s) à vérifier`
-    : data.comparable_pair_count ? `${data.comparable_pair_count} paire(s) équivalente(s) cohérente(s)` : 'Aucune paire équivalente vérifiée';
+    ? `${data.mismatch_count} difference(s) to review`
+    : data.comparable_pair_count ? `${data.comparable_pair_count} consistent equivalent pair(s)` : 'No equivalent pairs verified';
   summary.className = `comparison-badge ${data.mismatch_count ? 'mismatch' : data.comparable_pair_count ? 'match' : ''}`;
   prices.innerHTML = data.sources.map(row => {
     const product = PRODUCT_META[row.product]?.short || row.product;
-    const value = row.price == null ? '—' : `${formatNumber(row.price, 4)} <small>${escapeHtml(row.unit)}</small>`;
-    return `<tr><td><strong>${escapeHtml(product)}</strong></td><td><strong>${escapeHtml(row.provider)}</strong><small class="comparison-detail">${escapeHtml(row.instrument)}</small></td><td class="price-cell">${value}</td><td>${formatDate(row.source_date)}</td><td>${formatDate(row.last_success_at, true)}</td><td>${escapeHtml(availability[row.availability] || 'Non vérifié')}</td></tr>`;
+    const value = row.price == null ? '—' : `${formatNumber(row.price, 4)} <small>${escapeHtml(displayUnit(row.unit))}</small>`;
+    return `<tr><td><strong>${escapeHtml(product)}</strong></td><td><strong>${escapeHtml(row.provider)}</strong><small class="comparison-detail">${escapeHtml(row.instrument)}</small></td><td class="price-cell">${value}</td><td>${formatDate(row.source_date)}</td><td>${formatDate(row.last_success_at, true)}</td><td>${escapeHtml(availability[row.availability] || 'Unverified')}</td></tr>`;
   }).join('');
   comparisons.innerHTML = data.pairs.map(pair => {
     const [label, kind] = verdicts[pair.status] || verdicts.unverified;
     const product = PRODUCT_META[pair.product]?.short || pair.product;
     const providers = `${byCode[pair.left]?.provider || pair.left} / ${byCode[pair.right]?.provider || pair.right}`;
-    const difference = pair.difference == null ? '—' : `${formatNumber(pair.difference, 6)} <small>${escapeHtml(pair.unit)}</small>`;
+    const difference = pair.difference == null ? '—' : `${formatNumber(pair.difference, 6)} <small>${escapeHtml(displayUnit(pair.unit))}</small>`;
     const percent = pair.difference_pct == null ? '—' : `${formatNumber(pair.difference_pct, 3)} %`;
     return `<tr><td>${escapeHtml(product)}</td><td>${escapeHtml(providers)}</td><td class="price-cell">${difference}</td><td>${percent}</td><td><span class="comparison-badge ${kind}">${label}</span><small class="comparison-detail">${escapeHtml(pair.reason)}</small></td></tr>`;
-  }).join('') || '<tr><td colspan="5" class="empty">Aucune paire de prix disponible.</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="empty">No price pairs available.</td></tr>';
   $('#comparison-note').textContent = data.note;
 }
 
 async function loadDashboard() {
   const request = ++dashboardRequest;
-  const days = $('#period-select').value; $('#period-label').textContent = days == 365 ? '12 derniers mois' : days == 1825 ? '5 dernières années' : `${days} derniers jours`;
+  const days = $('#period-select').value; $('#period-label').textContent = days == 365 ? 'Last 12 months' : days == 1825 ? 'Last 5 years' : `Last ${days} days`;
   try {
     const params = new URLSearchParams({ days });
     ['brent', 'gasoil'].forEach(product => { const value = $(`#market-${product}-instrument`)?.value; if (value) params.set(`${product}_instrument`, value); });
-    const response = await fetch(`/api/dashboard?${params}`, { cache: 'no-store' }); if (!response.ok) throw new Error('Impossible de charger le tableau de bord.');
+    const response = await fetch(`/api/dashboard?${params}`, { cache: 'no-store' }); if (!response.ok) throw new Error('Could not load the dashboard.');
     const data = await response.json();
     if (request !== dashboardRequest) return;
     globalThis.PriceMonitorAttention?.update('dashboard', data);
     renderMetrics(data.metrics); renderChart(data.series); renderLatest(data.latest);
     renderSourceComparison(data.source_comparison);
     $('#quality-score').textContent = data.quality?.score ?? '—';
-    $('#mode-label').textContent = data.demo_mode ? 'Démonstration active' : 'Production / API';
+    $('#mode-label').textContent = data.demo_mode ? 'Demo active' : 'Production / API';
     $('#last-update').textContent = data.latest.length ? formatDate(data.latest.reduce((a, b) => new Date(a.collected_at) > new Date(b.collected_at) ? a : b).collected_at, true) : '—';
     $('#source-count').textContent = `${data.quality?.source_count ?? data.latest.length} sources`;
     $('#observation-count').textContent = `${data.quality?.observation_count ?? 0}`;
@@ -665,17 +666,17 @@ async function loadDashboard() {
     globalThis.PriceMonitorAttention?.update('dashboard', null);
     renderSourceComparison(null);
     renderChart({});
-    $('#chart-empty').innerHTML = '<strong>Service de données indisponible</strong><span>Redémarrez l’application, puis actualisez cette page.</span>';
+    $('#chart-empty').innerHTML = '<strong>Data service unavailable</strong><span>Restart the application, then refresh this page.</span>';
     connectionMonitor.check();
   }
 }
 
 async function loadLogs() {
   try {
-    const response = await fetch('/api/logs'); if (!response.ok) throw new Error('Impossible de charger le journal.');
-    const data = await response.json(); const logs = data.logs || []; $('#activity-count').textContent = `${logs.length} événements`;
-    $('#activity-list').innerHTML = logs.length ? logs.slice(0, 5).map(log => `<div class="activity-item"><span class="activity-dot ${log.status === 'error' ? 'error' : ''}"></span><div class="activity-text"><strong>${log.status === 'success' ? 'Collecte terminée' : 'Erreur de collecte'}</strong> · ${log.rows_collected} relevé(s)<small>${formatDate(log.finished_at, true)} · ${escapeHtml(log.message)}</small></div></div>`).join('') : '<div class="empty">Aucune collecte exécutée depuis le démarrage.</div>';
-  } catch (error) { $('#activity-count').textContent = 'Indisponible'; $('#activity-list').innerHTML = '<div class="empty error-note">Journal momentanément indisponible.</div>'; }
+    const response = await fetch('/api/logs'); if (!response.ok) throw new Error('Could not load the log.');
+    const data = await response.json(); const logs = data.logs || []; $('#activity-count').textContent = `${logs.length} events`;
+    $('#activity-list').innerHTML = logs.length ? logs.slice(0, 5).map(log => `<div class="activity-item"><span class="activity-dot ${log.status === 'error' ? 'error' : ''}"></span><div class="activity-text"><strong>${log.status === 'success' ? 'Collection complete' : 'Collection error'}</strong> · ${log.rows_collected} observation(s)<small>${formatDate(log.finished_at, true)} · ${escapeHtml(log.message === 'Collecte terminée avec succès.' ? 'Collection completed successfully.' : log.message)}</small></div></div>`).join('') : '<div class="empty">No collections have run since startup.</div>';
+  } catch (error) { $('#activity-count').textContent = 'Unavailable'; $('#activity-list').innerHTML = '<div class="empty error-note">Log temporarily unavailable.</div>'; }
 }
 
 document.querySelectorAll('.mode-btn').forEach(button => button.addEventListener('click', () => {
@@ -690,15 +691,15 @@ const navigationItems = [...document.querySelectorAll('.nav-item')];
 const pageViews = [...document.querySelectorAll('[data-page]')];
 const mobileNavigation = window.matchMedia('(max-width: 760px)');
 const pageDetails = {
-  marches: ['Marchés', 'L’essentiel des prix, en un regard.'],
-  tendances: ['Tendances', 'Explorez les projections à 7, 30 et 90 jours.'],
-  veille: ['Veille', 'Gardez un œil sur les seuils qui comptent.'],
-  archives: ['Archives', 'Retrouvez vos relevés et comparez les périodes.'],
-  'nouveau-prix': ['Nouveau prix', 'Ajoutez un devis ou un prix de bitume validé.'],
-  fournisseurs: ['Fournisseurs', 'Trouvez vos contacts et préparez vos demandes de prix.'],
-  budget: ['Budget', 'Estimez le coût de vos achats et leur impact.'],
-  activite: ['Activité', 'Consultez la qualité des données et les dernières collectes.'],
-  equipe: ['Mon compte / Équipe', 'Gérez vos accès et suivez les actions de votre équipe.']
+  marches: ['Markets', 'Key prices at a glance.'],
+  tendances: ['Trends', 'Explore 7, 30, and 90-day forecasts.'],
+  veille: ['Alerts', 'Monitor the thresholds that matter.'],
+  archives: ['History', 'Review observations and compare periods.'],
+  'nouveau-prix': ['New price', 'Add a verified bitumen price or quote.'],
+  fournisseurs: ['Suppliers', 'Find contacts and prepare price requests.'],
+  budget: ['Budget', 'Estimate purchase costs and their impact.'],
+  activite: ['Activity', 'Review data quality and recent collections.'],
+  equipe: ['My account / Team', 'Manage access and review your team’s actions.']
 };
 // Preserve links saved before the page names changed.
 const pageAliases = {
@@ -712,7 +713,7 @@ let activePage = null;
 function setNavigationOpen(open) {
   navigation.classList.toggle('nav-open', open);
   navigationToggle.setAttribute('aria-expanded', String(open));
-  navigationToggle.querySelector('.sr-only').textContent = open ? 'Fermer la navigation' : 'Ouvrir la navigation';
+  navigationToggle.querySelector('.sr-only').textContent = open ? 'Close navigation' : 'Open navigation';
   $('#primary-navigation').inert = mobileNavigation.matches && !open;
 }
 
@@ -800,31 +801,31 @@ showPage({ animate: false, focus: false, scroll: false });
 
 $('#period-select').addEventListener('change', loadDashboard);
 $('#forecast-horizon').addEventListener('change', renderForecast);
-$('#refresh-btn').addEventListener('click', () => { loadDashboard(); loadForecast(); loadAlerts(); loadLogs(); loadHistory(historyPage); loadBitumenHistory(bitumenHistoryPage); loadProcurements(); loadProcurementGuide(); showToast('Tableau de bord actualisé.'); });
+$('#refresh-btn').addEventListener('click', () => { loadDashboard(); loadForecast(); loadAlerts(); loadLogs(); loadHistory(historyPage); loadBitumenHistory(bitumenHistoryPage); loadProcurements(); loadProcurementGuide(); showToast('Dashboard refreshed.'); });
 $('#collect-btn').addEventListener('click', async () => {
   const button = $('#collect-btn');
   button.disabled = true;
-  button.innerHTML = 'Collecte en cours…';
+  button.innerHTML = 'Collecting…';
   try {
     const response = await protectedFetch('/api/collect', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     const result = await response.json();
-    if (!response.ok || result.status === 'error') throw new Error(result.message || result.error || 'La collecte a échoué.');
+    if (!response.ok || result.status === 'error') throw new Error(result.message || result.error || 'Collection failed.');
     renderSourceComparison(result.source_comparison);
     const mismatch = result.source_comparison?.mismatch_count > 0;
     const deferred = (result.providers || []).filter(provider => provider.status === 'deferred');
-    const info = result.status === 'deferred' ? result.message : `${result.rows} relevé(s) enregistré(s).${deferred.length ? ` ${deferred.length} fournisseur(s) en attente — détails dans Activité.` : ''}`;
+    const info = result.status === 'deferred' ? result.message : `${result.rows} observation(s) saved.${deferred.length ? ` ${deferred.length} provider(s) waiting — details in Activity.` : ''}`;
     showToast(mismatch ? result.source_comparison.message : info, mismatch || result.status === 'partial');
   } catch (error) {
     showToast(error.message, true);
   } finally {
     document.dispatchEvent(new Event('collection-finished'));
     button.disabled = false;
-    button.innerHTML = '<span>↻</span> Lancer une collecte';
+    button.innerHTML = '<span>↻</span> Collect now';
     loadDashboard();
     loadLogs();
   }
 });
-$('#bitumen-form').addEventListener('submit', async (event) => { event.preventDefault(); const data = Object.fromEntries(new FormData(event.target)); data.product = 'bitume'; data.unit = 'USD/tonne'; try { const response = await protectedFetch('/api/observations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Échec de l’enregistrement.'); showToast('Relevé bitume enregistré avec succès.'); event.target.reset(); event.target.source_date.value = new Date().toISOString().slice(0, 10); loadDashboard(); loadHistory(historyPage); } catch (error) { showToast(error.message, true); } });
+$('#bitumen-form').addEventListener('submit', async (event) => { event.preventDefault(); const data = Object.fromEntries(new FormData(event.target)); data.product = 'bitume'; data.unit = 'USD/tonne'; try { const response = await protectedFetch('/api/observations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Could not save the observation.'); showToast('Bitumen observation saved.'); event.target.reset(); event.target.source_date.value = new Date().toISOString().slice(0, 10); loadDashboard(); loadHistory(historyPage); } catch (error) { showToast(error.message, true); } });
 $('#procurement-product').addEventListener('change', updateProcurementUnits);
 $('#procurement-history-retry').addEventListener('click', loadProcurements);
 $('#buy-product').addEventListener('change', loadProcurementGuide);
@@ -841,14 +842,14 @@ $('#procurement-form').addEventListener('submit', async (event) => {
   try {
     if (typeof quoteOptions === 'undefined' || !quoteOptions) {
       if (typeof initialiseQuotes === 'function') await initialiseQuotes();
-      if (typeof quoteOptions === 'undefined' || !quoteOptions) throw new Error('Le calcul complet est indisponible. Redémarrez l’application après sa mise à jour, puis réessayez.');
+      if (typeof quoteOptions === 'undefined' || !quoteOptions) throw new Error('Full cost calculation unavailable. Restart the application after updating it, then try again.');
     }
     data.other_costs = readCostItems($('#procurement-other-costs'));
     const response = await protectedFetch('/api/procurements', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Impossible d’évaluer cet achat.');
+    if (!response.ok) throw new Error(result.error || 'Could not evaluate this purchase.');
     renderProcurementSummary(result.purchase);
-    showToast('Impact d’achat calculé et enregistré.');
+    showToast('Purchase impact calculated and saved.');
     event.target.reset();
     resetProcurementQuoteLink();
     setCostItems($('#procurement-other-costs'));
@@ -899,16 +900,16 @@ $('#alert-list').addEventListener('click', async event => {
     if (button.dataset.alertAction === 'mute') {
       await mutateAlert(id, { muted: !rule.muted });
       await loadAlerts();
-      showToast(rule.muted ? 'Alerte réactivée.' : 'Alerte mise en pause.');
+      showToast(rule.muted ? 'Alert resumed.' : 'Alert paused.');
     }
     if (button.dataset.alertAction === 'delete') {
-      if (!window.confirm(`Supprimer la règle ${rule.product} ${rule.direction} ${rule.threshold} ?`)) return;
+      if (!window.confirm(`Delete the ${rule.product} ${rule.direction} ${rule.threshold} rule?`)) return;
       const response = await protectedFetch(`/api/alerts/${id}`, { method: 'DELETE' });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Impossible de supprimer cette alerte.');
+      if (!response.ok) throw new Error(result.error || 'Could not delete this alert.');
       if (editingAlertId === id) resetAlertForm();
       await loadAlerts();
-      showToast('Alerte supprimée.');
+      showToast('Alert deleted.');
     }
   } catch (error) { showToast(error.message, true); }
 });
@@ -922,10 +923,10 @@ $('#alert-form').addEventListener('submit', async event => {
     const url = editingAlertId ? `/api/alerts/${editingAlertId}` : '/api/alerts';
     const response = await protectedFetch(url, { method: editingAlertId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Impossible d’enregistrer cette alerte.');
+    if (!response.ok) throw new Error(result.error || 'Could not save this alert.');
     resetAlertForm();
     await loadAlerts();
-    showToast(wasEditing ? 'Alerte modifiée.' : 'Alerte créée.');
+    showToast(wasEditing ? 'Alert updated.' : 'Alert created.');
   } catch (error) { showToast(error.message, true); }
 });
 $('#bitumen-form').source_date.value = new Date().toISOString().slice(0, 10);

@@ -1,52 +1,52 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Tableau de bord de suivi des prix internationaux du gasoil, du Brent et du bitume">
   <meta name="theme-color" content="#000000">
-  <title>Marchés · Price Monitor</title>
+  <title>Markets · Price Monitor</title>
   <script id="chart-library" async src="/static/chart.umd-4.4.3.js"></script>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <section id="sign-in" class="sign-in" aria-labelledby="sign-in-title" hidden>
     <form id="sign-in-form" class="panel">
-      <p class="eyebrow">PRICE MONITOR</p><h1 id="sign-in-title">Accéder à votre espace</h1>
-      <p>Les prix, devis et documents de votre équipe sont réservés aux personnes autorisées.</p>
-      <div id="sign-in-account-fields"><label>Identifiant<input name="username" autocomplete="username" maxlength="80" required></label><label>Mot de passe<input name="password" type="password" autocomplete="current-password" maxlength="128" required></label></div>
-      <div id="sign-in-key-fields" hidden><label>Clé d’accès locale<input name="api_key" type="password" autocomplete="off"></label></div>
-      <p id="sign-in-error" class="error-note" role="alert"></p><button type="submit" class="primary-btn full">Se connecter</button>
-      <button type="button" id="sign-in-cancel" class="text-btn" hidden>Revenir à mon espace local</button>
+      <p class="eyebrow">PRICE MONITOR</p><h1 id="sign-in-title">Access your workspace</h1>
+      <p>Your team's prices, quotes, and documents are available only to authorized users.</p>
+      <div id="sign-in-account-fields"><label>Username<input name="username" autocomplete="username" maxlength="80" required></label><label>Password<input name="password" type="password" autocomplete="current-password" maxlength="128" required></label></div>
+      <div id="sign-in-key-fields" hidden><label>Local access key<input name="api_key" type="password" autocomplete="off"></label></div>
+      <p id="sign-in-error" class="error-note" role="alert"></p><button type="submit" class="primary-btn full">Sign in</button>
+      <button type="button" id="sign-in-cancel" class="text-btn" hidden>Return to my local workspace</button>
     </form>
   </section>
-  <a class="skip-link" href="#main-content">Aller au contenu principal</a>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="app-shell" hidden>
-    <header class="sidebar" aria-label="Navigation principale">
-      <a class="brand" href="#marches" aria-label="Price Monitor · Marchés"><span class="brand-mark">↗</span><span>Price <strong>Monitor</strong></span></a>
-      <div class="side-caption">ESPACE DE TRAVAIL</div>
-      <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation"><span></span><span></span><span></span><span class="sr-only">Ouvrir la navigation</span></button>
-      <nav id="primary-navigation" aria-label="Pages de Price Monitor">
-        <a class="nav-item active" href="#marches"><span aria-hidden="true">◈</span> Marchés</a>
-        <a class="nav-item" href="#tendances"><span aria-hidden="true">⌁</span> Tendances</a>
-        <a class="nav-item" href="#veille"><span aria-hidden="true">!</span> Veille</a>
-        <a class="nav-item" href="#archives"><span aria-hidden="true">◷</span> Archives</a>
-        <a class="nav-item" href="#nouveau-prix"><span aria-hidden="true">＋</span> Nouveau prix</a>
-        <a class="nav-item" href="#fournisseurs"><span aria-hidden="true">⌖</span> Fournisseurs</a>
+    <header class="sidebar" aria-label="Main navigation">
+      <a class="brand" href="#marches" aria-label="Price Monitor · Markets"><span class="brand-mark">↗</span><span>Price <strong>Monitor</strong></span></a>
+      <div class="side-caption">WORKSPACE</div>
+      <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation"><span></span><span></span><span></span><span class="sr-only">Open navigation</span></button>
+      <nav id="primary-navigation" aria-label="Price Monitor pages">
+        <a class="nav-item active" href="#marches"><span aria-hidden="true">◈</span> Markets</a>
+        <a class="nav-item" href="#tendances"><span aria-hidden="true">⌁</span> Trends</a>
+        <a class="nav-item" href="#veille"><span aria-hidden="true">!</span> Alerts</a>
+        <a class="nav-item" href="#archives"><span aria-hidden="true">◷</span> History</a>
+        <a class="nav-item" href="#nouveau-prix"><span aria-hidden="true">＋</span> New price</a>
+        <a class="nav-item" href="#fournisseurs"><span aria-hidden="true">⌖</span> Suppliers</a>
         <a class="nav-item" href="#budget"><span aria-hidden="true">▣</span> Budget</a>
-        <a class="nav-item" href="#activite"><span aria-hidden="true">◎</span> Activité</a>
-        <a class="nav-item" href="#equipe"><span aria-hidden="true">◉</span> Mon compte / Équipe</a>
+        <a class="nav-item" href="#activite"><span aria-hidden="true">◎</span> Activity</a>
+        <a class="nav-item" href="#equipe"><span aria-hidden="true">◉</span> My account / Team</a>
       </nav>
       <div class="sidebar-footer">
         <div class="secure-dot"></div>
-        <div><small>ENVIRONNEMENT</small><br><span id="mode-label">Démonstration</span></div>
+        <div><small>ENVIRONMENT</small><br><span id="mode-label">Demo</span></div>
       </div>
     </header>
 
     <main class="content" id="main-content" tabindex="-1">
       <header class="topbar">
-        <div><p class="eyebrow">PRICE MONITOR / MARCHÉS INTERNATIONAUX</p><h1 id="page-title" tabindex="-1">Marchés</h1><p class="topbar-intro" id="page-description">L’essentiel des prix, en un regard.</p></div>
-        <div class="top-actions"><span class="live-pill warning" id="system-status" role="status"><i></i> Vérification de la connexion…</span><button class="icon-button" id="refresh-btn" title="Actualiser les données" aria-label="Actualiser les données">↻</button><button type="button" class="avatar" id="profile-button" aria-label="Mon compte">PM</button></div>
+        <div><p class="eyebrow">PRICE MONITOR / GLOBAL MARKETS</p><h1 id="page-title" tabindex="-1">Markets</h1><p class="topbar-intro" id="page-description">Key prices at a glance.</p></div>
+        <div class="top-actions"><span class="live-pill warning" id="system-status" role="status"><i></i> Checking connection…</span><button class="icon-button" id="refresh-btn" title="Refresh data" aria-label="Refresh data">↻</button><button type="button" class="avatar" id="profile-button" aria-label="My account">PM</button></div>
       </header>
 
 
@@ -54,183 +54,183 @@
       <div id="api-price-warning" class="comparison-warning" role="alert" hidden>
         <strong id="api-price-warning-message"></strong>
         <p id="api-price-warning-details"></p>
-        <a href="#marches">Voir la comparaison dans Marchés →</a>
+        <a href="#marches">View the comparison in Markets →</a>
       </div>
-      <div class="page-view" id="marches" data-page="marches" aria-label="Marchés">
+      <div class="page-view" id="marches" data-page="marches" aria-label="Markets">
       <section id="needs-attention" class="attention-panel" aria-labelledby="attention-title">
-        <div class="attention-heading"><h2 id="attention-title">À surveiller</h2><span id="attention-count" role="status" aria-live="polite">Vérification en cours…</span></div>
-        <ul id="attention-items"></ul><p id="attention-note">Prix, alertes, prévisions et disponibilité des fournisseurs.</p>
+        <div class="attention-heading"><h2 id="attention-title">Needs attention</h2><span id="attention-count" role="status" aria-live="polite">Checking…</span></div>
+        <ul id="attention-items"></ul><p id="attention-note">Prices, alerts, forecasts, and provider availability.</p>
       </section>
       <section id="overview" class="hero-row">
-        <div><p class="muted">Vue consolidée · <span id="period-label">30 derniers jours</span></p><p class="last-update">Dernière actualisation <strong id="last-update">—</strong></p></div>
-        <div class="hero-actions"><select id="period-select" aria-label="Période des marchés"><option value="7">7 jours</option><option value="30" selected>30 jours</option><option value="90">90 jours</option><option value="365">12 mois</option><option value="1825">5 ans</option></select><button class="primary-btn" id="collect-btn"><span>↻</span> Lancer une collecte</button></div>
+        <div><p class="muted">Overview · <span id="period-label">Last 30 days</span></p><p class="last-update">Last updated <strong id="last-update">—</strong></p></div>
+        <div class="hero-actions"><select id="period-select" aria-label="Market period"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">12 months</option><option value="1825">5 years</option></select><button class="primary-btn" id="collect-btn"><span>↻</span> Collect now</button></div>
       </section>
-      <div class="instrument-controls" aria-label="Instruments affichés">
-        <label>Brent suivi<select id="market-brent-instrument"><option value="">Sélection automatique</option><option value="brent_spot">Brent Europe · spot</option><option value="brent_futures">Brent BZ=F · contrat à terme</option></select></label>
-        <label>Gasoil suivi<select id="market-gasoil-instrument"><option value="">Sélection automatique</option><option value="diesel_spot">Diesel New York Harbor · spot</option><option value="heating_oil_futures">Heating oil HO=F · proxy gasoil</option></select></label>
+      <div class="instrument-controls" aria-label="Displayed instruments">
+        <label>Brent instrument<select id="market-brent-instrument"><option value="">Automatic selection</option><option value="brent_spot">European Brent · spot</option><option value="brent_futures">Brent BZ=F · futures</option></select></label>
+        <label>Diesel instrument<select id="market-gasoil-instrument"><option value="">Automatic selection</option><option value="diesel_spot">New York Harbor diesel · spot</option><option value="heating_oil_futures">Heating oil HO=F · diesel proxy</option></select></label>
       </div>
       <section class="metric-grid" id="metric-grid">
         <div class="skeleton metric-card"></div><div class="skeleton metric-card"></div><div class="skeleton metric-card"></div>
       </section>
       <section class="grid-2 main-panels">
         <article class="panel chart-panel">
-          <div class="panel-heading"><div><p class="eyebrow">TENDANCE COMPARÉE</p><h2>Évolution des prix</h2></div><div class="chart-tools"><div class="chart-mode" role="group" aria-label="Mode d'affichage"><button type="button" class="mode-btn" data-chart-mode="absolute" aria-pressed="false">Prix</button><button type="button" class="mode-btn active" data-chart-mode="indexed" aria-pressed="true">Base 100</button></div><div class="legend" id="legend"></div></div></div>
-          <div class="chart-wrap"><canvas id="price-chart" role="img" aria-label="Évolution des prix et de l’indice bitume" aria-describedby="price-chart-summary chart-note">Le résumé textuel du graphique est disponible ci-dessous.</canvas><div class="chart-empty" id="chart-empty" hidden></div></div>
-          <p class="chart-note" id="chart-note">Évolution relative depuis le premier relevé de la période.</p>
-          <div id="price-chart-summary" class="chart-summary" aria-label="Résumé de l’évolution des marchés"></div>
+          <div class="panel-heading"><div><p class="eyebrow">PRICE TRENDS</p><h2>Price trends</h2></div><div class="chart-tools"><div class="chart-mode" role="group" aria-label="Display mode"><button type="button" class="mode-btn" data-chart-mode="absolute" aria-pressed="false">Price</button><button type="button" class="mode-btn active" data-chart-mode="indexed" aria-pressed="true">Base 100</button></div><div class="legend" id="legend"></div></div></div>
+          <div class="chart-wrap"><canvas id="price-chart" role="img" aria-label="Price and bitumen index trends" aria-describedby="price-chart-summary chart-note">A text summary of this chart appears below.</canvas><div class="chart-empty" id="chart-empty" hidden></div></div>
+          <p class="chart-note" id="chart-note">Relative change from the first observation in the period.</p>
+          <div id="price-chart-summary" class="chart-summary" aria-label="Market trend summary"></div>
         </article>
 
       </section>
       <section class="panel latest-panel" id="history">
-        <div class="panel-heading"><div><p class="eyebrow">DERNIERS RELEVÉS</p><h2>Derniers prix</h2></div><div class="export-actions"><a href="/export.csv" class="text-btn">↓ CSV</a><a href="/export.xlsx" class="text-btn">↓ Excel</a><a href="#archives" class="text-btn muted-link">Ouvrir les archives →</a></div></div>
-        <div class="table-scroll"><table><thead><tr><th>Produit</th><th>Prix / indice actuel</th><th>Variation</th><th>Date source</th><th>Collecté le</th><th>Source</th><th></th></tr></thead><tbody id="latest-table"><tr><td colspan="7" class="empty">Chargement…</td></tr></tbody></table></div>
+        <div class="panel-heading"><div><p class="eyebrow">LATEST OBSERVATIONS</p><h2>Latest prices</h2></div><div class="export-actions"><a href="/export.csv" class="text-btn">↓ CSV</a><a href="/export.xlsx" class="text-btn">↓ Excel</a><a href="#archives" class="text-btn muted-link">Open history →</a></div></div>
+        <div class="table-scroll"><table><thead><tr><th>Product</th><th>Current price / index</th><th>Change</th><th>Source date</th><th>Collected on</th><th>Source</th><th></th></tr></thead><tbody id="latest-table"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody></table></div>
       </section>
       <section class="panel source-comparison-panel" id="source-comparison">
-        <div class="panel-heading"><div><p class="eyebrow">CONTRÔLE ENTRE FOURNISSEURS</p><h2>Comparer les prix des API</h2></div><span class="comparison-badge" id="comparison-summary" role="status">Chargement…</span></div>
-        <p class="panel-intro">Contrôle automatique après chaque collecte. Dernier relevé enregistré pour chaque API, indépendamment de la période du graphique. Un écart peut signaler un problème lorsque le produit de marché, la date, l'unité et la devise sont identiques.</p>
-        <div class="table-scroll"><table><thead><tr><th>Produit</th><th>API / type de donnée</th><th>Prix / indice</th><th>Date source</th><th>Dernier accès réussi</th><th>Disponibilité</th></tr></thead><tbody id="api-price-table"><tr><td colspan="6" class="empty">Chargement…</td></tr></tbody></table></div>
-        <h3 class="comparison-heading">Écarts et vérifications</h3>
-        <p class="chart-note">Écart absolu et pourcentage par rapport à la première API. Pour deux flux quotidiens équivalents, seules les différences d'arrondi sont tolérées : 0,005 USD/baril et 0,0005 USD/gallon.</p>
-        <div class="table-scroll"><table><thead><tr><th>Produit</th><th>API comparées</th><th>Écart absolu</th><th>Écart %</th><th>Conclusion</th></tr></thead><tbody id="api-comparison-table"><tr><td colspan="5" class="empty">Chargement…</td></tr></tbody></table></div>
+        <div class="panel-heading"><div><p class="eyebrow">PROVIDER COMPARISON</p><h2>Compare provider prices</h2></div><span class="comparison-badge" id="comparison-summary" role="status">Loading…</span></div>
+        <p class="panel-intro">Checked after each collection. Shows the latest saved observation for each provider, regardless of the chart period. A difference may indicate a problem when the market product, date, unit, and currency match.</p>
+        <div class="table-scroll"><table><thead><tr><th>Product</th><th>API / data type</th><th>Price / index</th><th>Source date</th><th>Last successful access</th><th>Availability</th></tr></thead><tbody id="api-price-table"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody></table></div>
+        <h3 class="comparison-heading">Differences and checks</h3>
+        <p class="chart-note">Absolute and percentage differences relative to the first API. For equivalent daily feeds, only rounding differences are tolerated: 0.005 USD/barrel and 0.0005 USD/gallon.</p>
+        <div class="table-scroll"><table><thead><tr><th>Product</th><th>APIs compared</th><th>Absolute difference</th><th>Difference %</th><th>Result</th></tr></thead><tbody id="api-comparison-table"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody></table></div>
         <p class="chart-note" id="comparison-note"></p>
       </section>
       </div>
 
-      <div class="page-view" id="tendances" data-page="tendances" aria-label="Tendances">
+      <div class="page-view" id="tendances" data-page="tendances" aria-label="Trends">
       <section class="panel forecast-panel" id="forecast">
         <div class="panel-heading">
-          <div><p class="eyebrow">PRÉVISION STATISTIQUE</p><h2>Tendances à venir</h2></div>
-          <div class="forecast-controls"><label for="forecast-horizon">Horizon</label><select id="forecast-horizon"><option value="7">7 jours</option><option value="30" selected>30 jours</option><option value="90">90 jours</option></select></div>
+          <div><p class="eyebrow">STATISTICAL FORECAST</p><h2>Forecasts</h2></div>
+          <div class="forecast-controls"><label for="forecast-horizon">Horizon</label><select id="forecast-horizon"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select></div>
         </div>
-        <p class="chart-note" id="forecast-status">Comparaison au dernier prix connu · validation historique en cours…</p>
+        <p class="chart-note" id="forecast-status">Comparing against the last known price · historical validation in progress…</p>
         <div class="forecast-grid">
-          <article class="forecast-card"><div class="forecast-card-heading"><h3>Diesel New York Harbor · spot</h3><span class="forecast-unit">USD/gallon</span></div><div class="forecast-quality" id="forecast-gasoil-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-gasoil-chart" role="img" aria-label="Historique et projection : diesel spot" aria-describedby="forecast-gasoil-summary forecast-gasoil-quality">Le résumé textuel de cette prévision est disponible ci-dessous.</canvas></div><p class="chart-summary" id="forecast-gasoil-summary"></p><div class="forecast-stats" id="forecast-gasoil-stats"><span>Chargement…</span></div></article>
-          <article class="forecast-card"><div class="forecast-card-heading"><h3>Brent Europe · spot</h3><span class="forecast-unit">USD/baril</span></div><div class="forecast-quality" id="forecast-brent-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-brent-chart" role="img" aria-label="Historique et projection : Brent spot" aria-describedby="forecast-brent-summary forecast-brent-quality">Le résumé textuel de cette prévision est disponible ci-dessous.</canvas></div><p class="chart-summary" id="forecast-brent-summary"></p><div class="forecast-stats" id="forecast-brent-stats"><span>Chargement…</span></div></article>
-          <article class="forecast-card"><div class="forecast-card-heading"><h3>Bitume · indice BLS</h3><span class="forecast-unit">indice (déc. 1984 = 100)</span></div><div class="forecast-controls"><label for="forecast-bitume-horizon">Horizon mensuel</label><select id="forecast-bitume-horizon"><option value="1">1 mois</option><option value="3" selected>3 mois</option><option value="6">6 mois</option></select></div><div class="forecast-quality" id="forecast-bitume-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-bitume-chart" role="img" aria-label="Historique et projection : indice bitume BLS" aria-describedby="forecast-bitume-summary forecast-bitume-quality">Le résumé textuel de cette prévision est disponible ci-dessous.</canvas></div><p class="chart-summary" id="forecast-bitume-summary"></p><div class="forecast-stats" id="forecast-bitume-stats"><span>Chargement…</span></div><p class="chart-note">Projection de l'indice mensuel WPU058. Les devis fournisseurs restent en USD/tonne.</p></article>
+          <article class="forecast-card"><div class="forecast-card-heading"><h3>New York Harbor diesel · spot</h3><span class="forecast-unit">USD/gallon</span></div><div class="forecast-quality" id="forecast-gasoil-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-gasoil-chart" role="img" aria-label="History and forecast: spot diesel" aria-describedby="forecast-gasoil-summary forecast-gasoil-quality">A text summary of this forecast appears below.</canvas></div><p class="chart-summary" id="forecast-gasoil-summary"></p><div class="forecast-stats" id="forecast-gasoil-stats"><span>Loading…</span></div></article>
+          <article class="forecast-card"><div class="forecast-card-heading"><h3>European Brent · spot</h3><span class="forecast-unit">USD/barrel</span></div><div class="forecast-quality" id="forecast-brent-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-brent-chart" role="img" aria-label="History and forecast: spot Brent" aria-describedby="forecast-brent-summary forecast-brent-quality">A text summary of this forecast appears below.</canvas></div><p class="chart-summary" id="forecast-brent-summary"></p><div class="forecast-stats" id="forecast-brent-stats"><span>Loading…</span></div></article>
+          <article class="forecast-card"><div class="forecast-card-heading"><h3>Bitumen · BLS index</h3><span class="forecast-unit">index (Dec. 1984 = 100)</span></div><div class="forecast-controls"><label for="forecast-bitume-horizon">Monthly horizon</label><select id="forecast-bitume-horizon"><option value="1">1 month</option><option value="3" selected>3 months</option><option value="6">6 months</option></select></div><div class="forecast-quality" id="forecast-bitume-quality" role="status" aria-live="polite"></div><div class="chart-wrap forecast-chart-wrap"><canvas id="forecast-bitume-chart" role="img" aria-label="History and forecast: BLS bitumen index" aria-describedby="forecast-bitume-summary forecast-bitume-quality">A text summary of this forecast appears below.</canvas></div><p class="chart-summary" id="forecast-bitume-summary"></p><div class="forecast-stats" id="forecast-bitume-stats"><span>Loading…</span></div><p class="chart-note">Projection of the monthly WPU058 index. Supplier quotes remain in USD/tonne.</p></article>
         </div>
-        <p class="forecast-disclaimer">Holt doit améliorer la MAE de validation d’au moins 2 % pour être retenu à chaque horizon ; sinon la projection conserve le dernier prix connu. Les bandes à 95 % nominal sont calibrées sur une période antérieure distincte du test final. Une calibration insuffisante laisse la bande absente. Leur couverture réelle peut rester inférieure à 95 %. Un gain MAE positif indique une amélioration par rapport au dernier prix constant. Les prévisions quotidiennes utilisent uniquement les séries spot, séparées des contrats à terme et du proxy heating oil. Les horizons partent de la dernière date source, pas de la date du jour.</p>
+        <p class="forecast-disclaimer">Holt must improve validation MAE by at least 2% at each horizon to be selected; otherwise the forecast uses the last known price. Nominal 95% intervals are calibrated on an earlier period separate from the final test. The interval is omitted when calibration is insufficient. Actual coverage may be below 95%. A positive MAE gain means an improvement over the constant last price. Daily forecasts use spot series only, separate from futures and the heating-oil proxy. Horizons begin at the latest source date, not today.</p>
       </section>
       </div>
 
-      <div class="page-view" id="veille" data-page="veille" aria-label="Veille">
+      <div class="page-view" id="veille" data-page="veille" aria-label="Alerts">
       <section class="panel alerts-panel" id="alerts">
-        <div class="panel-heading"><div><p class="eyebrow">SURVEILLANCE</p><h2>Règles de surveillance</h2></div><button class="text-btn" type="button" id="alert-new" data-permission="editor">＋ Nouvelle règle</button></div>
-        <p class="chart-note" id="alert-channel-status">Chargement de la configuration des notifications…</p>
+        <div class="panel-heading"><div><p class="eyebrow">MONITORING</p><h2>Alert rules</h2></div><button class="text-btn" type="button" id="alert-new" data-permission="editor">＋ New rule</button></div>
+        <p class="chart-note" id="alert-channel-status">Loading notification settings…</p>
         <div class="alerts-layout">
           <form id="alert-form" data-permission="editor" class="alert-form">
-            <div class="alert-form-heading"><strong id="alert-form-title">Créer une règle</strong><button class="text-btn" type="button" id="alert-cancel" hidden>Annuler</button></div>
-            <label>Produit<select name="product"><option value="gasoil">Gasoil / diesel</option><option value="brent">Pétrole Brent</option><option value="bitume">Bitume</option></select></label>
-            <label id="alert-instrument-field">Instrument suivi<select name="instrument"></select></label>
-            <label id="alert-basis-field" hidden>Valeur suivie<select name="basis"><option value="quote">Devis fournisseur · USD/tonne</option><option value="index">Indice mensuel BLS · base 100 en déc. 1984</option></select></label>
-            <label>Condition<select name="direction"><option value="above">Prix au-dessus de</option><option value="below">Prix en-dessous de</option><option value="stale">Cotation en direct non actualisée</option></select></label>
-            <label><span id="alert-threshold-label">Seuil de prix</span><input type="number" name="threshold" min="0.000001" step="any" required placeholder="90"></label>
-            <p class="field-help" id="alert-freshness-help" hidden>Recevez un email lorsque la dernière cotation de marché dépasse le délai choisi, puis au retour d'une cotation récente. Le marché fermé peut aussi déclencher l'alerte.</p>
+            <div class="alert-form-heading"><strong id="alert-form-title">Create a rule</strong><button class="text-btn" type="button" id="alert-cancel" hidden>Cancel</button></div>
+            <label>Product<select name="product"><option value="gasoil">Diesel / gasoil</option><option value="brent">Brent crude oil</option><option value="bitume">Bitumen</option></select></label>
+            <label id="alert-instrument-field">Tracked instrument<select name="instrument"></select></label>
+            <label id="alert-basis-field" hidden>Tracked value<select name="basis"><option value="quote">Supplier quote · USD/tonne</option><option value="index">Monthly BLS index · Dec. 1984 = 100</option></select></label>
+            <label>Condition<select name="direction"><option value="above">Price above</option><option value="below">Price below</option><option value="stale">Live quote is stale</option></select></label>
+            <label><span id="alert-threshold-label">Price threshold</span><input type="number" name="threshold" min="0.000001" step="any" required placeholder="90"></label>
+            <p class="field-help" id="alert-freshness-help" hidden>Receive an email when the latest market quote exceeds the chosen age, and again when a recent quote returns. Market closure can also trigger the alert.</p>
             <label>Notification<select name="channel"><option value="webhook">Webhook</option><option value="email">Email</option><option value="both">Webhook + email</option></select></label>
-            <label class="alert-muted-field"><input type="checkbox" name="muted"> Mettre en pause les notifications</label>
-            <button class="primary-btn full" type="submit" id="alert-save">Créer l'alerte <span>→</span></button>
+            <label class="alert-muted-field"><input type="checkbox" name="muted"> Pause notifications</label>
+            <button class="primary-btn full" type="submit" id="alert-save">Create alert <span>→</span></button>
           </form>
-          <div class="alert-list" id="alert-list"><div class="empty">Chargement des alertes…</div></div>
+          <div class="alert-list" id="alert-list"><div class="empty">Loading alerts…</div></div>
         </div>
       </section>
       </div>
 
-      <div class="page-view" id="archives" data-page="archives" aria-label="Archives">
+      <div class="page-view" id="archives" data-page="archives" aria-label="History">
       <section class="panel bitumen-history-panel" id="bitumen-history" aria-labelledby="bitumen-history-title">
-        <div class="panel-heading"><div><p class="eyebrow">BITUME · SÉRIE MENSUELLE</p><h2 id="bitumen-history-title">Historique du bitume</h2></div><span class="activity-count" id="bitumen-history-count" aria-live="polite">Chargement…</span></div>
-        <p class="panel-intro">Indice BLS WPU058 · base décembre 1984 = 100. Chaque ligne correspond à un mois publié. Les devis fournisseurs en USD/tonne se retrouvent dans les archives filtrées ci-dessous.</p>
-        <div class="table-scroll"><table><thead><tr><th scope="col">Mois</th><th scope="col">Indice BLS</th><th scope="col">Variation mensuelle</th></tr></thead><tbody id="bitumen-history-table"><tr><td colspan="3" class="empty">Chargement de l'historique du bitume…</td></tr></tbody></table></div>
-        <div class="panel-heading bitumen-history-toolbar"><div class="pagination" aria-label="Pages de l'historique du bitume"><button class="text-btn" type="button" id="bitumen-history-prev" disabled>← Plus récents</button><span id="bitumen-history-page-label">Page 1</span><button class="text-btn" type="button" id="bitumen-history-next" disabled>Plus anciens →</button></div><div class="export-actions"><a href="/export.csv?product=bitume&amp;data_kind=index" class="text-btn">↓ CSV bitume</a><a href="/export.xlsx?product=bitume&amp;data_kind=index" class="text-btn">↓ Excel bitume</a></div></div>
+        <div class="panel-heading"><div><p class="eyebrow">BITUMEN · MONTHLY SERIES</p><h2 id="bitumen-history-title">Bitumen history</h2></div><span class="activity-count" id="bitumen-history-count" aria-live="polite">Loading…</span></div>
+        <p class="panel-intro">BLS WPU058 index · December 1984 = 100. Each row is a published month. Supplier quotes in USD/tonne appear in the filtered history below.</p>
+        <div class="table-scroll"><table><thead><tr><th scope="col">Month</th><th scope="col">BLS index</th><th scope="col">Monthly change</th></tr></thead><tbody id="bitumen-history-table"><tr><td colspan="3" class="empty">Loading bitumen history…</td></tr></tbody></table></div>
+        <div class="panel-heading bitumen-history-toolbar"><div class="pagination" aria-label="Bitumen history pages"><button class="text-btn" type="button" id="bitumen-history-prev" disabled>← Newer</button><span id="bitumen-history-page-label">Page 1</span><button class="text-btn" type="button" id="bitumen-history-next" disabled>Older →</button></div><div class="export-actions"><a href="/export.csv?product=bitume&amp;data_kind=index" class="text-btn">↓ Bitumen CSV</a><a href="/export.xlsx?product=bitume&amp;data_kind=index" class="text-btn">↓ Bitumen Excel</a></div></div>
       </section>
       <section class="panel history-page" id="history-page">
-        <div class="panel-heading"><div><p class="eyebrow">HISTORIQUE COMPLET</p><h2>Archives des prix</h2></div><span class="activity-count" id="history-count">—</span></div>
+        <div class="panel-heading"><div><p class="eyebrow">FULL HISTORY</p><h2>Price history</h2></div><span class="activity-count" id="history-count">—</span></div>
         <form id="history-filters" class="history-filters">
-          <label>Produit<select name="product"><option value="">Tous les produits</option><option value="gasoil">Gasoil / diesel</option><option value="brent">Pétrole Brent</option><option value="bitume">Bitume</option></select></label>
-          <label>Type de donnée<select name="data_kind"><option value="">Prix et indices</option><option value="quote">Prix / devis</option><option value="index">Indice bitume BLS</option></select></label>
-          <label>Instrument<select name="instrument"><option value="">Tous les instruments</option><option value="diesel_spot">Diesel · spot</option><option value="heating_oil_futures">Heating oil · proxy gasoil</option><option value="brent_spot">Brent · spot</option><option value="brent_futures">Brent · contrat à terme</option><option value="bitumen_quote">Bitume · devis</option><option value="asphalt_index">Bitume · indice BLS</option></select></label>
-          <label>Fournisseur<input type="text" name="supplier" placeholder="Rechercher…"></label>
-          <label>Source<input type="text" name="source" placeholder="EIA, FRED, devis…"></label>
-          <label>Date début<input type="date" name="date_from"></label>
-          <label>Date fin<input type="date" name="date_to"></label>
-          <label>Prix minimum<input type="number" name="min_price" min="0" step="0.0001" placeholder="—"></label>
-          <label>Prix maximum<input type="number" name="max_price" min="0" step="0.0001" placeholder="—"></label>
-          <div class="history-filter-actions"><button class="primary-btn" type="submit">Filtrer</button><button class="text-btn history-reset" type="button" id="history-reset">Réinitialiser</button></div>
+          <label>Product<select name="product"><option value="">All products</option><option value="gasoil">Diesel / gasoil</option><option value="brent">Brent crude oil</option><option value="bitume">Bitumen</option></select></label>
+          <label>Data type<select name="data_kind"><option value="">Prices and indexes</option><option value="quote">Prices / quotes</option><option value="index">BLS bitumen index</option></select></label>
+          <label>Instrument<select name="instrument"><option value="">All instruments</option><option value="diesel_spot">Diesel · spot</option><option value="heating_oil_futures">Heating oil · diesel proxy</option><option value="brent_spot">Brent · spot</option><option value="brent_futures">Brent · futures</option><option value="bitumen_quote">Bitumen · quote</option><option value="asphalt_index">Bitumen · BLS index</option></select></label>
+          <label>Supplier<input type="text" name="supplier" placeholder="Search…"></label>
+          <label>Source<input type="text" name="source" placeholder="EIA, FRED, quotes…"></label>
+          <label>Start date<input type="date" name="date_from"></label>
+          <label>End date<input type="date" name="date_to"></label>
+          <label>Minimum price<input type="number" name="min_price" min="0" step="0.0001" placeholder="—"></label>
+          <label>Maximum price<input type="number" name="max_price" min="0" step="0.0001" placeholder="—"></label>
+          <div class="history-filter-actions"><button class="primary-btn" type="submit">Filter</button><button class="text-btn history-reset" type="button" id="history-reset">Reset</button></div>
         </form>
-        <div class="panel-heading history-toolbar"><div class="pagination" id="history-pagination"><button class="text-btn" type="button" id="history-prev">← Précédent</button><span id="history-page-label">Page 1</span><button class="text-btn" type="button" id="history-next">Suivant →</button></div><div class="export-actions"><a href="/export.csv" id="history-csv" class="text-btn">↓ CSV filtré</a><a href="/export.xlsx" id="history-xlsx" class="text-btn">↓ Excel filtré</a></div></div>
-        <div class="table-scroll"><table><thead><tr><th>Date source</th><th>Produit</th><th>Prix / indice</th><th>Fournisseur</th><th>Source</th><th>Collecté le</th><th>Variation</th></tr></thead><tbody id="history-table"><tr><td colspan="7" class="empty">Utilisez les filtres pour charger l'historique.</td></tr></tbody></table></div>
-        <p class="chart-note">Bitume : l'indice BLS est mensuel et garde sa base déc. 1984 = 100. Les devis sont enregistrés séparément en USD/tonne. Les périodes et les limites numériques filtrent les valeurs publiées, sans interpolation.</p>
+        <div class="panel-heading history-toolbar"><div class="pagination" id="history-pagination"><button class="text-btn" type="button" id="history-prev">← Previous</button><span id="history-page-label">Page 1</span><button class="text-btn" type="button" id="history-next">Next →</button></div><div class="export-actions"><a href="/export.csv" id="history-csv" class="text-btn">↓ Filtered CSV</a><a href="/export.xlsx" id="history-xlsx" class="text-btn">↓ Filtered Excel</a></div></div>
+        <div class="table-scroll"><table><thead><tr><th>Source date</th><th>Product</th><th>Price / index</th><th>Supplier</th><th>Source</th><th>Collected on</th><th>Change</th></tr></thead><tbody id="history-table"><tr><td colspan="7" class="empty">Use the filters to load history.</td></tr></tbody></table></div>
+        <p class="chart-note">Bitumen: the BLS index is monthly, with December 1984 = 100. Quotes are stored separately in USD/tonne. Date ranges and numeric limits filter published values without interpolation.</p>
       </section>
       <section class="panel compare-panel" id="compare">
-        <div class="panel-heading"><div><p class="eyebrow">COMPARAISON DE PÉRIODES</p><h2>Mesurer l'évolution</h2></div></div>
-        <form id="compare-form" class="compare-form"><div><span>Période A</span><label>Du<input type="date" name="period_a_from" required></label><label>Au<input type="date" name="period_a_to" required></label></div><div><span>Période B</span><label>Du<input type="date" name="period_b_from" required></label><label>Au<input type="date" name="period_b_to" required></label></div><button class="primary-btn" type="submit">Comparer les périodes</button></form>
-        <div class="table-scroll"><table><thead><tr><th>Produit</th><th>Période A · moyenne</th><th>Période B · moyenne</th><th>Variation moyenne</th><th>Relevés A / B</th></tr></thead><tbody id="compare-table"><tr><td colspan="5" class="empty">Choisissez deux périodes à comparer.</td></tr></tbody></table></div>
+        <div class="panel-heading"><div><p class="eyebrow">PERIOD COMPARISON</p><h2>Measure change</h2></div></div>
+        <form id="compare-form" class="compare-form"><div><span>Period A</span><label>From<input type="date" name="period_a_from" required></label><label>To<input type="date" name="period_a_to" required></label></div><div><span>Period B</span><label>From<input type="date" name="period_b_from" required></label><label>To<input type="date" name="period_b_to" required></label></div><button class="primary-btn" type="submit">Compare periods</button></form>
+        <div class="table-scroll"><table><thead><tr><th>Product</th><th>Period A · average</th><th>Period B · average</th><th>Average change</th><th>Observations A / B</th></tr></thead><tbody id="compare-table"><tr><td colspan="5" class="empty">Choose two periods to compare.</td></tr></tbody></table></div>
       </section>
       </div>
 
-      <div class="page-view" id="nouveau-prix" data-page="nouveau-prix" aria-label="Nouveau prix">
-        <article class="panel form-panel" id="manual"><div class="panel-heading"><div><p class="eyebrow">DONNÉE INTERNE</p><h2>Nouveau prix du bitume</h2></div><span class="form-icon">＋</span></div><p class="panel-intro">Enregistrez un prix pour enrichir l'historique. Pour gérer les conditions, justificatifs et corrections d’un devis, ouvrez <a href="#fournisseurs">Gérer les devis</a>.</p><form id="bitumen-form" data-permission="editor"><div class="form-grid"><label>Prix <div class="input-wrap"><input type="number" min="0.01" step="0.01" name="price" required placeholder="520.00"><span>USD/t</span></div></label><label>Date source<input type="date" name="source_date" required></label></div><label>Source / fournisseur<input type="text" name="source" required placeholder="Ex. Devis Fournisseur ABC · Q3 2026"></label><label>Remarque <textarea name="notes" rows="2" placeholder="Référence, incoterm, qualité…"></textarea></label><button class="primary-btn full" type="submit">Enregistrer le relevé <span>→</span></button></form></article>
+      <div class="page-view" id="nouveau-prix" data-page="nouveau-prix" aria-label="New price">
+        <article class="panel form-panel" id="manual"><div class="panel-heading"><div><p class="eyebrow">INTERNAL DATA</p><h2>New bitumen price</h2></div><span class="form-icon">＋</span></div><p class="panel-intro">Save a price to extend the history. To manage quote terms, documents, and corrections, open <a href="#fournisseurs">Manage quotes</a>.</p><form id="bitumen-form" data-permission="editor"><div class="form-grid"><label>Price <div class="input-wrap"><input type="number" min="0.01" step="0.01" name="price" required placeholder="520.00"><span>USD/t</span></div></label><label>Source date<input type="date" name="source_date" required></label></div><label>Source / supplier<input type="text" name="source" required placeholder="E.g. ABC Supplier quote · Q3 2026"></label><label>Note <textarea name="notes" rows="2" placeholder="Reference, Incoterm, grade…"></textarea></label><button class="primary-btn full" type="submit">Save observation <span>→</span></button></form></article>
       </div>
 
-      <div class="page-view" id="fournisseurs" data-page="fournisseurs" aria-label="Fournisseurs">
+      <div class="page-view" id="fournisseurs" data-page="fournisseurs" aria-label="Suppliers">
       <section class="panel quote-panel" id="quote-management" aria-labelledby="quote-title">
-        <div class="panel-heading"><div><p class="eyebrow">DOSSIERS FOURNISSEURS</p><h2 id="quote-title">Gérer les devis</h2></div><button type="button" class="primary-btn" id="quote-new" data-permission="editor">＋ Nouveau devis</button></div>
-        <p class="panel-intro">Qualité, livraison, validité, justificatifs et corrections réunis dans un dossier. Comparez des offres portant sur les mêmes conditions.</p>
-        <form id="quote-filters" class="quote-toolbar"><label>Produit<select name="product"><option value="">Tous</option><option value="gasoil">Gasoil / diesel</option><option value="brent">Brent</option><option value="bitume">Bitume</option></select></label><label>Fournisseur<input name="supplier" maxlength="150" placeholder="Rechercher un fournisseur"></label><button type="submit" class="text-btn">Filtrer</button></form>
-        <p id="quote-list-status" role="status">Chargement des devis…</p>
-        <div class="table-scroll"><table><thead><tr><th>Comparer</th><th>Devis / fournisseur</th><th>Produit / grade</th><th>Livraison</th><th>Validité</th><th>Coût rendu USD</th><th></th></tr></thead><tbody id="quote-list"></tbody></table></div>
-        <div class="quote-toolbar"><button type="button" class="text-btn" id="quote-prev" disabled>← Précédents</button><span id="quote-page"></span><button type="button" class="text-btn" id="quote-next" disabled>Suivants →</button><label>Comparer à la date du<input type="date" id="quote-compare-date" required></label><button type="button" class="primary-btn" id="quote-compare" disabled>Comparer les devis sélectionnés</button><button type="button" class="text-btn" id="quote-clear-selection">Vider la sélection</button></div>
+        <div class="panel-heading"><div><p class="eyebrow">SUPPLIER QUOTES</p><h2 id="quote-title">Manage quotes</h2></div><button type="button" class="primary-btn" id="quote-new" data-permission="editor">＋ New quote</button></div>
+        <p class="panel-intro">Keep grade, delivery, validity, documents, and corrections together. Compare offers with equivalent terms.</p>
+        <form id="quote-filters" class="quote-toolbar"><label>Product<select name="product"><option value="">All</option><option value="gasoil">Diesel / gasoil</option><option value="brent">Brent</option><option value="bitume">Bitumen</option></select></label><label>Supplier<input name="supplier" maxlength="150" placeholder="Search for a supplier"></label><button type="submit" class="text-btn">Filter</button></form>
+        <p id="quote-list-status" role="status">Loading quotes…</p>
+        <div class="table-scroll"><table><thead><tr><th>Compare</th><th>Quote / supplier</th><th>Product / grade</th><th>Delivery</th><th>Validity</th><th>Landed cost USD</th><th></th></tr></thead><tbody id="quote-list"></tbody></table></div>
+        <div class="quote-toolbar"><button type="button" class="text-btn" id="quote-prev" disabled>← Previous</button><span id="quote-page"></span><button type="button" class="text-btn" id="quote-next" disabled>Next →</button><label>Compare as of<input type="date" id="quote-compare-date" required></label><button type="button" class="primary-btn" id="quote-compare" disabled>Compare selected quotes</button><button type="button" class="text-btn" id="quote-clear-selection">Clear selection</button></div>
         <div id="quote-comparison" hidden aria-live="polite"></div>
         <form id="quote-editor" data-permission="editor" hidden>
-          <div class="panel-heading"><h3 id="quote-editor-title">Nouveau devis</h3><button type="button" class="text-btn" id="quote-cancel">Fermer</button></div>
+          <div class="panel-heading"><h3 id="quote-editor-title">New quote</h3><button type="button" class="text-btn" id="quote-cancel">Close</button></div>
           <input type="hidden" name="expected_version">
-          <fieldset><legend>Produit et qualité</legend><div class="form-grid">
-            <label>Produit<select name="product" id="quote-product"><option value="gasoil">Gasoil / diesel</option><option value="brent">Brent</option><option value="bitume">Bitume</option></select></label>
-            <label>Fournisseur<input name="supplier" maxlength="150" required></label><label>Référence du devis<input name="reference" maxlength="100"></label>
-            <label>Grade<input name="grade" maxlength="100" required placeholder="50/70, diesel 10 ppm…"></label><label>Norme / spécification<input name="specification" maxlength="150" required placeholder="EN 12591, EN 590…"></label><label>Origine<input name="origin" maxlength="100" required placeholder="Pays / raffinerie"></label>
-            <label>Type de pièce commerciale<select name="document_type"><option value="quotation">Devis</option><option value="proforma">Facture pro forma</option><option value="invoice">Facture</option><option value="purchase_order">Bon de commande</option></select></label>
-            <label>Conditionnement<select name="packaging" id="quote-packaging"></select></label><label>Détail du conditionnement<input name="packaging_detail" maxlength="150" placeholder="Obligatoire pour Autre"></label>
+          <fieldset><legend>Product and grade</legend><div class="form-grid">
+            <label>Product<select name="product" id="quote-product"><option value="gasoil">Diesel / gasoil</option><option value="brent">Brent</option><option value="bitume">Bitumen</option></select></label>
+            <label>Supplier<input name="supplier" maxlength="150" required></label><label>Quote reference<input name="reference" maxlength="100"></label>
+            <label>Grade<input name="grade" maxlength="100" required placeholder="50/70, 10 ppm diesel…"></label><label>Standard / specification<input name="specification" maxlength="150" required placeholder="EN 12591, EN 590…"></label><label>Origin<input name="origin" maxlength="100" required placeholder="Country / refinery"></label>
+            <label>Commercial document type<select name="document_type"><option value="quotation">Quote</option><option value="proforma">Pro forma invoice</option><option value="invoice">Invoice</option><option value="purchase_order">Purchase order</option></select></label>
+            <label>Packaging<select name="packaging" id="quote-packaging"></select></label><label>Packaging details<input name="packaging_detail" maxlength="150" placeholder="Required for Other"></label>
           </div></fieldset>
-          <fieldset><legend>Livraison et validité</legend><div class="form-grid">
-            <label>Incoterm<select name="incoterm" id="quote-incoterm"></select></label><label>Lieu nommé de l’Incoterm<input name="incoterm_place" maxlength="200" required placeholder="Port, dépôt ou adresse"></label><label>Destination<input name="destination" maxlength="200" required></label>
-            <label>Date du devis<input type="date" name="quote_date" required></label><label>Valable jusqu’au<input type="date" name="valid_until" required></label><label>Livraison prévue<input type="date" name="delivery_date" required></label><label>Conditions de paiement<input name="payment_terms" maxlength="200" required placeholder="30 jours, crédit documentaire…"></label>
+          <fieldset><legend>Delivery and validity</legend><div class="form-grid">
+            <label>Incoterm<select name="incoterm" id="quote-incoterm"></select></label><label>Incoterm named place<input name="incoterm_place" maxlength="200" required placeholder="Port, depot, or address"></label><label>Destination<input name="destination" maxlength="200" required></label>
+            <label>Quote date<input type="date" name="quote_date" required></label><label>Valid until<input type="date" name="valid_until" required></label><label>Expected delivery<input type="date" name="delivery_date" required></label><label>Payment terms<input name="payment_terms" maxlength="200" required placeholder="30 days, letter of credit…"></label>
           </div></fieldset>
-          <fieldset><legend>Prix et coût rendu</legend><div class="form-grid">
-            <label>Quantité <span id="quote-unit">gallon</span><input type="number" name="quantity" min="0.000001" step="0.000001" required></label>
-            <label>Prix unitaire<input type="number" name="unit_price" min="0.000001" step="0.000001" required></label><label>Devise<input name="currency" id="quote-currency" maxlength="3" pattern="[A-Za-z]{3}" value="USD" required></label><label>USD pour 1 unité de la devise<input type="number" name="exchange_rate" min="0.00000001" step="0.00000001" value="1" required></label>
-          </div><p class="field-help">Suppléments hors prix proposé : montants totaux dans la devise du devis. Saisissez uniquement les frais qui ne sont pas déjà inclus.</p><div class="form-grid" id="quote-cost-fields"></div>
-          <div id="quote-other-costs" class="other-costs"></div><button type="button" class="text-btn" id="quote-add-cost">＋ Ajouter un autre frais</button></fieldset>
-          <div class="form-grid"><label>Statut<select name="status"><option value="active">Actif</option><option value="withdrawn">Retiré</option></select></label><label>Auteur<input name="actor" maxlength="100" value="Équipe achats" required></label><label id="quote-reason-field" hidden>Motif de la correction<input name="change_reason" maxlength="1000"></label></div>
-          <label>Remarques<textarea name="notes" maxlength="2000" rows="2"></textarea></label><p id="quote-editor-message" class="error-note" role="status"></p><button class="primary-btn" type="submit" id="quote-save">Enregistrer le devis</button>
+          <fieldset><legend>Price and landed cost</legend><div class="form-grid">
+            <label>Quantity <span id="quote-unit">gallon</span><input type="number" name="quantity" min="0.000001" step="0.000001" required></label>
+            <label>Unit price<input type="number" name="unit_price" min="0.000001" step="0.000001" required></label><label>Currency<input name="currency" id="quote-currency" maxlength="3" pattern="[A-Za-z]{3}" value="USD" required></label><label>USD per currency unit<input type="number" name="exchange_rate" min="0.00000001" step="0.00000001" value="1" required></label>
+          </div><p class="field-help">Additional charges outside the quoted price: totals in the quote currency. Enter only charges that are not already included.</p><div class="form-grid" id="quote-cost-fields"></div>
+          <div id="quote-other-costs" class="other-costs"></div><button type="button" class="text-btn" id="quote-add-cost">＋ Add another cost</button></fieldset>
+          <div class="form-grid"><label>Status<select name="status"><option value="active">Active</option><option value="withdrawn">Withdrawn</option></select></label><label>Author<input name="actor" maxlength="100" value="Purchasing team" required></label><label id="quote-reason-field" hidden>Reason for correction<input name="change_reason" maxlength="1000"></label></div>
+          <label>Notes<textarea name="notes" maxlength="2000" rows="2"></textarea></label><p id="quote-editor-message" class="error-note" role="status"></p><button class="primary-btn" type="submit" id="quote-save">Save quote</button>
         </form>
         <article id="quote-detail" hidden>
-          <div class="panel-heading"><h3 id="quote-detail-title"></h3><div class="export-actions"><button type="button" class="text-btn" id="quote-edit" data-permission="editor">Corriger</button><button type="button" class="primary-btn" id="quote-budget" data-permission="editor">Préparer le budget</button><button type="button" class="text-btn" id="quote-detail-close">Fermer</button></div></div>
+          <div class="panel-heading"><h3 id="quote-detail-title"></h3><div class="export-actions"><button type="button" class="text-btn" id="quote-edit" data-permission="editor">Correct</button><button type="button" class="primary-btn" id="quote-budget" data-permission="editor">Prepare budget</button><button type="button" class="text-btn" id="quote-detail-close">Close</button></div></div>
           <div id="quote-detail-content"></div>
-          <h3>Justificatifs</h3><div id="quote-documents"></div>
-          <form id="quote-document-form" data-permission="editor"><div class="form-grid"><label>Fichier<input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.xlsx" required></label><label>Type de document<select name="document_type" id="quote-document-type"></select></label><label>Auteur<input name="actor" maxlength="100" value="Équipe achats" required></label><label>Motif de l’ajout ou du retrait<input name="change_reason" maxlength="1000" required></label></div><p class="field-help">PDF, images, TXT, DOCX ou XLSX sans macros · 5 Mo par document. Les pièces retirées restent dans l’historique.</p><button type="submit" class="text-btn" id="quote-upload">Joindre le justificatif</button><p id="quote-document-message" class="error-note" role="status"></p></form>
-          <h3>Historique des corrections</h3><div id="quote-revisions"></div>
+          <h3>Supporting documents</h3><div id="quote-documents"></div>
+          <form id="quote-document-form" data-permission="editor"><div class="form-grid"><label>File<input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.xlsx" required></label><label>Document type<select name="document_type" id="quote-document-type"></select></label><label>Author<input name="actor" maxlength="100" value="Purchasing team" required></label><label>Reason for adding or withdrawing<input name="change_reason" maxlength="1000" required></label></div><p class="field-help">PDF, images, TXT, DOCX, or macro-free XLSX · 5 MB per document. Withdrawn files remain in the history.</p><button type="submit" class="text-btn" id="quote-upload">Attach document</button><p id="quote-document-message" class="error-note" role="status"></p></form>
+          <h3>Correction history</h3><div id="quote-revisions"></div>
         </article>
       </section>
 
       <section class="panel buying-panel" id="buying-guide">
         <div class="panel-heading buying-heading">
-          <div><p class="eyebrow">SOURCING & ACHAT</p><h2>Trouver un fournisseur</h2></div>
+          <div><p class="eyebrow">SOURCING &amp; PURCHASING</p><h2>Find a supplier</h2></div>
           <div class="buying-filters">
-            <label>Produit<select id="buy-product"><option value="gasoil">Gasoil / diesel</option><option value="bitume">Bitume</option></select></label>
-            <label>Région<select id="buy-region"><option value="all">Toutes</option><option value="europe">Europe</option><option value="africa_middle_east">Afrique & Moyen-Orient</option><option value="asia_pacific">Asie-Pacifique</option><option value="americas">Amériques</option><option value="local">Local</option></select></label>
+            <label>Product<select id="buy-product"><option value="gasoil">Diesel / gasoil</option><option value="bitume">Bitumen</option></select></label>
+            <label>Region<select id="buy-region"><option value="all">All regions</option><option value="europe">Europe</option><option value="africa_middle_east">Africa &amp; Middle East</option><option value="asia_pacific">Asia-Pacific</option><option value="americas">Americas</option><option value="local">Local</option></select></label>
           </div>
         </div>
-        <div id="market-context" class="market-context"><div class="empty">Chargement du contexte marché…</div></div>
+        <div id="market-context" class="market-context"><div class="empty">Loading market context…</div></div>
         <div class="buying-layout">
           <div>
-            <h3 class="section-title">Canaux fournisseurs officiels</h3>
-            <div id="supplier-directory" class="supplier-directory"><div class="empty">Chargement des fournisseurs…</div></div>
+            <h3 class="section-title">Official supplier channels</h3>
+            <div id="supplier-directory" class="supplier-directory"><div class="empty">Loading suppliers…</div></div>
           </div>
           <div>
-            <h3 class="section-title">Processus d'achat recommandé</h3>
-            <ol id="buy-steps" class="buy-steps"><li>Chargement…</li></ol>
+            <h3 class="section-title">Recommended purchasing process</h3>
+            <ol id="buy-steps" class="buy-steps"><li>Loading…</li></ol>
           </div>
         </div>
         <div class="rfq-panel">
-          <div><h3 class="section-title">Informations à mettre dans le RFQ</h3><p id="buy-specification" class="panel-intro"></p><p id="buy-logistics" class="panel-intro"></p></div>
+          <div><h3 class="section-title">Information to include in the RFQ</h3><p id="buy-specification" class="panel-intro"></p><p id="buy-logistics" class="panel-intro"></p></div>
           <ul id="rfq-checklist" class="rfq-checklist"></ul>
         </div>
         <p id="landed-cost-formula" class="cost-formula"></p>
@@ -240,68 +240,68 @@
 
       <div class="page-view" id="budget" data-page="budget" aria-label="Budget">
       <section class="panel procurement-panel" id="procurement">
-        <div class="panel-heading"><div><p class="eyebrow">DÉCISION D'ACHAT</p><h2>Préparer un budget</h2></div><span class="form-icon">▣</span></div>
-        <p class="panel-intro">Calculez le coût total, l'écart au budget et l'impact du prix par rapport au dernier relevé de marché.</p>
-        <p id="procurement-quote-link" hidden role="status"></p><button type="button" class="text-btn" id="procurement-unlink-quote" hidden>Passer à un budget libre</button><form id="procurement-form" data-permission="editor">
+        <div class="panel-heading"><div><p class="eyebrow">PURCHASE DECISION</p><h2>Prepare a budget</h2></div><span class="form-icon">▣</span></div>
+        <p class="panel-intro">Calculate total cost, budget difference, and price impact relative to the latest market observation.</p>
+        <p id="procurement-quote-link" hidden role="status"></p><button type="button" class="text-btn" id="procurement-unlink-quote" hidden>Switch to a standalone budget</button><form id="procurement-form" data-permission="editor">
           <input type="hidden" name="quote_id"><input type="hidden" name="quote_version">
           <div class="form-grid">
-            <label>Produit<select name="product" id="procurement-product"><option value="gasoil">Gasoil / diesel</option><option value="brent">Pétrole Brent</option><option value="bitume">Bitume</option></select></label>
-            <label>Fournisseur<input type="text" name="supplier" required maxlength="150" placeholder="Ex. Fournisseur ABC"></label>
-            <label>Quantité <div class="input-wrap"><input type="number" name="quantity" min="0.000001" step="0.001" required placeholder="1000"><span id="quantity-unit">gallon</span></div></label>
-            <label>Date d'achat<input type="date" name="purchase_date" required></label>
-            <label>Devise<select name="currency" id="procurement-currency"><option>USD</option><option>EUR</option><option>GBP</option><option>MAD</option><option>CAD</option></select></label>
-            <label>Prix unitaire <div class="input-wrap"><input type="number" name="unit_price" min="0.000001" step="0.0001" required placeholder="81.40"><span id="unit-price-unit">USD/gallon</span></div></label>
-            <label>Taux de change <input type="number" name="exchange_rate" id="exchange-rate" min="0.000001" step="0.000001" value="1" required><small class="field-help">USD pour 1 unité de la devise</small></label>
+            <label>Product<select name="product" id="procurement-product"><option value="gasoil">Diesel / gasoil</option><option value="brent">Brent crude oil</option><option value="bitume">Bitumen</option></select></label>
+            <label>Supplier<input type="text" name="supplier" required maxlength="150" placeholder="E.g. ABC Supplier"></label>
+            <label>Quantity <div class="input-wrap"><input type="number" name="quantity" min="0.000001" step="0.001" required placeholder="1000"><span id="quantity-unit">gallon</span></div></label>
+            <label>Purchase date<input type="date" name="purchase_date" required></label>
+            <label>Currency<select name="currency" id="procurement-currency"><option>USD</option><option>EUR</option><option>GBP</option><option>MAD</option><option>CAD</option></select></label>
+            <label>Unit price <div class="input-wrap"><input type="number" name="unit_price" min="0.000001" step="0.0001" required placeholder="81.40"><span id="unit-price-unit">USD/gallon</span></div></label>
+            <label>Exchange rate <input type="number" name="exchange_rate" id="exchange-rate" min="0.000001" step="0.000001" value="1" required><small class="field-help">USD per currency unit</small></label>
             <label>Transport <input type="number" name="transport_cost" min="0" step="0.01" value="0" placeholder="0"></label>
-          </div><details class="budget-cost-details" open><summary>Suppléments de coût rendu</summary><p class="field-help">Montants totaux dans la devise du budget, hors frais déjà inclus dans le prix unitaire. Devise : <span id="procurement-cost-currency">USD</span>.</p><div class="form-grid">
-<label>Assurance<input type="number" name="insurance_cost" min="0" step="0.000001" value="0"></label><label>Inspection<input type="number" name="inspection_cost" min="0" step="0.000001" value="0"></label><label>Droits de douane<input type="number" name="duties_cost" min="0" step="0.000001" value="0"></label><label>Taxes<input type="number" name="taxes_cost" min="0" step="0.000001" value="0"></label><label>Stockage<input type="number" name="storage_cost" min="0" step="0.000001" value="0"></label><label>Chauffage<input type="number" name="heating_cost" min="0" step="0.000001" value="0"></label><label>Frais financiers<input type="number" name="finance_cost" min="0" step="0.000001" value="0"></label></div><div id="procurement-other-costs" class="other-costs"></div><button type="button" class="text-btn" id="procurement-add-cost">＋ Ajouter un autre frais</button></details><div class="form-grid">
-            <label>Budget prévu <input type="number" name="budget_amount" min="0" step="0.01" placeholder="Optionnel"></label>
+          </div><details class="budget-cost-details" open><summary>Additional landed costs</summary><p class="field-help">Totals in the budget currency, excluding charges already included in the unit price. Currency: <span id="procurement-cost-currency">USD</span>.</p><div class="form-grid">
+<label>Insurance<input type="number" name="insurance_cost" min="0" step="0.000001" value="0"></label><label>Inspection<input type="number" name="inspection_cost" min="0" step="0.000001" value="0"></label><label>Customs duties<input type="number" name="duties_cost" min="0" step="0.000001" value="0"></label><label>Taxes<input type="number" name="taxes_cost" min="0" step="0.000001" value="0"></label><label>Storage<input type="number" name="storage_cost" min="0" step="0.000001" value="0"></label><label>Heating<input type="number" name="heating_cost" min="0" step="0.000001" value="0"></label><label>Financing costs<input type="number" name="finance_cost" min="0" step="0.000001" value="0"></label></div><div id="procurement-other-costs" class="other-costs"></div><button type="button" class="text-btn" id="procurement-add-cost">＋ Add another cost</button></details><div class="form-grid">
+            <label>Planned budget <input type="number" name="budget_amount" min="0" step="0.01" placeholder="Optional"></label>
           </div>
-          <label>Remarque<textarea name="notes" rows="2" maxlength="500" placeholder="Précisions sur l’estimation…"></textarea></label>
-          <button class="primary-btn" type="submit">Calculer l'impact d'achat <span>→</span></button>
+          <label>Note<textarea name="notes" rows="2" maxlength="500" placeholder="Details about the estimate…"></textarea></label>
+          <button class="primary-btn" type="submit">Calculate purchase impact <span>→</span></button>
         </form>
         <div id="procurement-summary" class="purchase-summary" hidden></div><div id="procurement-breakdown" hidden></div>
-        <div class="procurement-history-state" id="procurement-history-state" role="status"><p id="procurement-history-message">Chargement de l'historique des achats…</p><button class="text-btn" type="button" id="procurement-history-retry" hidden>Réessayer</button></div>
-        <div class="table-scroll procurement-history" id="procurement-history-table" hidden><table><thead><tr><th>Date</th><th>Produit</th><th>Fournisseur</th><th>Quantité</th><th>Total</th><th>Écart budget</th><th>Impact prix</th></tr></thead><tbody id="procurement-table"></tbody></table></div>
+        <div class="procurement-history-state" id="procurement-history-state" role="status"><p id="procurement-history-message">Loading purchase history…</p><button class="text-btn" type="button" id="procurement-history-retry" hidden>Retry</button></div>
+        <div class="table-scroll procurement-history" id="procurement-history-table" hidden><table><thead><tr><th>Date</th><th>Product</th><th>Supplier</th><th>Quantity</th><th>Total</th><th>Budget difference</th><th>Price impact</th></tr></thead><tbody id="procurement-table"></tbody></table></div>
       </section>
       </div>
 
-      <div class="page-view" id="activite" data-page="activite" aria-label="Activité">
+      <div class="page-view" id="activite" data-page="activite" aria-label="Activity">
         <article class="panel">
-          <div class="panel-heading"><div><p class="eyebrow">CALENDRIER DE COLLECTE</p><h2>Suivi par fournisseur</h2></div></div>
-          <p class="muted">Les prix enregistrés restent accessibles pendant les collectes. Les cotations en direct suivent les heures de marché. Les quotas et délais de reprise s'appliquent aussi aux collectes manuelles.</p>
-          <div class="table-wrap"><table><thead><tr><th>Fournisseur</th><th>Intervalle</th><th>État</th><th>Prochaine collecte</th><th>Requêtes / 24 h</th></tr></thead><tbody id="schedule-body"><tr><td colspan="5">Chargement…</td></tr></tbody></table></div>
+          <div class="panel-heading"><div><p class="eyebrow">COLLECTION SCHEDULE</p><h2>By provider</h2></div></div>
+          <p class="muted">Saved prices remain available during collection. Live quotes follow market hours. Quotas and retry delays also apply to manual collection.</p>
+          <div class="table-wrap"><table><thead><tr><th>Supplier</th><th>Interval</th><th>State</th><th>Next collection</th><th>Requests / 24 h</th></tr></thead><tbody id="schedule-body"><tr><td colspan="5">Loading…</td></tr></tbody></table></div>
         </article>
 <div class="grid-2 activity-grid">
         <article class="panel quality-panel" id="sources">
-          <div class="panel-heading"><div><p class="eyebrow">CONTRÔLE QUALITÉ</p><h2>État des données</h2></div><span class="status-badge">● En ligne</span></div>
-          <div class="quality-score"><div class="score-ring"><strong id="quality-score">—</strong><span>/100</span></div><div><strong>Qualité globale</strong><p>Sources suivies et relevés contrôlés</p></div></div>
-          <div class="quality-list"><div><span class="check">✓</span><span>Dates de publication conservées</span><b id="source-count">3 sources</b></div><div><span class="check">✓</span><span>Unités et devises normalisées</span><b>USD</b></div><div><span class="check">✓</span><span>Relevés analysés</span><b id="observation-count">—</b></div></div>
+          <div class="panel-heading"><div><p class="eyebrow">DATA QUALITY</p><h2>Data status</h2></div><span class="status-badge">● Online</span></div>
+          <div class="quality-score"><div class="score-ring"><strong id="quality-score">—</strong><span>/100</span></div><div><strong>Overall quality</strong><p>Tracked sources and checked observations</p></div></div>
+          <div class="quality-list"><div><span class="check">✓</span><span>Original publication dates preserved</span><b id="source-count">3 sources</b></div><div><span class="check">✓</span><span>Units and currencies normalized</span><b>USD</b></div><div><span class="check">✓</span><span>Observations analyzed</span><b id="observation-count">—</b></div></div>
         </article>
-        <article class="panel activity-panel"><div class="panel-heading"><div><p class="eyebrow">JOURNAL D'INGESTION</p><h2>Activité récente</h2></div><span class="activity-count" id="activity-count">—</span></div><div class="activity-list" id="activity-list"><div class="empty">Chargement…</div></div></article>
+        <article class="panel activity-panel"><div class="panel-heading"><div><p class="eyebrow">COLLECTION LOG</p><h2>Recent activity</h2></div><span class="activity-count" id="activity-count">—</span></div><div class="activity-list" id="activity-list"><div class="empty">Loading…</div></div></article>
 </div>
       </div>
 
-      <div class="page-view" id="equipe" data-page="equipe" aria-label="Mon compte et équipe">
-        <article class="panel"><div class="panel-heading"><div><p class="eyebrow">COMPTE INDIVIDUEL</p><h2 id="account-name">Connexion…</h2><p id="account-role"></p></div><div class="account-actions"><button id="account-login-button" class="text-btn" type="button">Utiliser un compte</button><button id="logout-button" class="text-btn" type="button" hidden>Se déconnecter</button></div></div>
+      <div class="page-view" id="equipe" data-page="equipe" aria-label="My account and team">
+        <article class="panel"><div class="panel-heading"><div><p class="eyebrow">PERSONAL ACCOUNT</p><h2 id="account-name">Connecting…</h2><p id="account-role"></p></div><div class="account-actions"><button id="account-login-button" class="text-btn" type="button">Use an account</button><button id="logout-button" class="text-btn" type="button" hidden>Sign out</button></div></div>
           <div id="personal-account-controls" hidden>
-            <form id="password-form" class="form-grid"><label>Mot de passe actuel<input type="password" name="current_password" autocomplete="current-password" required maxlength="128"></label><label>Nouveau mot de passe<input type="password" name="new_password" autocomplete="new-password" required minlength="12" maxlength="128"></label><button type="submit" class="primary-btn">Modifier mon mot de passe</button></form>
-            <hr><h3>Accès à mes outils</h3><p>Créez un jeton individuel pour vos scripts. Il utilise votre rôle et peut être révoqué à tout moment.</p>
-            <form id="token-form" class="form-grid"><label>Nom de l’outil<input name="label" maxlength="100" required></label><label>Validité (jours)<input type="number" name="days" min="1" max="365" value="30" required></label><button type="submit" class="text-btn">Créer un jeton</button></form>
-            <p id="new-token-message" role="status" hidden>Copiez ce jeton maintenant ; il ne sera plus affiché.</p><textarea id="new-token" readonly hidden aria-label="Nouveau jeton individuel"></textarea><div id="token-list"></div>
+            <form id="password-form" class="form-grid"><label>Current password<input type="password" name="current_password" autocomplete="current-password" required maxlength="128"></label><label>New password<input type="password" name="new_password" autocomplete="new-password" required minlength="12" maxlength="128"></label><button type="submit" class="primary-btn">Change my password</button></form>
+            <hr><h3>Access for my tools</h3><p>Create a personal token for your scripts. It uses your current role and can be revoked at any time.</p>
+            <form id="token-form" class="form-grid"><label>Tool name<input name="label" maxlength="100" required></label><label>Validity (days)<input type="number" name="days" min="1" max="365" value="30" required></label><button type="submit" class="text-btn">Create token</button></form>
+            <p id="new-token-message" role="status" hidden>Copy this token now; it will not be shown again.</p><textarea id="new-token" readonly hidden aria-label="New personal token"></textarea><div id="token-list"></div>
           </div>
           <p id="account-message" class="error-note" role="status"></p>
         </article>
         <div data-permission="admin" hidden>
-          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">ADMINISTRATION</p><h2>Équipe</h2></div><button id="team-refresh" class="text-btn" type="button">Actualiser</button></div>
-            <p>Lecteur : consultation et exports. Éditeur : saisie, devis, budgets, alertes et collectes. Administrateur : gestion de l’équipe et journal des actions.</p>
-            <form id="user-form" class="form-grid"><label>Identifiant<input name="username" minlength="3" maxlength="80" autocomplete="off" required></label><label>Nom<input name="full_name" maxlength="100" required></label><label>Mot de passe initial<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><label>Rôle<select name="role"><option value="viewer">Lecteur</option><option value="editor">Éditeur</option><option value="admin">Administrateur</option></select></label><button type="submit" class="primary-btn">Ajouter un compte</button></form>
+          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">ADMINISTRATION</p><h2>Team</h2></div><button id="team-refresh" class="text-btn" type="button">Refresh</button></div>
+            <p>Viewer: view data and export. Editor: enter prices, manage quotes, budgets, alerts, and collections. Administrator: manage the team and audit log.</p>
+            <form id="user-form" class="form-grid"><label>Username<input name="username" minlength="3" maxlength="80" autocomplete="off" required></label><label>Name<input name="full_name" maxlength="100" required></label><label>Initial password<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><label>Role<select name="role"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Administrator</option></select></label><button type="submit" class="primary-btn">Add account</button></form>
             <div id="team-users"></div><p id="team-message" class="error-note" role="status"></p>
           </article>
-          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">TRAÇABILITÉ</p><h2>Journal des actions</h2></div></div><p>Identité vérifiée, action, résultat et date. Les mots de passe, jetons et documents ne figurent pas dans ce journal.</p><div class="table-wrap"><table><thead><tr><th>Date</th><th>Compte</th><th>Action</th><th>Objet</th><th>Résultat</th></tr></thead><tbody id="audit-body"></tbody></table></div><div class="history-pagination"><button id="audit-prev" type="button" class="text-btn">← Précédent</button><span id="audit-page"></span><button id="audit-next" type="button" class="text-btn">Suivant →</button></div></article>
+          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">AUDIT TRAIL</p><h2>Audit log</h2></div></div><p>Verified identity, action, outcome, and time. Passwords, tokens, and documents are not included in this log.</p><div class="table-wrap"><table><thead><tr><th>Date</th><th>Account</th><th>Action</th><th>Item</th><th>Outcome</th></tr></thead><tbody id="audit-body"></tbody></table></div><div class="history-pagination"><button id="audit-prev" type="button" class="text-btn">← Previous</button><span id="audit-page"></span><button id="audit-next" type="button" class="text-btn">Next →</button></div></article>
         </div>
       </div>
-      <footer><span>Price Monitor</span><span>Gasoil · Brent · Bitume</span></footer>
+      <footer><span>Price Monitor</span><span>Diesel · Brent · Bitumen</span></footer>
     </main>
   </div>
   <script src="/static/auth.js"></script>

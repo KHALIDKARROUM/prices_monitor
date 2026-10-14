@@ -32,7 +32,7 @@ def provider_for_url(url: str) -> str:
         return "bls"
     if host.endswith("finance.yahoo.com"):
         return "yahoo"
-    raise ValueError("Fournisseur de collecte inconnu.")
+    raise ValueError("Unknown collection provider.")
 
 
 class RequestGuard:
@@ -81,7 +81,7 @@ def rate_limit_error(provider: str, retry_after=None, *, daily=False, detail="")
                 until = max(until, parsedate_to_datetime(str(retry_after)).timestamp())
             except (TypeError, ValueError, OverflowError):
                 pass
-    message = f"{provider} : {'limite quotidienne' if daily else 'limite du fournisseur'}, collecte différée."
+    message = f"{provider}: {'daily limit' if daily else 'provider limit'} reached; collection deferred."
     if detail:
         message += f" {detail[:140]}"
     if guard:

@@ -3,22 +3,26 @@
   "info": {
     "title": "Price Monitor API",
     "version": "0.1.0",
-    "description": "API de suivi des prix du gasoil, du Brent et du bitume."
+    "description": "API for tracking diesel, Brent crude, and bitumen prices. In team mode, business data, history, and exports are private. Viewer: read/export; editor: write/collect; administrator: accounts/audit/metrics. Local personal development allows loopback access without an account."
   },
   "servers": [
     {
       "url": "/",
-      "description": "Serveur courant"
+      "description": "Current server"
     }
   ],
   "tags": [
     {
       "name": "health",
-      "description": "Sondes de vie et de disponibilité"
+      "description": "Liveness and readiness checks"
     },
     {
       "name": "market",
-      "description": "Données et collectes de prix"
+      "description": "Price data and collection"
+    },
+    {
+      "name": "accounts",
+      "description": "Accounts, sessions, personal tokens, and audit"
     }
   ],
   "components": {
@@ -26,11 +30,19 @@
       "ApiKeyHeader": {
         "type": "apiKey",
         "in": "header",
-        "name": "X-API-Key"
+        "name": "X-API-Key",
+        "description": "Personal token. A shared key is allowed only for local personal development."
       },
       "BearerAuth": {
         "type": "http",
-        "scheme": "bearer"
+        "scheme": "bearer",
+        "description": "Expiring, revocable personal token with the account's current role."
+      },
+      "CookieSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "pm_session",
+        "description": "Individual HttpOnly session. Writes also require X-CSRF-Token and an allowed origin."
       }
     },
     "schemas": {
@@ -88,20 +100,13 @@
               "bitumen_quote",
               "asphalt_index"
             ],
-            "description": "Doit correspondre au produit, à la source et à la base. Les anciens seuils quotidiens utilisent le spot par défaut; stale utilise le flux à terme."
+            "description": "Must match the product, source, and basis. Legacy daily thresholds default to spot; stale uses the live futures feed."
           }
         }
       },
       "ProcurementInput": {
         "type": "object",
-        "required": [
-          "product",
-          "supplier",
-          "quantity",
-          "unit_price",
-          "currency",
-          "exchange_rate"
-        ],
+        "required": [],
         "properties": {
           "product": {
             "type": "string",
@@ -135,11 +140,12 @@
           "exchange_rate": {
             "type": "number",
             "exclusiveMinimum": 0,
-            "description": "USD pour 1 unité de la devise"
+            "description": "USD per unit of currency"
           },
           "transport_cost": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Transport: total amount excluding unit price, in the quote currency."
           },
           "budget_amount": {
             "type": "number",
@@ -152,8 +158,92 @@
           "notes": {
             "type": "string",
             "maxLength": 500
+          },
+          "insurance_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Insurance: total amount excluding unit price, in the quote currency."
+          },
+          "inspection_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Inspection: total amount excluding unit price, in the quote currency."
+          },
+          "duties_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Customs duties: total amount excluding unit price, in the quote currency."
+          },
+          "taxes_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Taxes: total amount excluding unit price, in the quote currency."
+          },
+          "storage_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Storage: total amount excluding unit price, in the quote currency."
+          },
+          "heating_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Heating: total amount excluding unit price, in the quote currency."
+          },
+          "finance_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Financing costs: total amount excluding unit price, in the quote currency."
+          },
+          "other_costs": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "required": [
+                "label",
+                "amount"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "amount": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "quote_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Uses amounts and terms from the quote; only purchase date, budget, and notes remain customizable."
+          },
+          "quote_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Expected current version; its snapshot remains attached to the budget after later corrections."
           }
-        }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "quote_id",
+              "quote_version"
+            ]
+          },
+          {
+            "required": [
+              "product",
+              "supplier",
+              "quantity",
+              "unit_price",
+              "currency",
+              "exchange_rate"
+            ]
+          }
+        ]
       },
       "AlertRuleInput": {
         "type": "object",
@@ -179,7 +269,7 @@
               "below",
               "stale"
             ],
-            "description": "stale surveille l'âge de la cotation en direct (Brent ou gasoil)."
+            "description": "stale monitors the age of the live Brent or diesel quote."
           },
           "basis": {
             "type": "string",
@@ -188,12 +278,12 @@
               "index"
             ],
             "default": "quote",
-            "description": "index surveille uniquement le BLS WPU058 mensuel; quote utilise les prix et devis USD."
+            "description": "index monitors only the monthly BLS WPU058 series; quote uses USD prices and supplier quotes."
           },
           "threshold": {
             "type": "number",
             "exclusiveMinimum": 0,
-            "description": "Prix pour above/below ; minutes entières de 2 à 1440 pour stale."
+            "description": "Price for above/below; whole minutes from 2 to 1,440 for stale."
           },
           "channel": {
             "type": "string",
@@ -217,7 +307,7 @@
               "bitumen_quote",
               "asphalt_index"
             ],
-            "description": "Doit correspondre au produit, à la source et à la base. Les anciens seuils quotidiens utilisent le spot par défaut; stale utilise le flux à terme."
+            "description": "Must match the product, source, and basis. Legacy daily thresholds default to spot; stale uses the live futures feed."
           }
         }
       },
@@ -226,6 +316,600 @@
         "properties": {
           "error": {
             "type": "string"
+          }
+        }
+      },
+      "QuoteInput": {
+        "type": "object",
+        "properties": {
+          "supplier": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "reference": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "grade": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "specification": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "origin": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "incoterm_place": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "destination": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "packaging_detail": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "payment_terms": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "product": {
+            "type": "string",
+            "enum": [
+              "gasoil",
+              "brent",
+              "bitume"
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "gallon",
+              "baril",
+              "tonne"
+            ]
+          },
+          "incoterm": {
+            "type": "string",
+            "enum": [
+              "EXW",
+              "FCA",
+              "FAS",
+              "FOB",
+              "CFR",
+              "CIF",
+              "CPT",
+              "CIP",
+              "DAP",
+              "DPU",
+              "DDP"
+            ]
+          },
+          "document_type": {
+            "type": "string",
+            "enum": [
+              "quotation",
+              "proforma",
+              "invoice",
+              "purchase_order"
+            ]
+          },
+          "packaging": {
+            "type": "string",
+            "enum": [
+              "bulk",
+              "drums",
+              "big_bags",
+              "container",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "withdrawn"
+            ]
+          },
+          "quote_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date"
+          },
+          "delivery_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "quantity": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "unit_price": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "exchange_rate": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "transport_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Transport: total amount excluding unit price, in the quote currency."
+          },
+          "insurance_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Insurance: total amount excluding unit price, in the quote currency."
+          },
+          "inspection_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Inspection: total amount excluding unit price, in the quote currency."
+          },
+          "duties_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Customs duties: total amount excluding unit price, in the quote currency."
+          },
+          "taxes_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Taxes: total amount excluding unit price, in the quote currency."
+          },
+          "storage_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Storage: total amount excluding unit price, in the quote currency."
+          },
+          "heating_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Heating: total amount excluding unit price, in the quote currency."
+          },
+          "finance_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Financing costs: total amount excluding unit price, in the quote currency."
+          },
+          "other_costs": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "required": [
+                "label",
+                "amount"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "amount": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "actor": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "In individual account mode, replaced with the authenticated account name. Declared author is used only for local personal access."
+          },
+          "change_reason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "product",
+          "supplier",
+          "grade",
+          "specification",
+          "origin",
+          "incoterm",
+          "incoterm_place",
+          "destination",
+          "payment_terms",
+          "quote_date",
+          "valid_until",
+          "delivery_date",
+          "quantity",
+          "unit_price"
+        ]
+      },
+      "QuoteCorrection": {
+        "type": "object",
+        "properties": {
+          "supplier": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "reference": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "grade": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "specification": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "origin": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "incoterm_place": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "destination": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "packaging_detail": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "payment_terms": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "product": {
+            "type": "string",
+            "enum": [
+              "gasoil",
+              "brent",
+              "bitume"
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "gallon",
+              "baril",
+              "tonne"
+            ]
+          },
+          "incoterm": {
+            "type": "string",
+            "enum": [
+              "EXW",
+              "FCA",
+              "FAS",
+              "FOB",
+              "CFR",
+              "CIF",
+              "CPT",
+              "CIP",
+              "DAP",
+              "DPU",
+              "DDP"
+            ]
+          },
+          "document_type": {
+            "type": "string",
+            "enum": [
+              "quotation",
+              "proforma",
+              "invoice",
+              "purchase_order"
+            ]
+          },
+          "packaging": {
+            "type": "string",
+            "enum": [
+              "bulk",
+              "drums",
+              "big_bags",
+              "container",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "withdrawn"
+            ]
+          },
+          "quote_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date"
+          },
+          "delivery_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "quantity": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "unit_price": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "exchange_rate": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "transport_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Transport: total amount excluding unit price, in the quote currency."
+          },
+          "insurance_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Insurance: total amount excluding unit price, in the quote currency."
+          },
+          "inspection_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Inspection: total amount excluding unit price, in the quote currency."
+          },
+          "duties_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Customs duties: total amount excluding unit price, in the quote currency."
+          },
+          "taxes_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Taxes: total amount excluding unit price, in the quote currency."
+          },
+          "storage_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Storage: total amount excluding unit price, in the quote currency."
+          },
+          "heating_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Heating: total amount excluding unit price, in the quote currency."
+          },
+          "finance_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Financing costs: total amount excluding unit price, in the quote currency."
+          },
+          "other_costs": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "required": [
+                "label",
+                "amount"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "amount": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "actor": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "In individual account mode, replaced with the authenticated account name. Declared author is used only for local personal access."
+          },
+          "change_reason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "expected_version",
+          "change_reason"
+        ]
+      },
+      "QuoteDocumentInput": {
+        "type": "object",
+        "required": [
+          "filename",
+          "document_type",
+          "content_base64",
+          "expected_version"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 180
+          },
+          "document_type": {
+            "type": "string",
+            "enum": [
+              "quotation",
+              "proforma",
+              "invoice",
+              "purchase_order",
+              "certificate",
+              "safety_data",
+              "technical_data",
+              "other"
+            ]
+          },
+          "content_base64": {
+            "type": "string",
+            "format": "byte",
+            "description": "PDF, PNG, JPEG, UTF-8 TXT, DOCX, or XLSX without macros; maximum 5 MB of content."
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "actor": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "change_reason": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      },
+      "LoginInput": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "format": "password"
+          }
+        }
+      },
+      "PasswordChange": {
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "format": "password"
+          },
+          "new_password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 12,
+            "maxLength": 128
+          }
+        }
+      },
+      "UserInput": {
+        "type": "object",
+        "required": [
+          "username",
+          "password",
+          "role"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 80
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 12,
+            "maxLength": 128
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "viewer",
+              "editor",
+              "admin"
+            ]
+          }
+        }
+      },
+      "UserCorrection": {
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "viewer",
+              "editor",
+              "admin"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 12,
+            "maxLength": 128
+          }
+        }
+      },
+      "PersonalTokenInput": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "default": 30
           }
         }
       }
@@ -296,7 +980,7 @@
             "asphalt_index"
           ]
         },
-        "description": "Série de marché précise; spot, contrat à terme, proxy, devis et indice restent séparés."
+        "description": "Specific market series; spot, futures, proxy, supplier quotes, and index remain separate."
       }
     }
   },
@@ -309,12 +993,13 @@
         "summary": "Readiness probe",
         "responses": {
           "200": {
-            "description": "Service prêt"
+            "description": "Service ready"
           },
           "503": {
-            "description": "Dépendance indisponible"
+            "description": "Dependency unavailable"
           }
-        }
+        },
+        "security": []
       }
     },
     "/health/live": {
@@ -325,9 +1010,10 @@
         "summary": "Liveness probe",
         "responses": {
           "200": {
-            "description": "Processus actif"
+            "description": "Process active"
           }
-        }
+        },
+        "security": []
       }
     },
     "/health/ready": {
@@ -338,12 +1024,13 @@
         "summary": "Readiness probe",
         "responses": {
           "200": {
-            "description": "Dépendances disponibles"
+            "description": "Dependencies available"
           },
           "503": {
-            "description": "Dépendance indisponible"
+            "description": "Dependency unavailable"
           }
-        }
+        },
+        "security": []
       }
     },
     "/metrics": {
@@ -351,12 +1038,29 @@
         "tags": [
           "health"
         ],
-        "summary": "Métriques Prometheus",
+        "summary": "Prometheus metrics",
         "responses": {
           "200": {
-            "description": "Métriques au format texte"
+            "description": "Metrics in text format"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/api/dashboard": {
@@ -364,7 +1068,7 @@
         "tags": [
           "market"
         ],
-        "summary": "Indicateurs, séries et qualité",
+        "summary": "Indicators, series, and data quality",
         "parameters": [
           {
             "$ref": "#/components/parameters/Days"
@@ -379,7 +1083,7 @@
                 "brent_futures"
               ]
             },
-            "description": "Sélectionne la même série pour la carte, les statistiques et le graphique. Par défaut, contrat à terme enregistré, sinon spot."
+            "description": "Selects the same series for the card, statistics, and chart. Defaults to saved futures data, then spot."
           },
           {
             "name": "gasoil_instrument",
@@ -391,14 +1095,31 @@
                 "heating_oil_futures"
               ]
             },
-            "description": "Sélectionne la même série pour la carte, les statistiques et le graphique. Par défaut, contrat à terme enregistré, sinon spot."
+            "description": "Selects the same series for the card, statistics, and chart. Defaults to saved futures data, then spot."
           }
         ],
         "responses": {
           "200": {
-            "description": "Tableau de bord"
+            "description": "Dashboard"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/api/source-comparison": {
@@ -406,12 +1127,29 @@
         "tags": [
           "market"
         ],
-        "summary": "Prix par API et écarts entre séries équivalentes",
+        "summary": "API prices and differences between equivalent series",
         "responses": {
           "200": {
-            "description": "Dernier relevé par fournisseur, date, unité, marché, disponibilité et comparaison. Seules les mêmes séries, dates, unités et devises permettent de signaler un écart suspect. Les sources absentes restent non vérifiées."
+            "description": "Latest observation by provider, date, unit, market, availability, and comparison. Only matching series, dates, units, and currencies can reveal a suspicious difference. Missing sources remain unverified."
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/api/connectivity": {
@@ -419,12 +1157,43 @@
         "tags": [
           "health"
         ],
-        "summary": "Connexion Internet vérifiée et résultat de la dernière collecte",
+        "summary": "Verified internet connection and aggregate provider availability",
         "responses": {
           "200": {
-            "description": "État online, offline ou checking, horodatages et dernière collecte"
+            "description": "Online, offline, or checking state; timestamps; and aggregate success, partial, error, or pending status"
           }
-        }
+        },
+        "security": []
+      }
+    },
+    "/api/collection-schedules": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Schedules and quotas for configured providers",
+        "responses": {
+          "200": {
+            "description": "Provider, interval_minutes, status, next_collection_at, requests_last_24h, request_limit_24h (null when no local limit), failures, reason, and last_error. Times are UTC; market closures, quotas, and backoff are considered."
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/api/forecast": {
@@ -432,7 +1201,7 @@
         "tags": [
           "market"
         ],
-        "summary": "Prévisions gasoil, Brent et indice Bitume",
+        "summary": "Diesel, Brent, and bitumen index forecasts",
         "parameters": [
           {
             "$ref": "#/components/parameters/HistoryDays"
@@ -440,13 +1209,30 @@
         ],
         "responses": {
           "200": {
-            "description": "Prix à 7/30/90 jours; indice bitume BLS à 1/3/6 mois, depuis la dernière date source. Chaque produit expose son unité, fréquence, horizons, bandes indicatives, comparaison à la persistance et couverture historique."
+            "description": "Prices at 7/30/90 days and BLS bitumen index at 1/3/6 months from the latest source date. Each product exposes its unit, frequency, horizons, indicative intervals, persistence comparison, and historical coverage."
           },
           "400": {
-            "description": "Paramètre invalide"
+            "description": "Invalid parameter"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
         },
-        "description": "Les prévisions Brent et diesel utilisent uniquement les séries spot avec priorité stable FRED, EIA, Alpha Vantage. Contrats à terme et proxy heating oil sont exclus de cet historique. Un point par date source est sélectionné avant la limite; les 5 000 points agrégés les plus récents sont conservés dans l'ordre chronologique."
+        "description": "Brent and diesel forecasts use only spot series, with stable FRED, EIA, then Alpha Vantage priority. Futures and the heating oil proxy are excluded from this history. One point per source date is selected before limiting; the latest 5,000 aggregated points are kept in chronological order.",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/api/alerts": {
@@ -454,24 +1240,44 @@
         "tags": [
           "market"
         ],
-        "summary": "Lister les règles et leur état",
+        "summary": "List alert rules and their status",
         "responses": {
           "200": {
-            "description": "Règles actives, rétablies ou en pause"
+            "description": "Active, recovered, or paused rules"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       },
       "post": {
         "tags": [
           "market"
         ],
-        "summary": "Créer une règle d'alerte",
+        "summary": "Create an alert rule",
         "security": [
           {
-            "ApiKeyHeader": []
+            "CookieSession": []
           },
           {
             "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
           }
         ],
         "requestBody": {
@@ -486,12 +1292,28 @@
         },
         "responses": {
           "201": {
-            "description": "Règle créée"
+            "description": "Rule created"
           },
           "400": {
-            "description": "Règle invalide"
+            "description": "Invalid rule"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
       }
     },
     "/api/alerts/{id}": {
@@ -499,13 +1321,16 @@
         "tags": [
           "market"
         ],
-        "summary": "Modifier une règle d'alerte",
+        "summary": "Update an alert rule",
         "security": [
           {
-            "ApiKeyHeader": []
+            "CookieSession": []
           },
           {
             "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
           }
         ],
         "parameters": [
@@ -516,6 +1341,14 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
           }
         ],
         "requestBody": {
@@ -529,10 +1362,16 @@
         },
         "responses": {
           "200": {
-            "description": "Règle modifiée"
+            "description": "Rule updated"
           },
           "400": {
-            "description": "Règle invalide"
+            "description": "Invalid rule"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
         }
       },
@@ -540,13 +1379,16 @@
         "tags": [
           "market"
         ],
-        "summary": "Supprimer une règle d'alerte",
+        "summary": "Delete an alert rule",
         "security": [
           {
-            "ApiKeyHeader": []
+            "CookieSession": []
           },
           {
             "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
           }
         ],
         "parameters": [
@@ -557,31 +1399,48 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
           }
         ],
         "responses": {
           "200": {
-            "description": "Règle supprimée"
+            "description": "Rule deleted"
           },
           "400": {
-            "description": "Règle introuvable"
+            "description": "Rule not found"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
         }
       }
     },
     "/api/observations": {
-      "description": "Authentification par clé API. Exception en développement local sans clé configurée : serveur et client de boucle locale, requêtes du tableau de bord local uniquement.",
+      "description": "API key authentication. Local development exception without a configured key: loopback server and client, local dashboard requests only.",
       "get": {
         "tags": [
           "market"
         ],
-        "summary": "Historique filtré",
+        "summary": "Filtered history",
         "security": [
           {
-            "ApiKeyHeader": []
+            "CookieSession": []
           },
           {
             "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
           }
         ],
         "parameters": [
@@ -600,22 +1459,28 @@
             "description": "Observations"
           },
           "401": {
-            "description": "Authentification requise"
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
         },
-        "description": "Les 600 relevés bruts les plus récents de la période sont retournés dans l'ordre chronologique. Pour parcourir tous les relevés, utiliser les archives paginées ou les exports."
+        "description": "The 600 most recent raw observations in the period are returned in chronological order. Use paginated history or exports to browse all observations."
       },
       "post": {
         "tags": [
           "market"
         ],
-        "summary": "Ajouter une observation",
+        "summary": "Add an observation",
         "security": [
           {
-            "ApiKeyHeader": []
+            "CookieSession": []
           },
           {
             "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
           }
         ],
         "requestBody": {
@@ -630,10 +1495,10 @@
         },
         "responses": {
           "201": {
-            "description": "Observation créée"
+            "description": "Observation created"
           },
           "400": {
-            "description": "Entrée invalide",
+            "description": "Invalid input",
             "content": {
               "application/json": {
                 "schema": {
@@ -641,8 +1506,24 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
       }
     },
     "/api/history": {
@@ -650,7 +1531,7 @@
         "tags": [
           "market"
         ],
-        "summary": "Historique public paginé avec filtres",
+        "summary": "Private filtered, paginated history",
         "parameters": [
           {
             "$ref": "#/components/parameters/Product"
@@ -717,7 +1598,7 @@
                 "index"
               ]
             },
-            "description": "Filtrer prix/devis ou indice mensuel bitume; les unités restent distinctes."
+            "description": "Filter prices/quotes or the monthly bitumen index; units remain separate."
           },
           {
             "$ref": "#/components/parameters/Instrument"
@@ -725,9 +1606,26 @@
         ],
         "responses": {
           "200": {
-            "description": "Historique filtré et paginé"
+            "description": "Filtered, paginated history"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/api/history/compare": {
@@ -735,13 +1633,19 @@
         "tags": [
           "market"
         ],
-        "summary": "Comparer publiquement deux périodes",
+        "summary": "Compare two authenticated periods",
         "responses": {
           "200": {
-            "description": "Comparaison par produit"
+            "description": "Comparison by product"
           },
           "400": {
-            "description": "Périodes invalides"
+            "description": "Invalid periods"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
         },
         "parameters": [
@@ -749,7 +1653,18 @@
             "$ref": "#/components/parameters/Instrument"
           }
         ],
-        "description": "Compare toutes les données correspondant aux filtres, sans plafond de 10 000 relevés par période; les séries quotidiennes sont agrégées par instrument et date."
+        "description": "Compares all data matching the filters, with no 10,000-row cap per period; daily series are aggregated by instrument and date.",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/api/collect": {
@@ -757,23 +1672,39 @@
         "tags": [
           "market"
         ],
-        "summary": "Déclencher une collecte immédiate",
+        "summary": "Collect available providers",
         "security": [
           {
-            "ApiKeyHeader": []
+            "CookieSession": []
           },
           {
             "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
           }
         ],
         "responses": {
           "200": {
-            "description": "Résultat de collecte avec source_comparison : statut de cohérence, message, avertissements et écarts entre les prix reçus dans cette collecte."
+            "description": "status success, partial, error, or deferred; rows, message, providers (results and next due times), and source_comparison between equivalent latest publications. Manual collection can advance a healthy provider but respects quotas, backoff, concurrency, and market closures. Deferrals are not new source failures."
           },
           "401": {
-            "description": "Authentification requise"
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
       }
     },
     "/api/logs": {
@@ -781,12 +1712,29 @@
         "tags": [
           "market"
         ],
-        "summary": "Derniers journaux de collecte",
+        "summary": "Recent collection logs",
         "responses": {
           "200": {
-            "description": "Journaux"
+            "description": "Logs"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/api/benchmarks": {
@@ -794,7 +1742,7 @@
         "tags": [
           "market"
         ],
-        "summary": "Derniers indicateurs de marché non exécutables",
+        "summary": "Latest non-executable market indicators",
         "parameters": [
           {
             "name": "product",
@@ -810,9 +1758,26 @@
         ],
         "responses": {
           "200": {
-            "description": "Benchmarks séparés des devis fournisseurs"
+            "description": "Benchmarks separate from supplier quotes"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/api/suppliers": {
@@ -820,7 +1785,7 @@
         "tags": [
           "market"
         ],
-        "summary": "Canaux fournisseurs officiels",
+        "summary": "Official supplier contact channels",
         "parameters": [
           {
             "name": "product",
@@ -843,9 +1808,26 @@
         ],
         "responses": {
           "200": {
-            "description": "Répertoire SQL des voies de contact"
+            "description": "SQL directory of contact channels"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/api/procurement-guide": {
@@ -853,7 +1835,7 @@
         "tags": [
           "market"
         ],
-        "summary": "Guide de sourcing et processus d'achat",
+        "summary": "Sourcing guide and purchasing process",
         "parameters": [
           {
             "name": "product",
@@ -878,35 +1860,58 @@
         ],
         "responses": {
           "200": {
-            "description": "Contexte marché, fournisseurs, RFQ et étapes de contrôle"
+            "description": "Market context, suppliers, RFQ, and verification steps"
           },
           "400": {
-            "description": "Filtre invalide"
+            "description": "Invalid filter"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/api/procurements": {
-      "description": "Authentification par clé API. Exception pour la page Budget en développement local sans clé configurée : serveur et client de boucle locale, requêtes du tableau de bord local uniquement.",
+      "description": "Private data: individual session or token in team mode. Local personal development retains loopback access.",
       "get": {
         "tags": [
           "market"
         ],
-        "summary": "Historique des achats",
+        "summary": "Purchase history",
         "security": [
           {
-            "ApiKeyHeader": []
+            "CookieSession": []
           },
           {
             "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
           }
         ],
         "responses": {
           "200": {
-            "description": "Achats et impacts calculés"
+            "description": "Purchases and calculated impacts"
           },
           "401": {
-            "description": "Authentification requise"
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
         }
       },
@@ -914,13 +1919,16 @@
         "tags": [
           "market"
         ],
-        "summary": "Évaluer et enregistrer un achat",
+        "summary": "Estimate and save a purchase",
         "security": [
           {
-            "ApiKeyHeader": []
+            "CookieSession": []
           },
           {
             "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
           }
         ],
         "requestBody": {
@@ -935,10 +1943,10 @@
         },
         "responses": {
           "201": {
-            "description": "Achat enregistré"
+            "description": "Purchase saved"
           },
           "400": {
-            "description": "Entrée invalide",
+            "description": "Invalid input",
             "content": {
               "application/json": {
                 "schema": {
@@ -946,8 +1954,24 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
       }
     },
     "/export.csv": {
@@ -955,10 +1979,16 @@
         "tags": [
           "market"
         ],
-        "summary": "Exporter en CSV",
+        "summary": "Export CSV",
         "responses": {
           "200": {
-            "description": "Fichier CSV"
+            "description": "CSV file"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
         },
         "parameters": [
@@ -1021,13 +2051,24 @@
                 "index"
               ]
             },
-            "description": "Filtrer prix/devis ou indice mensuel bitume; les unités restent distinctes."
+            "description": "Filter prices/quotes or the monthly bitumen index; units remain separate."
           },
           {
             "$ref": "#/components/parameters/Instrument"
           }
         ],
-        "description": "Exporte tous les relevés correspondant aux filtres des archives, sans limite de pagination ni plafond de 10 000 lignes."
+        "description": "Exports all observations matching the history filters, without pagination or a 10,000-row cap.",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     },
     "/export.xlsx": {
@@ -1035,10 +2076,16 @@
         "tags": [
           "market"
         ],
-        "summary": "Exporter en Excel",
+        "summary": "Export Excel",
         "responses": {
           "200": {
-            "description": "Fichier XLSX"
+            "description": "XLSX file"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
         },
         "parameters": [
@@ -1101,13 +2148,1172 @@
                 "index"
               ]
             },
-            "description": "Filtrer prix/devis ou indice mensuel bitume; les unités restent distinctes."
+            "description": "Filter prices/quotes or the monthly bitumen index; units remain separate."
           },
           {
             "$ref": "#/components/parameters/Instrument"
           }
         ],
-        "description": "Exporte tous les relevés correspondant aux filtres des archives, sans limite de pagination ni plafond de 10 000 lignes. Les données continuent sur une nouvelle feuille après 1 048 575 lignes, avec un en-tête sur chaque feuille."
+        "description": "Exports all observations matching the history filters, without pagination or a 10,000-row cap. Data continues on a new sheet after 1,048,575 rows, with headers on every sheet.",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/quotes": {
+      "description": "Private quotes and supporting documents. Individual session or token in team mode; personal loopback access in development.",
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "summary": "Paginated quotes",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated quotes"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Quote or document not found"
+          },
+          "409": {
+            "description": "Version changed: reload before correcting"
+          },
+          "413": {
+            "description": "Document or request too large"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/Product"
+          },
+          {
+            "name": "supplier",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "summary": "Create a quote and its first version",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Create a quote and its first version"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Quote or document not found"
+          },
+          "409": {
+            "description": "Version changed: reload before correcting"
+          },
+          "413": {
+            "description": "Document or request too large"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
+      }
+    },
+    "/api/quotes/options": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "summary": "Choice lists, costs, and document limits",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Choice lists, costs, and document limits"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Quote or document not found"
+          },
+          "409": {
+            "description": "Version changed: reload before correcting"
+          },
+          "413": {
+            "description": "Document or request too large"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        }
+      }
+    },
+    "/api/quotes/compare": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "summary": "Compare 2 to 6 equivalent quotes; no ranking when terms or validity differ",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compare 2 to 6 equivalent quotes; no ranking when terms or validity differ"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Quote or document not found"
+          },
+          "409": {
+            "description": "Version changed: reload before correcting"
+          },
+          "413": {
+            "description": "Document or request too large"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Distinct comma-separated IDs"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ]
+      }
+    },
+    "/api/quotes/{id}": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "summary": "Read quote terms, costs, and documents",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read quote terms, costs, and documents"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Quote or document not found"
+          },
+          "409": {
+            "description": "Version changed: reload before correcting"
+          },
+          "413": {
+            "description": "Document or request too large"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "procurement"
+        ],
+        "summary": "Correct without overwriting a concurrent change",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Correct without overwriting a concurrent change"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Quote or document not found"
+          },
+          "409": {
+            "description": "Version changed: reload before correcting"
+          },
+          "413": {
+            "description": "Document or request too large"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteCorrection"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
+      }
+    },
+    "/api/quotes/{id}/history": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "summary": "Version history with authenticated author, reason, and before/after snapshots",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Version history with declared author, reason, and before/after snapshots"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Quote or document not found"
+          },
+          "409": {
+            "description": "Version changed: reload before correcting"
+          },
+          "413": {
+            "description": "Document or request too large"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/quotes/{id}/documents": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "summary": "Attach a supporting document and create a version",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Attach a supporting document and create a version"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Quote or document not found"
+          },
+          "409": {
+            "description": "Version changed: reload before correcting"
+          },
+          "413": {
+            "description": "Document or request too large"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteDocumentInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
+      }
+    },
+    "/api/quotes/{id}/documents/{document_id}": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "summary": "Download a document, including a withdrawn document retained in history",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download a document, including a withdrawn document retained in history"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Quote or document not found"
+          },
+          "409": {
+            "description": "Version changed: reload before correcting"
+          },
+          "413": {
+            "description": "Document or request too large"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "procurement"
+        ],
+        "summary": "Withdraw a document while retaining its bytes and history",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Withdraw a document while retaining its bytes and history"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Quote or document not found"
+          },
+          "409": {
+            "description": "Version changed: reload before correcting"
+          },
+          "413": {
+            "description": "Document or request too large"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteCorrection"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
+      }
+    },
+    "/api/auth/session": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Access mode, user, role, and CSRF token for the current session",
+        "responses": {
+          "200": {
+            "description": "Access mode, user, role, and CSRF token for the current session"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "409": {
+            "description": "Concurrent version or existing account"
+          },
+          "429": {
+            "description": "Too many attempts; honor Retry-After"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Open a session; set an HttpOnly/SameSite=Strict cookie and return user/csrf_token",
+        "responses": {
+          "200": {
+            "description": "Open a session; set an HttpOnly/SameSite=Strict cookie and return user/csrf_token"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "409": {
+            "description": "Concurrent version or existing account"
+          },
+          "429": {
+            "description": "Too many attempts; honor Retry-After"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginInput"
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Revoke the current session and remove its cookie",
+        "responses": {
+          "200": {
+            "description": "Revoke the current session and remove its cookie"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "409": {
+            "description": "Concurrent version or existing account"
+          },
+          "429": {
+            "description": "Too many attempts; honor Retry-After"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
+      }
+    },
+    "/api/auth/password": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Change your password; revoke all sessions and tokens for the account",
+        "responses": {
+          "200": {
+            "description": "Change your password; revoke all sessions and tokens for the account"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "409": {
+            "description": "Concurrent version or existing account"
+          },
+          "429": {
+            "description": "Too many attempts; honor Retry-After"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
+      }
+    },
+    "/api/auth/tokens": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "List your personal tokens without their secrets",
+        "responses": {
+          "200": {
+            "description": "List your personal tokens without their secrets"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "409": {
+            "description": "Concurrent version or existing account"
+          },
+          "429": {
+            "description": "Too many attempts; honor Retry-After"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Create a personal token; its value is returned only once",
+        "responses": {
+          "201": {
+            "description": "Create a personal token; its value is returned only once"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "409": {
+            "description": "Concurrent version or existing account"
+          },
+          "429": {
+            "description": "Too many attempts; honor Retry-After"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalTokenInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
+      }
+    },
+    "/api/auth/tokens/{id}": {
+      "delete": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Revoke one of your personal tokens",
+        "responses": {
+          "200": {
+            "description": "Revoke one of your personal tokens"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "409": {
+            "description": "Concurrent version or existing account"
+          },
+          "429": {
+            "description": "Too many attempts; honor Retry-After"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ],
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "List accounts without password hashes (administrator)",
+        "responses": {
+          "200": {
+            "description": "List accounts without password hashes (administrator)"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "409": {
+            "description": "Concurrent version or existing account"
+          },
+          "429": {
+            "description": "Too many attempts; honor Retry-After"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Create an individual account (administrator)",
+        "responses": {
+          "201": {
+            "description": "Create an individual account (administrator)"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "409": {
+            "description": "Concurrent version or existing account"
+          },
+          "429": {
+            "description": "Too many attempts; honor Retry-After"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ]
+      }
+    },
+    "/api/users/{id}": {
+      "put": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Change role, name, active status, or password; protect the last administrator",
+        "responses": {
+          "200": {
+            "description": "Change role, name, active status, or password; protect the last administrator"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "409": {
+            "description": "Concurrent version or existing account"
+          },
+          "429": {
+            "description": "Too many attempts; honor Retry-After"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCorrection"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for a cookie session; obtained from /api/auth/session. Not required with a personal token."
+          }
+        ],
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/audit": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Paginated events with actor, action, resource, and request context (administrator)",
+        "responses": {
+          "200": {
+            "description": "Paginated events with actor, action, resource, and request context (administrator)"
+          },
+          "400": {
+            "description": "Invalid fields"
+          },
+          "409": {
+            "description": "Concurrent version or existing account"
+          },
+          "429": {
+            "description": "Too many attempts; honor Retry-After"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
       }
     }
   }

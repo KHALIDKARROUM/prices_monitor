@@ -51,7 +51,7 @@ def test_three_brent_mirrors_compare_pairwise_without_assuming_one_is_correct():
     assert result["status"] == "warning"
     assert result["comparable_pair_count"] == 3
     assert result["mismatch_count"] == 2
-    assert "un problème est possible" in result["message"]
+    assert "there may be a problem" in result["message"]
     assert len(result["warnings"]) == 2
     assert "FRED = 100.0000" in result["warnings"][0]
     assert "Alpha Vantage = 110.0000" in result["warnings"][0]
@@ -76,7 +76,7 @@ def test_publication_lags_cannot_be_flagged_as_a_same_day_price_mismatch():
     result = compare_api_prices([quote("fred_brent", 100), quote("eia_brent", 110, "2026-10-02")])
     comparison = pair(result, "fred_brent", "eia_brent")
     assert comparison["status"] == "not_comparable"
-    assert "Dates" in comparison["reason"]
+    assert "dates" in comparison["reason"]
     assert result["mismatch_count"] == 0
 
 
@@ -180,7 +180,7 @@ def test_every_collection_warns_logs_details_and_clears_when_prices_agree(empty_
             assert result["rows"] == 2
             assert result["source_comparison"]["status"] == "warning"
             assert result["source_comparison"]["mismatch_count"] == 1
-            assert "un problème est possible" in result["message"]
+            assert "there may be a problem" in result["message"]
             assert empty_database.logs(limit=1)[0]["message"] == result["message"]
 
     assert len([record for record in caplog.records if getattr(record, "event", None) == "api_price_mismatch"]) == 3
@@ -190,7 +190,7 @@ def test_every_collection_warns_logs_details_and_clears_when_prices_agree(empty_
     result = scheduler_module.run_collection(empty_database)
     assert result["source_comparison"]["status"] == "consistent"
     assert result["source_comparison"]["warnings"] == []
-    assert "un problème est possible" not in result["message"]
+    assert "there may be a problem" not in result["message"]
     assert empty_database.source_comparison()["mismatch_count"] == 0
 
 
@@ -203,7 +203,7 @@ def test_partial_run_compares_successful_apis_and_warns_alongside_errors(empty_d
     assert result["status"] == "partial"
     assert result["source_comparison"]["mismatch_count"] == 1
     assert result["message"].startswith("API unavailable")
-    assert "un problème est possible" in result["message"]
+    assert "there may be a problem" in result["message"]
 
 
 def test_current_collection_does_not_compare_with_a_saved_missing_api_quote(empty_database, monkeypatch):
@@ -226,4 +226,4 @@ def test_collection_does_not_warn_on_rounding_publication_lags_or_futures(empty_
     monkeypatch.setattr(scheduler_module, "collect_all", lambda: collection_batch([left, right]))
     result = scheduler_module.run_collection(empty_database)
     assert result["source_comparison"]["warnings"] == []
-    assert "un problème est possible" not in result["message"]
+    assert "there may be a problem" not in result["message"]

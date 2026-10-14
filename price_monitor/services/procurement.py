@@ -6,74 +6,74 @@ from ..database import DatabaseBackend
 
 
 REGIONS = {
-    "all": "Toutes les régions",
+    "all": "All regions",
     "europe": "Europe",
-    "africa_middle_east": "Afrique & Moyen-Orient",
-    "asia_pacific": "Asie-Pacifique",
-    "americas": "Amériques",
-    "local": "Distributeur local",
+    "africa_middle_east": "Africa & Middle East",
+    "asia_pacific": "Asia-Pacific",
+    "americas": "Americas",
+    "local": "Local distributor",
 }
 
 COMMON_STEPS = [
     {
         "number": 1,
-        "title": "Définir le besoin technique",
-        "detail": "Fixer la norme, le grade, la quantité, le conditionnement, la destination et la fenêtre de livraison.",
+        "title": "Define technical requirements",
+        "detail": "Specify the standard, grade, quantity, packaging, destination, and delivery window.",
     },
     {
         "number": 2,
-        "title": "Envoyer le même RFQ à au moins trois vendeurs",
-        "detail": "Demander prix, devise, validité, volume minimum, origine, point de chargement, délai et Incoterm 2020.",
+        "title": "Send the same RFQ to at least three sellers",
+        "detail": "Request price, currency, validity, minimum volume, origin, loading point, lead time, and Incoterm 2020.",
     },
     {
         "number": 3,
-        "title": "Vérifier chaque contrepartie",
-        "detail": "Contrôler registre du commerce, licence, bénéficiaire effectif, sanctions, références et compte bancaire par un second canal.",
+        "title": "Verify each counterparty",
+        "detail": "Check business registration, licenses, beneficial ownership, sanctions, references, and bank details through a second channel.",
     },
     {
         "number": 4,
-        "title": "Comparer le coût rendu",
-        "detail": "Additionner marchandise, fret, assurance, inspection, droits, taxes, change, stockage et frais de retard ou de chauffage.",
+        "title": "Compare landed costs",
+        "detail": "Include merchandise, freight, insurance, inspection, duties, taxes, exchange, storage, and delay or heating costs.",
     },
     {
         "number": 5,
-        "title": "Contracter qualité, paiement et réclamations",
-        "detail": "Joindre la spécification, la tolérance de quantité, l'inspection, les documents, le calendrier, le droit applicable et la procédure de réclamation.",
+        "title": "Agree on quality, payment, and claims",
+        "detail": "Include specifications, quantity tolerance, inspection, documents, schedule, governing law, and the claims process.",
     },
     {
         "number": 6,
-        "title": "Payer et réceptionner avec contrôle",
-        "detail": "Privilégier crédit documentaire ou crédit approuvé; rapprocher poids, certificat d'analyse et inspection avant paiement final.",
+        "title": "Pay and receive with checks",
+        "detail": "Prefer a letter of credit or approved credit; reconcile weight, certificate of analysis, and inspection before final payment.",
     },
 ]
 
 PRODUCT_GUIDANCE = {
     "gasoil": {
-        "title": "Acheter du gasoil / diesel en gros",
-        "specification": "EN 590, soufre 10 ppm, cétane, densité, point éclair, point de trouble et teneur FAME selon le pays.",
-        "logistics": "Pour camion-citerne: Ex-rack/FCA ou DAP. Pour cargaison: FOB, CFR ou CIF avec terminal de réception confirmé.",
+        "title": "Buy wholesale diesel",
+        "specification": "EN 590, 10 ppm sulfur, cetane, density, flash point, cloud point, and FAME content as required locally.",
+        "logistics": "For road tankers: ex-rack/FCA or DAP. For cargoes: FOB, CFR, or CIF with a confirmed receiving terminal.",
         "rfq_fields": [
-            "Produit et norme (ex. EN 590 10 ppm)", "Quantité et tolérance", "Port/dépôt de destination",
-            "Date ou fenêtre de livraison", "Incoterm 2020 demandé", "Devise et formule de prix",
-            "Certificat d'analyse, SDS et origine", "Modalité de paiement et validité de l'offre",
+            "Product and standard (e.g. EN 590 10 ppm)", "Quantity and tolerance", "Destination port/depot",
+            "Delivery date or window", "Requested Incoterm 2020", "Currency and pricing formula",
+            "Certificate of analysis, SDS, and origin", "Payment terms and offer validity",
         ],
         "warning": (
-            "Le relevé DDFUELNYH est un prix spot FOB New York Harbor en USD/gallon. "
-            "C'est un benchmark de négociation, pas le prix rendu dans votre pays."
+            "DDFUELNYH is a FOB New York Harbor spot price in USD/gallon. "
+            "It is a negotiation benchmark, not the landed price in your country."
         ),
     },
     "bitume": {
-        "title": "Acheter du bitume",
-        "specification": "Choisir le grade (ex. 35/50, 50/70 ou 70/100), EN 12591/ASTM D946, bitume modifié ou émulsion et usage final.",
-        "logistics": "Le vrac exige citerne et stockage chauffés. Pour petits volumes/import lointain, comparer fûts, big bags ou conteneurs avec le coût de fusion et les pertes.",
+        "title": "Buy bitumen",
+        "specification": "Choose the grade (e.g. 35/50, 50/70, or 70/100), EN 12591/ASTM D946, modified bitumen or emulsion, and end use.",
+        "logistics": "Bulk shipments require heated tankers and storage. For small volumes or distant imports, compare drums, big bags, or containers, including melting costs and losses.",
         "rfq_fields": [
-            "Grade, norme et usage routier/industriel", "Quantité et conditionnement", "Origine et raffinerie",
-            "Point de chargement et destination", "Température de chargement/livraison", "Incoterm 2020 demandé",
-            "PDS, SDS, certificat d'analyse et méthode d'inspection", "Fret, surestaries, chauffage et validité de l'offre",
+            "Grade, standard, and road/industrial use", "Quantity and packaging", "Origin and refinery",
+            "Loading point and destination", "Loading/delivery temperature", "Requested Incoterm 2020",
+            "Product data sheet, SDS, analysis certificate, and inspection method", "Freight, demurrage, heating, and offer validity",
         ],
         "warning": (
-            "Il n'existe pas de prix spot mondial gratuit et exécutable du bitume. WPU058 est un indice mensuel américain "
-            "de tendance; le prix USD/tonne doit venir d'un devis fournisseur comparable par grade, lieu et Incoterm."
+            "There is no free, executable global spot price for bitumen. WPU058 is a monthly U.S. trend index; "
+            "the USD/tonne price must come from a comparable supplier quote by grade, location, and Incoterm."
         ),
     },
 }
@@ -84,10 +84,10 @@ def build_procurement_guide(
 ) -> dict[str, Any]:
     product = product.strip().lower()
     if product not in PRODUCT_GUIDANCE:
-        raise ValueError("Produit inconnu. Utilisez gasoil ou bitume.")
+        raise ValueError("Unknown product. Use gasoil or bitume.")
     region = region.strip().lower() or "all"
     if region not in REGIONS:
-        raise ValueError("Région inconnue.")
+        raise ValueError("Unknown region.")
 
     latest_prices = [row for row in database.latest() if row.get("product") == product]
     latest_quote = latest_prices[0] if latest_prices else None
@@ -109,11 +109,11 @@ def build_procurement_guide(
         "logistics": guidance["logistics"],
         "rfq_fields": guidance["rfq_fields"],
         "landed_cost_formula": (
-            "coût rendu = marchandise + fret + assurance + inspection + droits/taxes "
-            "+ stockage/chauffage + frais financiers ± change"
+            "landed cost = merchandise + freight + insurance + inspection + duties/taxes "
+            "+ storage/heating + financing costs ± currency exchange"
         ),
         "disclaimer": (
-            "Les entreprises listées sont des voies de contact officielles, pas une recommandation ni une garantie de vente. "
-            "Vérifiez disponibilité, licences, sanctions, qualité, fiscalité et conditions contractuelles dans votre juridiction."
+            "The listed companies provide official contact channels, not an endorsement or guarantee of sale. "
+            "Check availability, licenses, sanctions, quality, taxes, and contract terms in your jurisdiction."
         ),
     }

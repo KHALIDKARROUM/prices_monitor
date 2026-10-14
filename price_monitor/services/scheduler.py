@@ -100,15 +100,15 @@ class CollectionCoordinator:
             reason = ""
             if provider == "yahoo" and not session["open"]:
                 next_due = max(next_due, session["next_open_at"].timestamp())
-                reason = "Marché fermé."
+                reason = "Market closed."
             if budget["retry_at"] > now and provider != "bls":
                 reason = budget["reason"]
             running = float(state["lease_until"]) > now
             if running:
-                reason = "Collecte en cours."
+                reason = "Collection in progress."
             elif not reason and state["failures"] and next_due > now:
-                reason = "Nouvelle tentative différée après un échec."
-            primary_info = "API BLS en pause ; relais FRED disponible." if provider == "bls" and budget["retry_at"] > now else ""
+                reason = "Retry delayed after a failure."
+            primary_info = "BLS API paused; FRED mirror available." if provider == "bls" and budget["retry_at"] > now else ""
             result.append({"provider": provider, "interval_minutes": self.intervals[provider],
                            "status": "running" if running else "deferred" if reason else state["status"],
                            "next_collection_at": datetime.fromtimestamp(max(now, next_due), timezone.utc).isoformat(),
@@ -118,19 +118,19 @@ class CollectionCoordinator:
 
     def collect_provider(self, provider: str, *, force=False) -> dict:
         if provider not in self.providers:
-            raise ValueError("Fournisseur non configuré.")
+            raise ValueError("Provider is not configured.")
         now = self.now()
         if provider == "yahoo":
             session = market_session(datetime.fromtimestamp(now, timezone.utc))
             if not session["open"]:
-                return self._deferred(provider, "Marché fermé.", session["next_open_at"].timestamp())
+                return self._deferred(provider, "Market closed.", session["next_open_at"].timestamp())
         budget = self.database.request_budget(provider, now, self.guard.limits.get(provider, 0))
         if budget["retry_at"] > now and provider != "bls":
             return self._deferred(provider, budget["reason"], budget["retry_at"])
         token = self.database.claim_collection(provider, now, force)
         if token is None:
             state = self.database.collection_state(provider)
-            reason = "Collecte en cours." if state["lease_until"] > now else "Prochaine collecte planifiée."
+            reason = "Collection in progress." if state["lease_until"] > now else "Next collection is scheduled."
             return self._deferred(provider, reason, max(state["next_due"], state["lease_until"]))
         state = self.database.collection_state(provider)
         try:
@@ -142,7 +142,7 @@ class CollectionCoordinator:
             finished = self.now()
             self.database.finish_collection(provider, token, now=finished,
                 next_due=finished + COLLECTION_MAX_BACKOFF_SECONDS, failures=int(state["failures"]) + 1,
-                status="error", error="Erreur interne de collecte.")
+                status="error", error="Internal collection error.")
             raise
         finished = self.now()
         outcomes = result.get("source_outcomes", [])
@@ -348,7 +348,7 @@ def run_collection(database: DatabaseBackend, *, collector=None) -> dict:
         # whole-batch callers compare only the responses received in this run.
         comparison = (database.source_comparison() if collector is not None else
                       compare_api_prices(observations, benchmarks, database.source_health()))
-        message = " ".join(messages) or "Collecte terminée avec succès."
+        message = " ".join(messages) or "Collection completed successfully."
         if comparison["warnings"] and (observations or benchmarks):
             warning = " ".join([comparison["message"], *comparison["warnings"]])
             message = f"{message} {warning}"

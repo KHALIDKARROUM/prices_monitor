@@ -25,7 +25,7 @@ test('an open dashboard announces loss and recovery once despite repeated failur
   assert.equal(badges.at(-1).kind, 'error');
   for (let i = 0; i < 20; i++) monitor.acceptStatus(status('online'));
   assert.equal(notices.length, 2);
-  assert.match(notices[1].message, /Internet rétablie/);
+  assert.match(notices[1].message, /Internet connection restored/);
   assert.equal(recoveries.length, 1);
 });
 
@@ -35,7 +35,7 @@ test('opening offline shows one warning and a persistent status', () => {
   monitor.acceptStatus(status('offline', 'error'));
   monitor.setBrowserOnline(false);
   assert.equal(notices.length, 1);
-  assert.equal(badges.at(-1).message, 'Connexion Internet indisponible');
+  assert.equal(badges.at(-1).message, 'Internet connection unavailable');
 });
 
 test('browser loss is immediate and recovery waits for external confirmation', () => {
@@ -46,12 +46,12 @@ test('browser loss is immediate and recovery waits for external confirmation', (
   assert.equal(badges.at(-1).kind, 'error');
   monitor.setBrowserOnline(true);
   assert.equal(notices.length, 1);
-  assert.match(badges.at(-1).message, /Vérification/);
+  assert.match(badges.at(-1).message, /Checking/);
   monitor.acceptStatus(status('offline', 'error'));
   assert.equal(notices.length, 1);
   monitor.acceptStatus(status('online', 'error'));
   assert.equal(notices.length, 2);
-  assert.match(notices[1].message, /En attente d’une collecte réussie/);
+  assert.match(notices[1].message, /Waiting for a successful collection/);
 });
 
 test('provider failures and partial recovery do not pretend the Internet is lost', () => {
@@ -60,12 +60,12 @@ test('provider failures and partial recovery do not pretend the Internet is lost
   monitor.acceptStatus(status('online', 'error'));
   monitor.acceptStatus(status('online', 'error'));
   assert.equal(notices.length, 1);
-  assert.match(notices[0].message, /Internet est accessible/);
+  assert.match(notices[0].message, /Internet is available/);
   assert.equal(badges.at(-1).kind, 'warning');
   monitor.acceptStatus(status('online', 'partial'));
   monitor.acceptStatus(status('online', 'partial'));
   assert.equal(notices.length, 2);
-  assert.match(notices[1].message, /collecte fonctionne à nouveau/);
+  assert.match(notices[1].message, /Collection is working again/);
   monitor.acceptStatus(status('online'));
   assert.equal(notices.length, 3);
   assert.equal(notices.at(-1).error, false);
@@ -77,16 +77,16 @@ test('server failures are distinct and notify only once', () => {
   monitor.setServiceAvailable(false);
   monitor.setServiceAvailable(false);
   assert.equal(notices.length, 1);
-  assert.match(notices[0].message, /application perdue/);
+  assert.match(notices[0].message, /application lost/);
   monitor.acceptStatus(status('online'));
   assert.equal(notices.length, 2);
-  assert.match(notices[1].message, /application rétablie/);
+  assert.match(notices[1].message, /application restored/);
 });
 
 test('demo data does not conceal an offline connection', () => {
   const { monitor, notices, badges } = dashboard();
   monitor.acceptStatus({ ...status('online'), demo_mode: true });
-  assert.match(badges.at(-1).message, /démonstration/);
+  assert.match(badges.at(-1).message, /demo/);
   monitor.acceptStatus({ ...status('offline'), demo_mode: true });
   assert.equal(notices.length, 1);
   assert.equal(badges.at(-1).kind, 'error');

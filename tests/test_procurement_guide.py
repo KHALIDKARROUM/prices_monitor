@@ -27,5 +27,17 @@ def test_procurement_guide_combines_sql_suppliers_benchmark_and_buying_steps(emp
         "Nynas Bitumen",
     }
     assert len(guide["steps"]) == 6
-    assert "coût rendu" in guide["landed_cost_formula"]
-    assert "prix spot mondial gratuit" in guide["market_context"]["warning"]
+    assert "landed cost" in guide["landed_cost_formula"]
+    assert "no free, executable global spot price" in guide["market_context"]["warning"]
+
+
+def test_existing_french_supplier_seed_is_displayed_in_english(empty_database):
+    with empty_database.connect() as conn:
+        conn.execute(
+            "UPDATE supplier_channels SET name=?, coverage=? WHERE name=?",
+            ("TotalEnergies - réseau entreprises", "Réseau international", "TotalEnergies - business network"),
+        )
+
+    guide = build_procurement_guide(empty_database, "gasoil")
+    supplier = next(row for row in guide["suppliers"] if row["name"] == "TotalEnergies - business network")
+    assert supplier["coverage"].startswith("International network")

@@ -28,7 +28,7 @@ def test_insert_observation_calculates_variation_and_unchanged_publication(empty
     assert second["variation"] == 0.5
     assert second["variation_pct"] == 25.0
     assert second["is_unchanged"] == 1
-    assert "Publication source inchangée." in second["notes"]
+    assert "Source publication unchanged." in second["notes"]
     assert empty_database.observations(product="gasoil", days=3650)[-1]["id"] == second["id"]
 
 
@@ -47,10 +47,10 @@ def test_insert_observation_is_idempotent_for_an_exact_retry(empty_database):
 @pytest.mark.parametrize(
     "field, value, message",
     [
-        ("source_date", "2026-02-30", "date source"),
-        ("source_date", "2026-09-13T00:00:00+00:00", "format YYYY-MM-DD"),
-        ("collected_at", "2026-09-13", "date de collecte"),
-        ("collected_at", "2026-02-30T12:00:00+00:00", "date de collecte"),
+        ("source_date", "2026-02-30", "Source date"),
+        ("source_date", "2026-09-13T00:00:00+00:00", "YYYY-MM-DD format"),
+        ("collected_at", "2026-09-13", "Collection date"),
+        ("collected_at", "2026-02-30T12:00:00+00:00", "Collection date"),
     ],
 )
 def test_insert_observation_rejects_invalid_dates(empty_database, field, value, message):
@@ -67,7 +67,7 @@ def test_insert_observation_rejects_a_unit_that_does_not_match_the_product(empty
     payload = observation_payload("gasoil", 2.4, "2026-09-13", "2026-09-13T12:00:00+00:00")
     payload["unit"] = "USD/baril"
 
-    with pytest.raises(ValueError, match="Unité invalide"):
+    with pytest.raises(ValueError, match="Invalid unit"):
         empty_database.insert_observation(payload)
 
     assert empty_database.observations(days=3650) == []
@@ -76,11 +76,11 @@ def test_insert_observation_rejects_a_unit_that_does_not_match_the_product(empty
 @pytest.mark.parametrize(
     "payload, message",
     [
-        ({"product": "copper", "price": 10}, "Produit inconnu"),
-        ({"product": "brent", "price": "not-a-number"}, "prix doit être numérique"),
-        ({"product": "brent", "price": 0}, "compris entre 0"),
-        ({"product": "brent", "price": -1}, "compris entre 0"),
-        ({"product": "brent", "price": 1_000_001}, "compris entre 0"),
+        ({"product": "copper", "price": 10}, "Unknown product"),
+        ({"product": "brent", "price": "not-a-number"}, "Price must be numeric"),
+        ({"product": "brent", "price": 0}, "Price must be between 0"),
+        ({"product": "brent", "price": -1}, "Price must be between 0"),
+        ({"product": "brent", "price": 1_000_001}, "Price must be between 0"),
     ],
 )
 def test_insert_observation_rejects_invalid_payload(empty_database, payload, message):
@@ -244,12 +244,12 @@ def test_create_procurement_rejects_invalid_currency_and_exchange_rate(empty_dat
         "exchange_rate": 1.1,
     }
 
-    with pytest.raises(ValueError, match="trois lettres"):
+    with pytest.raises(ValueError, match="three-letter"):
         empty_database.create_procurement(payload)
 
     payload["currency"] = "EUR"
     payload["exchange_rate"] = 0
-    with pytest.raises(ValueError, match="taux de change"):
+    with pytest.raises(ValueError, match="Exchange rate"):
         empty_database.create_procurement(payload)
 
 

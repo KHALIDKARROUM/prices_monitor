@@ -108,7 +108,7 @@ def test_bad_documents_leave_the_record_and_history_unchanged(empty_database, ch
 
 def test_large_and_stale_document_uploads_are_atomic(empty_database):
     quote = empty_database.create_quote(quote_input())
-    with pytest.raises(ValueError, match="5 Mo"):
+    with pytest.raises(ValueError, match="5 MB"):
         empty_database.attach_quote_document(quote["id"], document_input(1, b"%PDF-" + b"x" * MAX_DOCUMENT_BYTES))
     empty_database.update_quote(quote["id"], {"expected_version": 1, "notes": "Corrigé", "change_reason": "Précision"})
     with pytest.raises(QuoteConflict):

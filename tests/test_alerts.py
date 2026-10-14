@@ -231,7 +231,7 @@ def test_long_freshness_threshold_is_not_reset_by_every_daily_reopening(empty_da
 
 
 def test_live_quote_rule_requires_live_product_and_email(empty_database):
-    with pytest.raises(ValueError, match="gasoil et le Brent"):
+    with pytest.raises(ValueError, match="diesel and Brent"):
         empty_database.create_alert_rule({"product": "bitume", "direction": "stale", "threshold": 15, "channel": "email"})
     with pytest.raises(ValueError, match="email"):
         empty_database.create_alert_rule({"product": "brent", "direction": "stale", "threshold": 15, "channel": "webhook"})

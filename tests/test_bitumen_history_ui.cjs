@@ -23,7 +23,7 @@ function archive(fetch) {
   const context = vm.createContext({
     document: { querySelector: $ }, Date, URLSearchParams,
     FormData: class { constructor(form) { return Object.entries(form.values); } },
-    PRODUCT_META: { bitume: { label: 'Bitume', color: '#b4aed4' } },
+    PRODUCT_META: { bitume: { label: 'Bitumen', color: '#b4aed4' } },
     protectedFetch: fetch
   });
   vm.runInContext(source.slice(source.indexOf('const $ ='), source.indexOf('const API_KEY_STORAGE')), context);
@@ -46,9 +46,9 @@ test('Bitume history is visible independently of the mixed archive filters', asy
   const { $, context } = archive(monthlyResponse);
   $('#history-filters').values = { product: 'brent', data_kind: 'quote', date_from: '2026-10-01', supplier: 'ABC' };
   await context.loadBitumenHistory();
-  assert.equal($('#bitumen-history-count').textContent, '60 mois publiés');
-  assert.match($('#bitumen-history-table').innerHTML, /août 2026/);
-  assert.match($('#bitumen-history-table').innerHTML, /546,938/);
+  assert.equal($('#bitumen-history-count').textContent, '60 published months');
+  assert.match($('#bitumen-history-table').innerHTML, /August 2026/);
+  assert.match($('#bitumen-history-table').innerHTML, /546\.938/);
   assert.equal(($('#bitumen-history-table').innerHTML.match(/<tr>/g) || []).length, 12);
   assert.equal($('#bitumen-history-prev').disabled, true);
   assert.equal($('#bitumen-history-next').disabled, false);
@@ -57,11 +57,11 @@ test('Bitume history is visible independently of the mixed archive filters', asy
 test('all five years of monthly Bitume history are reachable through pagination', async () => {
   const { $, context } = archive(monthlyResponse);
   await context.loadBitumenHistory(2);
-  assert.match($('#bitumen-history-table').innerHTML, /août 2025/);
+  assert.match($('#bitumen-history-table').innerHTML, /August 2025/);
   assert.equal($('#bitumen-history-prev').disabled, false);
   await context.loadBitumenHistory(5);
-  assert.match($('#bitumen-history-table').innerHTML, /septembre 2021/);
-  assert.equal($('#bitumen-history-page-label').textContent, 'Page 5 / 5');
+  assert.match($('#bitumen-history-table').innerHTML, /September 2021/);
+  assert.equal($('#bitumen-history-page-label').textContent, 'Page 5 of 5');
   assert.equal($('#bitumen-history-next').disabled, true);
 });
 
@@ -74,8 +74,8 @@ test('late responses cannot replace a newer Bitume history page', async () => {
   await last;
   requests[0].resolve(monthlyResponse(requests[0].url));
   await first;
-  assert.equal($('#bitumen-history-page-label').textContent, 'Page 5 / 5');
-  assert.match($('#bitumen-history-table').innerHTML, /septembre 2021/);
+  assert.equal($('#bitumen-history-page-label').textContent, 'Page 5 of 5');
+  assert.match($('#bitumen-history-table').innerHTML, /September 2021/);
 });
 
 test('changing the archive product or data type applies the selection immediately', () => {

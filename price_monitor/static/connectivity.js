@@ -49,13 +49,13 @@ class ConnectionMonitor {
     else state = 'online';
 
     const labels = {
-      checking: ['Vérification de la connexion…', 'warning'],
-      offline: ['Connexion Internet indisponible', 'error'],
-      'service-unavailable': ['Application inaccessible', 'error'],
-      'sources-unavailable': ['Internet connecté · sources indisponibles', 'warning'],
-      partial: ['Internet connecté · collecte partielle', 'warning'],
-      online: ['Internet connecté', ''],
-      demo: ['Internet connecté · démonstration', 'warning']
+      checking: ['Checking connection…', 'warning'],
+      offline: ['Internet connection unavailable', 'error'],
+      'service-unavailable': ['Application unavailable', 'error'],
+      'sources-unavailable': ['Internet connected · providers unavailable', 'warning'],
+      partial: ['Internet connected · partial collection', 'warning'],
+      online: ['Internet connected', ''],
+      demo: ['Internet connected · demo', 'warning']
     };
     this.update(...labels[state]);
     // Checking is transient: retain the last known state for recovery notices.
@@ -63,19 +63,19 @@ class ConnectionMonitor {
     const previous = this.previous;
     this.previous = state;
     if (state === 'offline') {
-      this.notify('Connexion Internet perdue. Les derniers prix enregistrés restent disponibles.', true);
+      this.notify('Internet connection lost. The latest saved prices remain available.', true);
     } else if (state === 'service-unavailable') {
-      this.notify('Connexion à l’application perdue. Vérifiez que le serveur est démarré.', true);
+      this.notify('Connection to the application lost. Check that the server is running.', true);
     } else if (previous === 'offline' || previous === 'service-unavailable') {
-      const message = previous === 'offline' ? 'Connexion Internet rétablie.' : 'Connexion à l’application rétablie.';
-      this.notify(`${message}${state === 'sources-unavailable' ? ' En attente d’une collecte réussie.' : ''}`);
+      const message = previous === 'offline' ? 'Internet connection restored.' : 'Connection to the application restored.';
+      this.notify(`${message}${state === 'sources-unavailable' ? ' Waiting for a successful collection.' : ''}`);
       this.onRecovery();
     } else if (state === 'sources-unavailable') {
-      this.notify('Internet est accessible, mais aucune source de prix ne répond. Nouvelle tentative automatique à la prochaine collecte.', true);
+      this.notify('Internet is available, but no price provider is responding. Another attempt will run at the next collection.', true);
     } else if (state === 'partial') {
-      this.notify(previous === 'sources-unavailable' ? 'La collecte fonctionne à nouveau. Certaines sources restent indisponibles.' : 'Certaines sources de prix sont indisponibles. La collecte continue avec les autres sources.');
+      this.notify(previous === 'sources-unavailable' ? 'Collection is working again. Some providers remain unavailable.' : 'Some price providers are unavailable. Collection continues with the others.');
     } else if (previous === 'sources-unavailable' || previous === 'partial') {
-      this.notify('Les sources de prix sont de nouveau disponibles.');
+      this.notify('Price providers are available again.');
       this.onRecovery();
     }
   }

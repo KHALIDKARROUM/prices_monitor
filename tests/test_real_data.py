@@ -39,7 +39,7 @@ def test_bundled_real_snapshot_is_imported_into_empty_database(tmp_path, monkeyp
     assert len(observations) == expected_rows
     assert {row["product"] for row in observations} == {"brent", "gasoil"}
     assert all(row["source"].startswith("EIA/FRED - ") for row in observations)
-    assert all("Historique réel EIA importé" in row["notes"] for row in observations)
+    assert all("Historical EIA data imported" in row["notes"] for row in observations)
     assert any(row["variation"] is not None for row in observations)
     monthly_count = len(database.bitumen_series(days=10_000))
     assert monthly_count == 60

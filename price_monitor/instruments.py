@@ -4,11 +4,11 @@ from __future__ import annotations
 
 INSTRUMENTS = {
     "brent_spot": {"product": "brent", "label": "Brent Europe · spot", "unit": "USD/baril"},
-    "brent_futures": {"product": "brent", "label": "Brent BZ=F · contrat à terme", "unit": "USD/baril"},
+    "brent_futures": {"product": "brent", "label": "Brent BZ=F · futures", "unit": "USD/baril"},
     "diesel_spot": {"product": "gasoil", "label": "Diesel New York Harbor · spot", "unit": "USD/gallon"},
     "heating_oil_futures": {"product": "gasoil", "label": "Heating oil HO=F · proxy gasoil", "unit": "USD/gallon"},
     "bitumen_quote": {"product": "bitume", "label": "Bitume · devis fournisseur", "unit": "USD/tonne"},
-    "asphalt_index": {"product": "bitume", "label": "Bitume · indice BLS WPU058", "unit": "indice (déc. 1984 = 100)"},
+    "asphalt_index": {"product": "bitume", "label": "Bitumen · BLS WPU058 index", "unit": "indice (déc. 1984 = 100)"},
 }
 DEFAULT_INSTRUMENTS = {"brent": "brent_spot", "gasoil": "diesel_spot", "bitume": "bitumen_quote"}
 LIVE_INSTRUMENTS = {"brent": "brent_futures", "gasoil": "heating_oil_futures"}
@@ -38,9 +38,9 @@ def resolve_instrument(product: str, source: str = "", instrument: str | None = 
     if selected not in INSTRUMENTS or INSTRUMENTS[selected]["product"] != product:
         raise ValueError("Instrument incompatible avec le produit.")
     if source in SOURCE_INSTRUMENTS and selected != inferred:
-        raise ValueError("L'instrument doit correspondre à la série publiée par la source.")
+        raise ValueError("The instrument must match the series published by the source.")
     if index != (selected == "asphalt_index"):
-        raise ValueError("L'indice BLS doit rester séparé des prix et devis.")
+        raise ValueError("The BLS index must remain separate from prices and quotes.")
     return selected
 
 

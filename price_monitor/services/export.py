@@ -27,13 +27,13 @@ def xlsx_bytes(rows: Iterable[dict]) -> bytes:
         from openpyxl.styles import Font, PatternFill
         from openpyxl.cell import WriteOnlyCell
     except ImportError as exc:
-        raise RuntimeError("Installez openpyxl pour activer l'export Excel (.xlsx).") from exc
+        raise RuntimeError("Install openpyxl to enable Excel (.xlsx) export.") from exc
     output = io.BytesIO()
     workbook = Workbook(write_only=True)
-    headers = ["ID", "Produit", "Prix / indice", "Unité", "Devise", "Source", "Fournisseur", "Date source", "Date collecte", "Variation", "Variation %", "Inchangée", "Remarque", "Type de donnée", "Code indicateur", "Instrument"]
+    headers = ["ID", "Product", "Price / index", "Unit", "Currency", "Source", "Supplier", "Source date", "Collection date", "Change", "Change %", "Unchanged", "Notes", "Data type", "Indicator code", "Instrument"]
     def new_sheet():
         number = len(workbook.worksheets) + 1
-        sheet = workbook.create_sheet("Relevés" if number == 1 else f"Relevés {number}")
+        sheet = workbook.create_sheet("Observations" if number == 1 else f"Observations {number}")
         sheet.freeze_panes = "A2"
         for column, width in {"A": 8, "B": 16, "C": 14, "D": 16, "F": 34, "G": 24, "H": 16, "I": 24, "M": 46, "P": 28}.items():
             sheet.column_dimensions[column].width = width

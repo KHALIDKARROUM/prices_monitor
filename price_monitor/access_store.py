@@ -31,13 +31,13 @@ def digest(value: str) -> str:
 
 def username(value) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_.@+\-]{2,79}", value.strip().lower()):
-        raise ValueError("Identifiant : 3 à 80 caractères, lettres, chiffres, . _ @ + ou -.")
+        raise ValueError("Username: 3 to 80 characters; letters, numbers, . _ @ + or -.")
     return value.strip().lower()
 
 
 def password_hash(value) -> str:
     if not isinstance(value, str) or not 12 <= len(value) <= 128:
-        raise ValueError("Le mot de passe doit contenir entre 12 et 128 caractères.")
+        raise ValueError("Password must contain between 12 and 128 characters.")
     return PASSWORDS.hash(value)
 
 
@@ -122,18 +122,18 @@ class AccessStoreMixin:
         full_name = payload.get("full_name", name)
         role = payload.get("role", "viewer")
         if not isinstance(full_name, str) or not full_name.strip() or len(full_name) > 100 or not isinstance(role, str) or role not in ROLES:
-            raise ValueError("Nom ou rôle invalide.")
+            raise ValueError("Invalid name or role.")
         encoded = password_hash(payload.get("password"))
         now = time.time()
         with self._lock, self.connect() as conn:
             self._security_lock(conn)
             count = int(conn.execute("SELECT COUNT(*) AS count FROM team_users").fetchone()["count"])
             if bootstrap and count:
-                raise ValueError("Un compte existe déjà. Utilisez un administrateur existant.")
+                raise ValueError("An account already exists. Use an existing administrator.")
             if not count and role != "admin":
-                raise ValueError("Le premier compte doit être administrateur.")
+                raise ValueError("The first account must be an administrator.")
             if conn.execute("SELECT id FROM team_users WHERE username=?", (name,)).fetchone():
-                raise ValueError("Cet identifiant est déjà utilisé.")
+                raise ValueError("This username is already in use.")
             conn.execute("""INSERT INTO team_users(username,full_name,password_hash,role,created_at,updated_at)
                          VALUES(?,?,?,?,?,?)""", (name, full_name.strip(), encoded, role, now, now))
             row = conn.execute(f"SELECT {USER_COLUMNS} FROM team_users WHERE username=?", (name,)).fetchone()
@@ -149,10 +149,10 @@ class AccessStoreMixin:
                 raise ValueError("Compte introuvable.")
             current = dict(raw)
             if type(payload.get("version")) is not int or payload["version"] != current["version"]:
-                raise ValueError("Le compte a changé. Rechargez la liste avant de le modifier.")
+                raise ValueError("The account has changed. Reload the list before editing it.")
             role, active, name = payload.get("role", current["role"]), payload.get("active", bool(current["active"])), payload.get("full_name", current["full_name"])
             if not isinstance(role, str) or role not in ROLES or not isinstance(active, bool) or not isinstance(name, str) or not name.strip() or len(name) > 100:
-                raise ValueError("Nom, rôle ou état invalide.")
+                raise ValueError("Invalid name, role, or status.")
             admins = int(conn.execute("SELECT COUNT(*) AS count FROM team_users WHERE role='admin' AND active=1").fetchone()["count"])
             if current["role"] == "admin" and current["active"] and admins <= 1 and (role != "admin" or not active):
                 raise ValueError("Conservez au moins un administrateur actif.")
@@ -180,7 +180,7 @@ class AccessStoreMixin:
                                 SUM(CASE WHEN username_hash=? THEN 1 ELSE 0 END) AS names FROM auth_attempts""",
                                 (client_hash, name_hash)).fetchone()
             if int(count["clients"] or 0) >= 30 or int(count["names"] or 0) >= 10:
-                raise LoginThrottled("Trop de tentatives. Réessayez dans 15 minutes.")
+                raise LoginThrottled("Too many attempts. Try again in 15 minutes.")
             attempt = conn.execute("INSERT INTO auth_attempts(client_hash,username_hash,attempted_at) VALUES(?,?,?)", (client_hash, name_hash, now)).lastrowid
             raw = conn.execute("SELECT * FROM team_users WHERE username=?", (name,)).fetchone()
             row = dict(raw) if raw else None
@@ -247,7 +247,7 @@ class AccessStoreMixin:
 
     def create_user_token(self, user_id, label, days=30):
         if not isinstance(label, str) or not label.strip() or len(label) > 100 or type(days) is not int or not 1 <= days <= 365:
-            raise ValueError("Libellé requis et durée de 1 à 365 jours.")
+            raise ValueError("A label and a duration of 1 to 365 days are required.")
         token, now = "pm_" + secrets.token_urlsafe(32), time.time()
         with self._lock, self.connect() as conn:
             if not conn.execute("SELECT id FROM team_users WHERE id=? AND active=1", (user_id,)).fetchone():
@@ -264,7 +264,7 @@ class AccessStoreMixin:
         with self._lock, self.connect() as conn:
             changed = conn.execute("UPDATE team_api_tokens SET revoked_at=? WHERE id=? AND user_id=? AND revoked_at IS NULL", (time.time(), token_id, user_id)).rowcount
             if not changed:
-                raise ValueError("Jeton introuvable ou déjà révoqué.")
+                raise ValueError("Token not found or already revoked.")
         return {"id": token_id}
 
     def authenticate_user_token(self, value, *, now=None):

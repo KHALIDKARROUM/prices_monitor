@@ -38,33 +38,33 @@ def iso_value(value):
 
 
 def validate_document(payload: dict) -> tuple[str, str, str, bytes]:
-    filename = text(payload.get("filename"), "Le nom du fichier", 180, True)
+    filename = text(payload.get("filename"), "File name", 180, True)
     if "/" in filename or "\\" in filename or filename in {".", ".."} or "\n" in filename or "\t" in filename:
-        raise ValueError("Nom de fichier invalide.")
+        raise ValueError("Invalid file name.")
     suffix = PurePath(filename).suffix.lower()
     if suffix not in DOCUMENT_FORMATS:
-        raise ValueError("Formats autorisés : PDF, PNG, JPEG, TXT, DOCX et XLSX.")
+        raise ValueError("Allowed formats: PDF, PNG, JPEG, TXT, DOCX, and XLSX.")
     kind = payload.get("document_type")
     if not isinstance(kind, str) or kind not in DOCUMENT_TYPES:
-        raise ValueError("Type de document invalide.")
+        raise ValueError("Invalid document type.")
     encoded = payload.get("content_base64")
     if not isinstance(encoded, str) or len(encoded) > ((MAX_DOCUMENT_BYTES + 2) // 3) * 4:
-        raise ValueError("Le document doit faire au maximum 5 Mo.")
+        raise ValueError("The document must be no larger than 5 MB.")
     try:
         data = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError):
-        raise ValueError("Contenu du document invalide.") from None
+        raise ValueError("Invalid document content.") from None
     if not data or len(data) > MAX_DOCUMENT_BYTES:
-        raise ValueError("Le document doit être non vide et faire au maximum 5 Mo.")
+        raise ValueError("The document must not be empty and must be no larger than 5 MB.")
     matches = {".pdf": data.startswith(b"%PDF-"), ".png": data.startswith(b"\x89PNG\r\n\x1a\n"),
                ".jpg": data.startswith(b"\xff\xd8\xff"), ".jpeg": data.startswith(b"\xff\xd8\xff")}
     if suffix in matches and not matches[suffix]:
-        raise ValueError("Le contenu ne correspond pas au format du fichier.")
+        raise ValueError("The content does not match the file format.")
     if suffix == ".txt":
         try:
             data.decode("utf-8")
         except UnicodeDecodeError:
-            raise ValueError("Un fichier TXT doit être encodé en UTF-8.") from None
+            raise ValueError("TXT files must be encoded in UTF-8.") from None
         if b"\0" in data:
             raise ValueError("Fichier texte invalide.")
     if suffix in {".docx", ".xlsx"}:
@@ -90,13 +90,13 @@ class QuoteStoreMixin:
     def _version(payload: dict) -> int:
         raw = payload.get("expected_version")
         if isinstance(raw, bool) or not str(raw).isdigit() or int(raw) < 1:
-            raise ValueError("La version du devis est obligatoire pour enregistrer une correction.")
+            raise ValueError("Quote version is required to save a correction.")
         return int(raw)
 
     @staticmethod
     def _audit_input(payload: dict, default_reason: str = "") -> tuple[str, str]:
-        return (text(payload.get("actor", "Équipe achats"), "L’auteur", 100, True),
-                text(payload.get("change_reason", default_reason), "Le motif", 1000, True))
+        return (text(payload.get("actor", "Purchasing team"), "Author", 100, True),
+                text(payload.get("change_reason", default_reason), "Reason", 1000, True))
 
     @staticmethod
     def _quote_input(quote: dict) -> dict:
@@ -105,7 +105,7 @@ class QuoteStoreMixin:
     def _quote_record(self, conn, quote_id: int) -> dict:
         raw = conn.execute("SELECT * FROM supplier_quotes WHERE id=?", (quote_id,)).fetchone()
         if raw is None:
-            raise QuoteNotFound("Devis introuvable.")
+            raise QuoteNotFound("Quote not found.")
         row = dict(raw)
         for key in ("quote_date", "valid_until", "delivery_date", "created_at", "updated_at"):
             row[key] = iso_value(row[key])
@@ -151,7 +151,7 @@ class QuoteStoreMixin:
 
     def create_quote(self, payload: dict) -> dict:
         record = self._quote_input(validate_quote(payload))
-        actor, reason = self._audit_input(payload, "Création du devis")
+        actor, reason = self._audit_input(payload, "Quote created")
         now = self._quote_now()
         with self._lock, self.connect() as conn:
             cursor = conn.execute(f"INSERT INTO supplier_quotes({','.join(QUOTE_COLUMNS)},version,created_at,updated_at) VALUES({','.join('?' for _ in QUOTE_COLUMNS)},1,?,?)",
@@ -162,7 +162,7 @@ class QuoteStoreMixin:
         changed = conn.execute("UPDATE supplier_quotes SET version=version+1, updated_at=? WHERE id=? AND version=?",
                                (self._quote_now(), quote_id, version)).rowcount
         if changed != 1:
-            raise QuoteConflict("Ce devis a changé. Rechargez-le avant d’enregistrer votre correction.")
+            raise QuoteConflict("This quote has changed. Reload it before saving your correction.")
 
     def update_quote(self, quote_id: int, payload: dict) -> dict:
         version = self._version(payload)
@@ -170,12 +170,12 @@ class QuoteStoreMixin:
         with self._lock, self.connect() as conn:
             current = self._quote_record(conn, quote_id)
             if current["version"] != version:
-                raise QuoteConflict("Ce devis a changé. Rechargez-le avant d’enregistrer votre correction.")
+                raise QuoteConflict("This quote has changed. Reload it before saving your correction.")
             record = self._quote_input(validate_quote({**current, **payload}))
             before = self._quote_input(current)
             fields = [key for key in QUOTE_COLUMNS if record[key] != before[key]]
             if not fields:
-                raise ValueError("Aucune correction à enregistrer.")
+                raise ValueError("There is no correction to save.")
             self._bump_quote(conn, quote_id, version)
             conn.execute(f"UPDATE supplier_quotes SET {','.join(key+'=?' for key in QUOTE_COLUMNS)} WHERE id=?",
                          (*[record[key] for key in QUOTE_COLUMNS], quote_id))
@@ -196,13 +196,13 @@ class QuoteStoreMixin:
 
     def attach_quote_document(self, quote_id: int, payload: dict) -> dict:
         version = self._version(payload)
-        actor, reason = self._audit_input(payload, "Ajout d’un justificatif")
+        actor, reason = self._audit_input(payload, "Supporting document added")
         filename, kind, content_type, data = validate_document(payload)
         with self._lock, self.connect() as conn:
             self._quote_record(conn, quote_id)
             total = dict(conn.execute("SELECT COALESCE(SUM(size_bytes),0) AS total FROM quote_documents WHERE quote_id=?", (quote_id,)).fetchone())["total"]
             if int(total) + len(data) > MAX_QUOTE_DOCUMENT_BYTES:
-                raise ValueError("Les justificatifs d’un devis sont limités à 50 Mo, historique compris.")
+                raise ValueError("Quote attachments are limited to 50 MB, including history.")
             self._bump_quote(conn, quote_id, version)
             conn.execute("""INSERT INTO quote_documents(quote_id, filename, document_type, content_type, size_bytes, sha256, content, created_at)
                             VALUES(?,?,?,?,?,?,?,?)""", (quote_id, filename, kind, content_type, len(data), hashlib.sha256(data).hexdigest(), data, self._quote_now()))
@@ -215,7 +215,7 @@ class QuoteStoreMixin:
             self._quote_record(conn, quote_id)
             found = conn.execute("SELECT id FROM quote_documents WHERE id=? AND quote_id=? AND removed_at IS NULL", (document_id, quote_id)).fetchone()
             if not found:
-                raise QuoteNotFound("Justificatif introuvable dans ce devis.")
+                raise QuoteNotFound("Supporting document not found in this quote.")
             self._bump_quote(conn, quote_id, version)
             conn.execute("UPDATE quote_documents SET removed_at=? WHERE id=? AND quote_id=?", (self._quote_now(), document_id, quote_id))
             return self._quote_revision(conn, quote_id, "document_removed", actor, reason, ["documents"])
@@ -224,12 +224,12 @@ class QuoteStoreMixin:
         with self.connect() as conn:
             row = conn.execute("SELECT filename, content_type, content, sha256 FROM quote_documents WHERE id=? AND quote_id=?", (document_id, quote_id)).fetchone()
             if row is None:
-                raise QuoteNotFound("Justificatif introuvable dans ce devis.")
+                raise QuoteNotFound("Supporting document not found in this quote.")
             return dict(row)
 
     def compare_quotes(self, quote_ids: list[int], as_of: str | None = None) -> dict:
         if len(quote_ids) < 2 or len(quote_ids) > 6 or len(set(quote_ids)) != len(quote_ids):
-            raise ValueError("Sélectionnez entre 2 et 6 devis distincts.")
+            raise ValueError("Select between 2 and 6 distinct quotes.")
         with self.connect() as conn:
             quotes = [self._quote_record(conn, quote_id) for quote_id in quote_ids]
         return compare_quotes(quotes, date.fromisoformat(as_of) if as_of else None)

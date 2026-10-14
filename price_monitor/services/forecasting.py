@@ -25,7 +25,7 @@ MIN_OBSERVATIONS = 30
 
 PRODUCT_META = {
     "gasoil": {"label": "Gasoil / diesel", "unit": "USD/gallon"},
-    "brent": {"label": "Pétrole Brent", "unit": "USD/baril"},
+    "brent": {"label": "Brent crude oil", "unit": "USD/baril"},
     "bitume": {"label": INDEX_LABEL, "unit": INDEX_UNIT},
 }
 
@@ -156,13 +156,13 @@ def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tup
         "backtest": {},
     }
     if not series:
-        base.update({"status": "insufficient_data", "message": "Aucun historique disponible."})
+        base.update({"status": "insufficient_data", "message": "No history available."})
         return base
     base["last_actual"] = series[-1]
     if len(series) < MIN_OBSERVATIONS:
         base.update({
             "status": "insufficient_data",
-            "message": f"Au moins {MIN_OBSERVATIONS} relevés {'mensuels' if monthly else 'journaliers'} sont nécessaires.",
+            "message": f"At least {MIN_OBSERVATIONS} {'monthly' if monthly else 'daily'} observations are required.",
         })
         return base
 

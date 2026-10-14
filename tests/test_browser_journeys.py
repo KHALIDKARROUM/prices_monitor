@@ -79,7 +79,7 @@ def login(page, base, name='owner'):
     form = page.locator('#sign-in-form')
     form.locator('[name=username]').fill(name)
     form.locator('[name=password]').fill(PASSWORD)
-    form.get_by_role('button',name='Se connecter',exact=True).click()
+    form.get_by_role('button',name='Sign in',exact=True).click()
     expect(page.locator('.app-shell')).to_be_visible()
     expect(page.locator('#account-name')).to_contain_text(name)
     page.wait_for_function("document.querySelector('#metric-grid .metric-card') !== null")
@@ -100,18 +100,18 @@ def test_reader_sign_in_private_archives_export_and_logout(journey):
     # The first futures reading has no spot-derived +12.5% change.
     history = page.request.get(base+'/api/history?instrument=brent_futures&page_size=100').json()['items']
     assert all(row['variation_pct'] in (None,0) for row in history)
-    page.locator('nav').get_by_role('link',name='Archives',exact=True).click()
+    page.locator('nav').get_by_role('link',name='History',exact=True).click()
     filters = page.locator('#history-filters')
     filters.locator('[name=product]').select_option('brent')
     filters.locator('[name=instrument]').select_option('brent_spot')
-    filters.get_by_role('button',name='Filtrer',exact=True).click()
+    filters.get_by_role('button',name='Filter',exact=True).click()
     expect(page.locator('#history-count')).to_contain_text('61')
     with page.expect_download() as downloaded:
         page.locator('#history-csv').click()
     rows = list(csv.DictReader(io.StringIO(Path(downloaded.value.path()).read_text(encoding='utf-8-sig'))))
     assert len(rows)==61 and {row['instrument'] for row in rows}=={'brent_spot'}
     assert page.request.post(base+'/api/collect',data={}).status==403
-    page.locator('nav').get_by_role('link',name='Mon compte / Équipe',exact=True).click()
+    page.locator('nav').get_by_role('link',name='My account / Team',exact=True).click()
     page.locator('#logout-button').click()
     expect(page.locator('#sign-in')).to_be_visible()
     expect(page.locator('.app-shell')).to_be_hidden()
@@ -121,16 +121,16 @@ def test_offline_bundle_independent_axes_summaries_and_mobile_navigation(journey
     from playwright.sync_api import expect
     page,base,_ = journey
     login(page,base)
-    expect(page.locator('#needs-attention')).to_contain_text('alerte(s) active(s)')
-    expect(page.locator('#needs-attention')).to_contain_text('prévision à interpréter avec prudence')
+    expect(page.locator('#needs-attention')).to_contain_text('active alert(s)')
+    expect(page.locator('#needs-attention')).to_contain_text('use forecast with caution')
     page.wait_for_function("window.Chart && Chart.getChart('price-chart')")
-    page.get_by_role('button',name='Prix',exact=True).click()
+    page.get_by_role('button',name='Price',exact=True).click()
     page.wait_for_function("Chart.getChart('price-chart').scales.y_brent !== undefined")
     axes = page.evaluate("Object.entries(Chart.getChart('price-chart').scales).filter(([k])=>k.startsWith('y')).map(([k,v])=>[k,v.options.title.text])")
     assert {row[0] for row in axes}=={'y_brent','y_gasoil'}
-    assert any('USD/baril' in row[1] for row in axes) and any('USD/gallon' in row[1] for row in axes)
-    expect(page.locator('#price-chart-summary')).to_contain_text('Dernière valeur')
-    expect(page.locator('#forecast-brent-summary')).to_contain_text('Bande à 95 % indisponible')
+    assert any('USD/barrel' in row[1] for row in axes) and any('USD/gallon' in row[1] for row in axes)
+    expect(page.locator('#price-chart-summary')).to_contain_text('Latest value')
+    expect(page.locator('#forecast-brent-summary')).to_contain_text('95% interval unavailable')
     assert page.locator('#price-chart').get_attribute('aria-describedby')=='price-chart-summary chart-note'
     page.locator('.chart-panel').scroll_into_view_if_needed()
     page.screenshot(path=str(ROOT/'test-results/browser/independent-chart-axes.png'))
@@ -139,11 +139,11 @@ def test_offline_bundle_independent_axes_summaries_and_mobile_navigation(journey
     page.wait_for_function("window.Chart && Chart.getChart('price-chart')")
     page.set_viewport_size({'width':390,'height':844})
     page.locator('#nav-toggle').click()
-    page.locator('nav').get_by_role('link',name='Archives',exact=True).click()
+    page.locator('nav').get_by_role('link',name='History',exact=True).click()
     expect(page.locator('#nav-toggle')).to_have_attribute('aria-expanded','false')
     assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
     page.locator('#nav-toggle').click()
-    page.locator('nav').get_by_role('link',name='Marchés',exact=True).click()
+    page.locator('nav').get_by_role('link',name='Markets',exact=True).click()
 
 def fill_quote(page, supplier):
     form=page.locator('#quote-editor')
@@ -162,7 +162,7 @@ def test_editor_quote_correction_document_budget_alerts_and_admin_audit(journey,
     from playwright.sync_api import expect
     page,base,_=journey
     login(page,base,'editor')
-    page.locator('nav').get_by_role('link',name='Fournisseurs',exact=True).click()
+    page.locator('nav').get_by_role('link',name='Suppliers',exact=True).click()
     page.locator('#quote-new').click()
     fill_quote(page,'Browser supplier')
     page.locator('#quote-save').click()
@@ -180,7 +180,7 @@ def test_editor_quote_correction_document_budget_alerts_and_admin_audit(journey,
     page.locator('#quote-upload').click()
     expect(page.locator('#quote-documents')).to_contain_text('quote.txt')
     with page.expect_download() as download:
-        page.locator('#quote-documents').get_by_role('button',name='Télécharger',exact=True).click()
+        page.locator('#quote-documents').get_by_role('button',name='Download',exact=True).click()
     assert Path(download.value.path()).read_text()=='Test evidence for the quote'
     page.locator('#quote-budget').click()
     page.locator('#procurement-form button[type=submit]').click()
@@ -188,18 +188,18 @@ def test_editor_quote_correction_document_budget_alerts_and_admin_audit(journey,
     expect(page.locator('#procurement-history-table')).to_contain_text('Browser supplier')
     budgets=page.request.get(base+'/api/procurements').json()['purchases']
     assert budgets[0]['total_cost_usd']==5420
-    page.locator('nav').get_by_role('link',name='Veille',exact=True).click()
+    page.locator('nav').get_by_role('link',name='Alerts',exact=True).click()
     page.locator('#alert-new').click()
     page.locator('#alert-form [name=product]').select_option('bitume')
     page.locator('#alert-form [name=threshold]').fill('550')
     page.locator('#alert-save').click()
     expect(page.locator('#alert-list')).to_contain_text('550')
     expect(page.locator('#user-form')).to_be_hidden()
-    page.locator('nav').get_by_role('link',name='Mon compte / Équipe',exact=True).click()
+    page.locator('nav').get_by_role('link',name='My account / Team',exact=True).click()
     page.locator('#logout-button').click()
     expect(page.locator('#sign-in')).to_be_visible()
     login(page,base,'owner')
-    page.locator('nav').get_by_role('link',name='Mon compte / Équipe',exact=True).click()
+    page.locator('nav').get_by_role('link',name='My account / Team',exact=True).click()
     expect(page.locator('#audit-body')).to_contain_text('editor')
     events=page.request.get(base+'/api/audit?page_size=100').json()['events']
     assert {'quote.created','quote.corrected','document.attached','document.prepared','budget.created','alert.created'} <= {event['action'] for event in events}

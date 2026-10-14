@@ -9,14 +9,14 @@ from .. import config
 
 
 SOURCE_DEFINITIONS = (
-    ("fred_brent", "brent", "FRED", "EIA/FRED - DCOILBRENTEU", "Brent Europe · spot quotidien", "brent_spot", "USD/baril"),
-    ("eia_brent", "brent", "EIA", "U.S. EIA - PET.RBRTE.D", "Brent Europe · spot quotidien", "brent_spot", "USD/baril"),
-    ("alpha_brent", "brent", "Alpha Vantage", "Alpha Vantage - BRENT", "Brent Europe · spot quotidien", "brent_spot", "USD/baril"),
-    ("live_brent", "brent", "Yahoo Finance", "Yahoo Finance - Brent futures BZ=F", "Brent BZ=F · contrat à terme", "brent_futures", "USD/baril"),
-    ("fred_diesel", "gasoil", "FRED", "EIA/FRED - DDFUELNYH", "Diesel New York Harbor · spot quotidien", "diesel_spot", "USD/gallon"),
-    ("eia_diesel", "gasoil", "EIA", "U.S. EIA - PET.DDFUELNYH.D", "Diesel New York Harbor · spot quotidien", "diesel_spot", "USD/gallon"),
-    ("live_gasoil_proxy", "gasoil", "Yahoo Finance", "Yahoo Finance - NY Harbor Heating Oil HO=F (proxy gasoil)", "Heating oil HO=F · contrat à terme / proxy", "heating_oil_futures", "USD/gallon"),
-    ("bls_asphalt_ppi", "bitume", "BLS", "U.S. BLS Public Data API - WPU058", "Indice des prix de l'asphalte · mensuel", "asphalt_index", "indice (déc. 1984 = 100)"),
+    ("fred_brent", "brent", "FRED", "EIA/FRED - DCOILBRENTEU", "Brent Europe · daily spot", "brent_spot", "USD/baril"),
+    ("eia_brent", "brent", "EIA", "U.S. EIA - PET.RBRTE.D", "Brent Europe · daily spot", "brent_spot", "USD/baril"),
+    ("alpha_brent", "brent", "Alpha Vantage", "Alpha Vantage - BRENT", "Brent Europe · daily spot", "brent_spot", "USD/baril"),
+    ("live_brent", "brent", "Yahoo Finance", "Yahoo Finance - Brent futures BZ=F", "Brent BZ=F · futures", "brent_futures", "USD/baril"),
+    ("fred_diesel", "gasoil", "FRED", "EIA/FRED - DDFUELNYH", "Diesel New York Harbor · daily spot", "diesel_spot", "USD/gallon"),
+    ("eia_diesel", "gasoil", "EIA", "U.S. EIA - PET.DDFUELNYH.D", "Diesel New York Harbor · daily spot", "diesel_spot", "USD/gallon"),
+    ("live_gasoil_proxy", "gasoil", "Yahoo Finance", "Yahoo Finance - NY Harbor Heating Oil HO=F (proxy gasoil)", "Heating oil HO=F · futures / proxy", "heating_oil_futures", "USD/gallon"),
+    ("bls_asphalt_ppi", "bitume", "BLS", "U.S. BLS Public Data API - WPU058", "Asphalt price index · monthly", "asphalt_index", "indice (déc. 1984 = 100)"),
 )
 SOURCE_CODE_BY_LABEL = {definition[3]: definition[0] for definition in SOURCE_DEFINITIONS}
 # Equivalent daily feeds publish to cents/barrel or thousandths/gallon.
@@ -87,21 +87,21 @@ def compare_api_prices(
         difference = abs(left["price"] - right["price"]) if have_prices and same_unit else None
         difference_pct = difference / left["price"] * 100 if difference is not None else None
         if not have_prices:
-            status, reason = "unverified", "Données manquantes : comparaison non vérifiée."
+            status, reason = "unverified", "Missing data: comparison unverified."
         elif not same_unit:
-            status, reason = "not_comparable", "Unités ou devises différentes."
+            status, reason = "not_comparable", "Different units or currencies."
         elif left["group"] != right["group"]:
-            status, reason = "not_comparable", "Produits de marché différents : spot, contrat à terme ou proxy."
+            status, reason = "not_comparable", "Different market instruments: spot, futures, or proxy."
             if left["source_date"] != right["source_date"]:
-                reason += " Dates de publication également différentes."
+                reason += " Publication dates also differ."
         elif not left["source_date"] or left["source_date"] != right["source_date"]:
-            status, reason = "not_comparable", "Dates de publication différentes ou absentes."
+            status, reason = "not_comparable", "Publication dates differ or are missing."
         elif left["availability"] != "available" or right["availability"] != "available":
-            status, reason = "unverified", "Une API est indisponible ou désactivée ; prix enregistré seulement."
+            status, reason = "unverified", "An API is unavailable or disabled; only a saved price is available."
         elif difference > ROUNDING_TOLERANCE[left["product"]] + 1e-12:
-            status, reason = "mismatch", "Même série et même date : écart à vérifier (révision ou erreur possible)."
+            status, reason = "mismatch", "Same series and date: investigate the difference (possible revision or error)."
         else:
-            status, reason = "match", "Même série, date, unité et devise : valeurs cohérentes à l'arrondi près."
+            status, reason = "match", "Same series, date, unit, and currency: values agree within rounding tolerance."
         pairs.append({
             "product": left["product"], "left": left["code"], "right": right["code"],
             "difference": round(difference, 6) if difference is not None else None,
@@ -121,15 +121,15 @@ def compare_api_prices(
             f"{left['instrument']} ({left['source_date']}) : "
             f"{left['provider']} = {left['price']:.4f}, "
             f"{right['provider']} = {right['price']:.4f} {pair['unit']} ; "
-            f"écart de {pair['difference']:.6f} {pair['unit']} "
+            f"difference of {pair['difference']:.6f} {pair['unit']} "
             f"({pair['difference_pct']:.4f} %)."
         )
     message = (
-        "Les prix des API diffèrent : un problème est possible. Vérifiez les sources concernées."
+        "API prices differ: there may be a problem. Check the affected sources."
         if mismatches else
-        "Les prix des API comparables sont cohérents."
+        "Comparable API prices are consistent."
         if checked else
-        "Comparaison non vérifiée : aucune paire de prix équivalente disponible."
+        "Comparison unverified: no equivalent pair of prices is available."
     )
     return {
         "sources": sources, "pairs": pairs,
@@ -137,5 +137,5 @@ def compare_api_prices(
         "message": message, "warnings": warnings,
         "comparable_pair_count": len(checked), "mismatch_count": mismatches,
         "rounding_tolerance": ROUNDING_TOLERANCE,
-        "note": "FRED et Alpha Vantage relaient les séries EIA : leur accord confirme la cohérence des flux, pas une mesure indépendante. BLS fournit un indice, pas un prix du bitume.",
+        "note": "FRED and Alpha Vantage relay EIA series: their agreement confirms feed consistency, not an independent measurement. BLS provides an index, not a bitumen price.",
     }

@@ -72,6 +72,30 @@ def test_instrument_switch_and_unchanged_thresholds_do_not_fabricate_events(cont
     assert repeated['id'] == stored[1]['id'] and repeated['variation_pct'] is None
     assert contract_db.dashboard(instruments={'brent': 'brent_spot'})['metrics']['brent']['current'] == 80
 
+
+def test_live_forecast_ledger_scores_the_original_instrument_and_baseline(contract_db):
+    issued = contract_db.record_live_forecast({
+        'product': 'brent', 'instrument': 'brent_spot', 'horizon': 7, 'horizon_unit': 'calendar_days',
+        'model': 'holt', 'model_version': 'contract-live-v1', 'origin_date': '2026-10-01',
+        'target_date': '2026-10-08', 'issued_at': '2026-10-01T12:00:00+00:00',
+        'prediction': 110, 'baseline_prediction': 100, 'lower_bound': 105, 'upper_bound': 115,
+    })
+    assert contract_db.record_live_forecast({
+        'product': 'brent', 'instrument': 'brent_spot', 'horizon': 7, 'horizon_unit': 'calendar_days',
+        'model': 'holt', 'model_version': 'contract-live-v1', 'origin_date': '2026-10-01',
+        'target_date': '2026-10-08', 'issued_at': '2026-10-02T12:00:00+00:00',
+        'prediction': 110, 'baseline_prediction': 100, 'lower_bound': 105, 'upper_bound': 115,
+    })['id'] == issued['id']
+    target = datetime(2026, 10, 8, tzinfo=timezone.utc)
+    contract_db.insert_observation(observation('brent_futures', 108, target))
+    assert contract_db.live_forecast_performance(product='brent', instrument='brent_spot', horizon=7)['metrics']['samples'] == 0
+    contract_db.insert_observation(observation('brent_spot', 108, target))
+    metrics = contract_db.live_forecast_performance(product='brent', instrument='brent_spot', horizon=7)['metrics']
+    assert metrics['mae'] == pytest.approx(2)
+    assert metrics['bias'] == pytest.approx(2)
+    assert metrics['improvement_over_baseline'] == pytest.approx(.75)
+    assert metrics['interval_coverage'] == 1
+
 def test_dense_history_forecast_and_exports_keep_the_latest_and_all_requested_rows(contract_db):
     day = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     old = day - timedelta(days=50)

@@ -1221,7 +1221,68 @@
             "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
           }
         },
-        "description": "Brent and diesel forecasts use only spot series, with stable FRED, EIA, then Alpha Vantage priority. Futures and the heating oil proxy are excluded from this history. One point per source date is selected before limiting; the latest 5,000 aggregated points are kept in chronological order.",
+        "description": "Brent and diesel forecasts use only spot series, with stable FRED, EIA, then Alpha Vantage priority. Futures and the heating oil proxy are excluded from this history. One point per source date is selected before limiting; the latest 5,000 aggregated points are kept in chronological order. Each selected endpoint is persisted once with its model version, original baseline, and interval.",
+        "security": [
+          {
+            "CookieSession": []
+          },
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/forecast-performance": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Rolling live forecast performance",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 90
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Product"
+          },
+          {
+            "$ref": "#/components/parameters/Instrument"
+          },
+          {
+            "name": "horizon",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Persisted issued forecasts, their resolved actuals, rolling MAE/RMSE/MAPE, bias, improvement over the original last-known-price baseline, and interval coverage."
+          },
+          "400": {
+            "description": "Invalid parameter"
+          },
+          "401": {
+            "description": "Authentication required or invalid credentials"
+          },
+          "403": {
+            "description": "Invalid origin, HTTPS, CSRF, or insufficient permission"
+          }
+        },
+        "description": "Scores only the same instrument: a futures or heating-oil observation can never resolve a spot forecast. Daily targets accept the first published actual on the target date through four days later; the monthly BLS index requires the target month.",
         "security": [
           {
             "CookieSession": []

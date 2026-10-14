@@ -24,6 +24,7 @@ from .bitumen import INDEX_CODE, INDEX_LABEL, INDEX_UNIT, benchmark_payload
 from .quote_store import QuoteStoreMixin, json_text
 from .collection_store import CollectionStoreMixin
 from .access_store import AccessStoreMixin, borrowed_connection
+from .forecast_store import ForecastStoreMixin
 from .market_calendar import market_session
 from .quotes import QuoteConflict
 from .quotes import COST_FIELDS, EXTRA_COST_FIELDS, landed_costs
@@ -374,6 +375,13 @@ class DatabaseBackend(Protocol):
     def quote_document(self, quote_id: int, document_id: int) -> dict: ...
     def compare_quotes(self, quote_ids: list[int], as_of: str | None = None) -> dict: ...
 
+    def record_live_forecast(self, payload: dict[str, Any]) -> dict[str, Any]: ...
+
+    def reconcile_live_forecasts(self) -> int: ...
+
+    def live_forecast_performance(self, window: int = 90, *, product: str | None = None,
+                                  instrument: str | None = None, horizon: int | None = None) -> dict[str, Any]: ...
+
     def insert_benchmark(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
     def latest_benchmarks(self, product: str | None = None, limit: int = 20) -> list[dict[str, Any]]: ...
@@ -475,7 +483,7 @@ def run_sqlite_migrations(connection: sqlite3.Connection, migrations_dir: Path =
     return newly_applied
 
 
-class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
+class SQLiteDatabase(ForecastStoreMixin, QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
     """SQLite persistence backend used locally and by default."""
 
     _lock = threading.RLock()
@@ -767,7 +775,12 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                         (collected_at, existing["id"], collected_at),
                     )
                     existing = conn.execute("SELECT * FROM price_observations WHERE id=?", (existing["id"],)).fetchone()
-                return dict(existing)
+                record = dict(existing)
+                self._match_live_forecasts_for_actual(
+                    conn, product=product, instrument=instrument, value=price,
+                    source_date=source_date, collected_at=collected_at,
+                )
+                return record
             previous = conn.execute(
                 """SELECT price, source_date FROM price_observations
                 WHERE product=? AND instrument=? AND source=?
@@ -803,9 +816,18 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                     (product, instrument, source, source_date, price),
                 ).fetchone()
                 if existing:
-                    return dict(existing)
+                    record = dict(existing)
+                    self._match_live_forecasts_for_actual(
+                        conn, product=product, instrument=instrument, value=price,
+                        source_date=source_date, collected_at=collected_at,
+                    )
+                    return record
                 raise
             record = conn.execute("SELECT * FROM price_observations WHERE id=?", (cur.lastrowid,)).fetchone()
+            self._match_live_forecasts_for_actual(
+                conn, product=product, instrument=instrument, value=price,
+                source_date=source_date, collected_at=collected_at,
+            )
             return dict(record)
 
     def insert_benchmark(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -852,8 +874,15 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
                         "UPDATE market_benchmarks SET source=?, notes=?, collected_at=? WHERE id=?",
                         (source, notes, self._datetime_value(collected_at), existing["id"]),
                     )
-                    return dict(conn.execute("SELECT * FROM market_benchmarks WHERE id=?", (existing["id"],)).fetchone())
-                return dict(existing)
+                    record = dict(conn.execute("SELECT * FROM market_benchmarks WHERE id=?", (existing["id"],)).fetchone())
+                else:
+                    record = dict(existing)
+                if code == INDEX_CODE:
+                    self._match_live_forecasts_for_actual(
+                        conn, product=product, instrument="asphalt_index", value=value,
+                        source_date=source_date, collected_at=collected_at,
+                    )
+                return record
             previous = conn.execute(
                 "SELECT value FROM market_benchmarks WHERE code=? AND source_date<? ORDER BY source_date DESC, collected_at DESC, id DESC LIMIT 1",
                 (code, source_date),
@@ -884,6 +913,11 @@ class SQLiteDatabase(QuoteStoreMixin, CollectionStoreMixin, AccessStoreMixin):
             record = conn.execute(
                 "SELECT * FROM market_benchmarks WHERE id=?", (cursor.lastrowid,)
             ).fetchone()
+            if code == INDEX_CODE:
+                self._match_live_forecasts_for_actual(
+                    conn, product=product, instrument="asphalt_index", value=value,
+                    source_date=source_date, collected_at=collected_at,
+                )
             return dict(record)
 
     def latest_benchmarks(

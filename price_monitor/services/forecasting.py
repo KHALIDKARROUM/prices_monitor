@@ -13,6 +13,7 @@ import math
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Iterable
 from ..forecast_evaluation import PROTOCOL, NOMINAL_LEVEL, evaluate_baselines
+from ..forecast_store import LIVE_FORECAST_MODEL_VERSION, LIVE_FORECAST_WINDOW
 from ..bitumen import INDEX_LABEL, INDEX_UNIT
 from ..instruments import DEFAULT_INSTRUMENTS, INSTRUMENTS, canonical_daily_rows, row_instrument
 
@@ -216,14 +217,53 @@ def forecast_product(rows: Iterable[dict[str, Any]], product: str, horizons: tup
 def build_forecast(database: Any, history_days: int = DEFAULT_HISTORY_DAYS) -> dict[str, Any]:
     """Build daily price and monthly Bitume-index forecasts separately."""
     history_days = max(90, min(DEFAULT_HISTORY_DAYS, int(history_days)))
+    if hasattr(database, "reconcile_live_forecasts"):
+        database.reconcile_live_forecasts()
     products: dict[str, Any] = {}
     for product in FORECAST_PRODUCTS:
         instrument = "asphalt_index" if product == "bitume" else DEFAULT_INSTRUMENTS[product]
-        rows = database.observations(product, days=history_days, limit=MAX_HISTORY_ROWS, instrument=instrument, daily=True)
+        rows = (
+            database.bitumen_series(days=history_days, include_anchor=True)
+            if product == "bitume" and hasattr(database, "bitumen_series")
+            else database.observations(product, days=history_days, limit=MAX_HISTORY_ROWS, instrument=instrument, daily=True)
+        )
         products[product] = forecast_product(rows, product)
+    if hasattr(database, "record_live_forecast"):
+        for product, forecast in products.items():
+            if forecast.get("status") != "ready":
+                continue
+            for horizon, points in forecast.get("forecasts", {}).items():
+                if not points:
+                    continue
+                endpoint = points[-1]
+                selection = forecast.get("model_selection", {}).get(horizon, {})
+                database.record_live_forecast({
+                    "product": product,
+                    "instrument": forecast["instrument"],
+                    "horizon": int(horizon),
+                    "horizon_unit": forecast["horizon_unit"],
+                    "model": selection.get("selected_model", forecast.get("model", "unknown")),
+                    "model_version": f"{forecast.get('model_version', 'unknown')}:{LIVE_FORECAST_MODEL_VERSION}",
+                    "origin_date": forecast["forecast_origin"],
+                    "target_date": endpoint["date"],
+                    "prediction": endpoint["value"],
+                    "baseline_prediction": forecast["last_actual"]["value"],
+                    "lower_bound": endpoint.get("lower"),
+                    "upper_bound": endpoint.get("upper"),
+                })
+            forecast["live_performance"] = {
+                "window": LIVE_FORECAST_WINDOW,
+                "horizons": {
+                    str(horizon): database.live_forecast_performance(
+                        LIVE_FORECAST_WINDOW, product=product, instrument=forecast["instrument"], horizon=int(horizon),
+                    )
+                    for horizon in forecast["horizons"]
+                },
+            }
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "history_days": history_days,
         "horizons": list(FORECAST_HORIZONS),
+        "live_forecast_model_version": LIVE_FORECAST_MODEL_VERSION,
         "products": products,
     }

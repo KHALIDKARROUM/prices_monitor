@@ -69,6 +69,9 @@ class StubDatabase:
         self.purchases.insert(0, purchase)
         return purchase
 
+    def live_forecast_performance(self, window=90, *, product=None, instrument=None, horizon=None):
+        return {"window": window, "horizon": horizon, "metrics": {"samples": 0, "pending": 0}, "records": []}
+
 
 @pytest.fixture
 def api_server(monkeypatch):
@@ -185,6 +188,16 @@ def test_forecast_route_returns_public_market_forecast(api_server):
     assert database.observation_calls == 3
     assert body and b'"products"' in body
     assert set(json.loads(body)["products"]) == {"gasoil", "brent", "bitume"}
+
+
+def test_live_forecast_performance_route_returns_a_rolling_ledger(api_server):
+    server, _ = api_server
+    status, _, body = request(server, "GET", "/api/forecast-performance?window=30&product=brent&horizon=7", {"X-API-Key": "test-api-key"})
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["window"] == 30
+    assert payload["horizon"] == 7
+    assert payload["metrics"]["samples"] == 0
 
 
 def test_alert_page_reports_email_readiness(api_server, monkeypatch):

@@ -98,3 +98,17 @@ test('a server awaiting restart keeps legacy Holt and heuristic bands honestly l
   assert.doesNotMatch($('#forecast-brent-quality').innerHTML, /Last known price/);
   assert.equal(charts[0].data.datasets[1].label, 'Indicative interval');
 });
+
+test('live performance remains distinct from the historical test score', () => {
+  const data = product();
+  data.live_performance = { horizons: { '7': { window: 90, metrics: {
+    samples: 5, pending: 2, mae: 1.5, bias: -.2, improvement_over_baseline: .25,
+    interval_coverage: .8, interval_samples: 5
+  } } } };
+  const { $, render } = dashboard(data);
+  render();
+  assert.match($('#forecast-brent-stats').innerHTML, /Live MAE/);
+  assert.match($('#forecast-brent-stats').innerHTML, /5 resolved/);
+  assert.match($('#forecast-brent-stats').innerHTML, /Live improvement vs baseline/);
+  assert.match($('#forecast-brent-summary').textContent, /Live ledger \(5 resolved\)/);
+});

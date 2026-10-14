@@ -341,6 +341,12 @@ def run_collection(database: DatabaseBackend, *, collector=None) -> dict:
         if callable(benchmark_inserter):
             for benchmark in benchmarks:
                 benchmark_inserter(benchmark)
+        reconcile_forecasts = getattr(database, "reconcile_live_forecasts", None)
+        if callable(reconcile_forecasts):
+            # Provider workers complete independently. Re-evaluate against the
+            # stable canonical daily observation after every batch, so the
+            # first response cannot permanently choose the scored actual.
+            reconcile_forecasts()
         finished = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         _update_source_health(database, source_outcomes, finished)
         # With independent workers, compare their latest successful published

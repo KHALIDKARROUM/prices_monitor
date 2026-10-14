@@ -542,6 +542,15 @@ class Handler(WSGIRequest):
             if parsed.path == "/api/forecast":
                 history_days = max(90, min(1825, int(query.get("history_days", [1825])[0])))
                 return self.send_json(build_forecast(database, history_days=history_days))
+            if parsed.path == "/api/forecast-performance":
+                window = max(1, min(365, int(query.get("window", [90])[0])))
+                product = query.get("product", [None])[0]
+                instrument = query.get("instrument", [None])[0]
+                horizon = query.get("horizon", [None])[0]
+                return self.send_json(database.live_forecast_performance(
+                    window, product=product, instrument=instrument,
+                    horizon=int(horizon) if horizon not in (None, "") else None,
+                ))
             if parsed.path == "/api/alerts":
                 return self.send_json({"alerts": database.alert_rules(), "channels": alert_channel_status()})
             if parsed.path == "/api/observations":

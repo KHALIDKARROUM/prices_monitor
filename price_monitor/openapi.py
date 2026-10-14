@@ -96,6 +96,13 @@ OPENAPI_SPEC = {
         "/api/forecast": {
             "get": {"tags": ["market"], "summary": "Diesel, Brent, and bitumen index forecasts", "parameters": [{"$ref": "#/components/parameters/HistoryDays"}], "responses": {"200": {"description": "Prices at 7/30/90 days and BLS bitumen index at 1/3/6 months from the latest source date. Each product exposes its unit, frequency, horizons, indicative intervals, persistence comparison, and historical coverage."}, "400": {"description": "Invalid parameter"}}}
         },
+        "/api/forecast-performance": {
+            "get": {"tags": ["market"], "summary": "Rolling live forecast performance", "parameters": [
+                {"name": "window", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 365, "default": 90}},
+                {"$ref": "#/components/parameters/Product"}, {"$ref": "#/components/parameters/Instrument"},
+                {"name": "horizon", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 365}},
+            ], "responses": {"200": {"description": "Persisted issued forecasts, their resolved actuals, rolling MAE/RMSE/MAPE, bias, improvement over the original last-known-price baseline, and interval coverage."}, "400": {"description": "Invalid parameter"}}}
+        },
         "/api/alerts": {
             "get": {"tags": ["market"], "summary": "List alert rules and their status", "responses": {"200": {"description": "Active, recovered, or paused rules"}}},
             "post": {"tags": ["market"], "summary": "Create an alert rule", "security": [{"ApiKeyHeader": []}, {"BearerAuth": []}], "requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AlertRuleInput"}}}}, "responses": {"201": {"description": "Rule created"}, "400": {"description": "Invalid rule"}}},
@@ -178,6 +185,8 @@ for product, choices in (("brent", ["brent_spot", "brent_futures"]), ("gasoil", 
     })
 OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] = "Brent and diesel forecasts use only spot series, with stable FRED, EIA, then Alpha Vantage priority. Futures and the heating oil proxy are excluded from this history."
 OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] += " One point per source date is selected before limiting; the latest 5,000 aggregated points are kept in chronological order."
+OPENAPI_SPEC["paths"]["/api/forecast"]["get"]["description"] += " Each selected endpoint is persisted once with its model version, original baseline, and interval."
+OPENAPI_SPEC["paths"]["/api/forecast-performance"]["get"]["description"] = "Scores only the same instrument: a futures or heating-oil observation can never resolve a spot forecast. Daily targets accept the first published actual on the target date through four days later; the monthly BLS index requires the target month."
 OPENAPI_SPEC["paths"]["/api/observations"]["get"]["description"] = "The 600 most recent raw observations in the period are returned in chronological order. Use paginated history or exports to browse all observations."
 OPENAPI_SPEC["paths"]["/api/history/compare"]["get"]["description"] = "Compares all data matching the filters, with no 10,000-row cap per period; daily series are aggregated by instrument and date."
 for path in ("/export.csv", "/export.xlsx"):

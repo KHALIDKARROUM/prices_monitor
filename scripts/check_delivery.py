@@ -29,7 +29,7 @@ def check_wheel(path):
         for name in ('chart.umd-4.4.3.js', 'chartjs-LICENSE.md', 'THIRD_PARTY.md', 'attention.js', 'auth.js', 'team.js'):
             assert 'price_monitor/static/' + name in files, f'Missing packaged asset: {name}'
         for backend in ('migrations', 'mysql_migrations'):
-            assert f'price_monitor/{backend}/013_team_access.sql' in files
+            assert f'price_monitor/{backend}/014_live_forecasts.sql' in files
         assert not any('/storage/' in name or name.endswith('/.env') for name in files), 'Private runtime data found in package'
 
 if __name__ == '__main__':

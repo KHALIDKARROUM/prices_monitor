@@ -41,4 +41,5 @@ if ! "$PYTHON" -c 'import openpyxl, mysql.connector, apscheduler, waitress, argo
 fi
 
 echo "Starting Price Monitor at http://127.0.0.1:8080"
+export PYTHONPATH="$ROOT_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
 exec "$PYTHON" -m price_monitor.app

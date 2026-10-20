@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { requestHeaders } = require('../price_monitor/static/auth.js');
-const { auditRows } = require('../price_monitor/static/team.js');
+const { requestHeaders } = require('../src/price_monitor/static/auth.js');
+const { auditRows } = require('../src/price_monitor/static/team.js');
 
 test('session mutations send CSRF only to the application origin', () => {
   const state = { team_mode: true, csrf_token: 'private-csrf' };

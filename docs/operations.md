@@ -63,7 +63,7 @@ La migration `013_team_access` ajoute les comptes individuels, sessions et jeton
 
 La migration `010_instrument_histories` ajoute l'identité d'instrument aux observations et règles sur SQLite et MySQL. Elle conserve les IDs et les relevés, recalcule les variations par instrument et fournisseur et permet des seuils distincts pour le spot et les contrats à terme. Les anciennes règles de prix Brent/gasoil sont affectées au spot; les règles `stale` restent affectées aux flux en direct. Les anciens états `price:brent:*` et `price:gasoil:*` sont supprimés, car ils mélangeaient plusieurs instruments; leurs nouveaux états sont évalués à la prochaine collecte. Les états de fraîcheur, fournisseurs et indice bitume sont conservés.
 
-Les migrations SQLite versionnées sont dans `price_monitor/migrations/`. Les migrations MySQL sont dans `sql/mysql_migrations/`. Elles sont idempotentes au niveau du runner et leurs versions sont enregistrées dans `schema_migrations`. Une migration doit être appliquée en CI sur une base de test avant déploiement ; ne pas modifier une migration déjà appliquée, ajouter une nouvelle version.
+Les migrations SQLite versionnées sont dans `src/price_monitor/migrations/`. Les migrations MySQL sont dans `sql/mysql_migrations/`. Elles sont idempotentes au niveau du runner et leurs versions sont enregistrées dans `schema_migrations`. Une migration doit être appliquée en CI sur une base de test avant déploiement ; ne pas modifier une migration déjà appliquée, ajouter une nouvelle version.
 
 ## Notifications
 

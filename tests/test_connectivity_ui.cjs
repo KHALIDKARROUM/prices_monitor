@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const ConnectionMonitor = require('../price_monitor/static/connectivity.js');
+const ConnectionMonitor = require('../src/price_monitor/static/connectivity.js');
 
 function dashboard() {
   const notices = [];

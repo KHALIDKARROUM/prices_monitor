@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { scheduleRows, cadence } = require('../price_monitor/static/schedules.js');
+const { scheduleRows, cadence } = require('../src/price_monitor/static/schedules.js');
 
 test('daily and monthly feeds show their cadence and remaining quota context', () => {
   const rows = scheduleRows([{ provider: 'alpha_vantage', interval_minutes: 720, requests_last_24h: 25,

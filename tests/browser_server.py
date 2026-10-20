@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from argon2 import PasswordHasher
 from price_monitor import app, access_store
 from price_monitor.http_wsgi import WSGIServer

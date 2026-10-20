@@ -14,12 +14,12 @@ def check_source():
     assert {'notebooks/data_workflow.ipynb', 'reports/data_workflow/report.md', 'reports/data_workflow/bitumen_report.md'} <= paths
     for path in paths:
         assert (ROOT / path).is_file(), f'Broken README source path: {path}'
-    static = ROOT / 'price_monitor/static'
+    static = ROOT / 'src/price_monitor/static'
     bundle = static / 'chart.umd-4.4.3.js'
     recorded = re.search(r'Bundle SHA-256: `([0-9a-f]{64})`', (static / 'THIRD_PARTY.md').read_text())
     assert recorded and hashlib.sha256(bundle.read_bytes()).hexdigest() == recorded[1], 'Chart bundle differs from its provenance record'
     assert 'MIT' in (static / 'chartjs-LICENSE.md').read_text()
-    template = (ROOT / 'price_monitor/templates/index.html').read_text(encoding='utf-8')
+    template = (ROOT / 'src/price_monitor/templates/index.html').read_text(encoding='utf-8')
     assert 'src="/static/chart.umd-4.4.3.js"' in template
     assert not re.search(r'<script[^>]+src="https?://', template), 'Runtime scripts must be bundled locally'
 

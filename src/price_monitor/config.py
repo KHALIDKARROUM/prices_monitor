@@ -7,10 +7,11 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = BASE_DIR.parent
-SOURCE_CHECKOUT = (PROJECT_DIR / "pyproject.toml").exists()
+SOURCE_ROOT = BASE_DIR.parents[1]
+SOURCE_CHECKOUT = (SOURCE_ROOT / "pyproject.toml").exists()
+PROJECT_DIR = SOURCE_ROOT if SOURCE_CHECKOUT else BASE_DIR.parent
 RUNTIME_DIR = PROJECT_DIR if SOURCE_CHECKOUT else Path.cwd()
-STORAGE_DIR = BASE_DIR / "storage" if SOURCE_CHECKOUT else RUNTIME_DIR / "storage"
+STORAGE_DIR = PROJECT_DIR / "var" if SOURCE_CHECKOUT else RUNTIME_DIR / "storage"
 BACKUP_DIR = Path(os.getenv("PRICE_MONITOR_BACKUP_DIR", RUNTIME_DIR / "backups"))
 
 

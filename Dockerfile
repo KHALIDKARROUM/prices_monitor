@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY pyproject.toml README.md ./
-COPY price_monitor ./price_monitor
+COPY src ./src
 COPY sql ./sql
 COPY data/processed ./data/processed
 

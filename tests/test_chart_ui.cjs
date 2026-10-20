@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const source = fs.readFileSync(require('node:path').join(__dirname,'../price_monitor/static/app.js'),'utf8');
+const source = fs.readFileSync(require('node:path').join(__dirname,'../src/price_monitor/static/app.js'),'utf8');
 
 function view(mode, available=true) {
   const elements = new Map();

@@ -12,6 +12,7 @@ __pycache__
 backups
 exports
 uploads
+var
 **/storage
 notebooks
 tests

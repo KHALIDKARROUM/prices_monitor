@@ -55,7 +55,7 @@ Le fichier [`.env.example`](.env.example) contient les options documentées, ave
 | `PRICE_MONITOR_HOST` / `PRICE_MONITOR_PORT` | `127.0.0.1` / `8080` |
 | `PRICE_MONITOR_ENV` | `development` pour l’usage local |
 | `PRICE_MONITOR_DB_BACKEND` | `sqlite` ; `mysql` pour MySQL |
-| `PRICE_MONITOR_DB` | Base SQLite locale, par défaut `price_monitor/storage/price_monitor.db` dans le dépôt |
+| `PRICE_MONITOR_DB` | Base SQLite locale, par défaut `var/price_monitor.db` dans le dépôt |
 | `PRICE_MONITOR_LIVE_QUOTES_ENABLED` | `true` ; `false` pour désactiver les cotations Yahoo |
 | `FRED_API_KEY`, `EIA_API_KEY`, `ALPHA_VANTAGE_API_KEY` | Clés optionnelles des fournisseurs correspondants |
 | `PRICE_MONITOR_TEAM_MODE` | `false` en local ; requis pour un accès partagé ou public |
@@ -70,7 +70,7 @@ Le fichier [`.env.example`](.env.example) contient les options documentées, ave
 
 Dans `.env`, définissez `PRICE_MONITOR_DB_BACKEND=mysql`, puis renseignez `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER` et `MYSQL_PASSWORD`. Utilisez un compte dédié à l’application. Le serveur crée la base si le compte possède ce droit, puis applique le schéma et les migrations.
 
-Les migrations SQLite se trouvent dans `price_monitor/migrations/` et les migrations MySQL dans `sql/mysql_migrations/`. Des copies MySQL sont incluses dans le paquet Python pour son installation autonome.
+Les migrations SQLite se trouvent dans `src/price_monitor/migrations/` et les migrations MySQL dans `sql/mysql_migrations/`. Des copies MySQL sont incluses dans le paquet Python pour son installation autonome.
 
 ### Données fictives
 
@@ -79,7 +79,7 @@ Pour essayer l’interface avec des données fictives, utilisez une base distinc
 ```powershell
 $env:PRICE_MONITOR_DEMO = "true"
 $env:PRICE_MONITOR_DB_BACKEND = "sqlite"
-$env:PRICE_MONITOR_DB = "$PWD\price_monitor\storage\demo.db"
+$env:PRICE_MONITOR_DB = "$PWD\var\demo.db"
 .\.venv\Scripts\python.exe -m price_monitor.app
 ```
 
@@ -158,14 +158,15 @@ Pour MySQL, utilisez exclusivement un serveur de test : `PRICE_MONITOR_TEST_MYSQ
 
 | Chemin | Contenu |
 | --- | --- |
-| `price_monitor/` | Serveur HTTP, configuration, stockage et logique métier |
-| `price_monitor/services/` | Collectes, planification, alertes, prévisions et exports |
-| `price_monitor/templates/` / `price_monitor/static/` | Interface et ressources locales |
-| `price_monitor/analysis/` | Pipeline d’analyse et évaluation des modèles |
+| `src/price_monitor/` | Serveur HTTP, configuration et logique métier |
+| `src/price_monitor/services/` | Collectes, planification, alertes, prévisions et exports |
+| `src/price_monitor/templates/` / `src/price_monitor/static/` | Interface et ressources locales |
+| `src/price_monitor/analysis/` | Pipeline d’analyse et évaluation des modèles |
 | `data/` | Sources publiques et snapshots normalisés |
 | `sql/` | Schéma et migrations MySQL |
 | `scripts/` / `notebooks/` | Préparation des données et analyses reproductibles |
 | `tests/` | Tests Python, interface et navigateur |
+| `var/` | Données locales d’exécution : base SQLite, journaux et sauvegardes ; ignorées par Git |
 | `docs/operations.md` | Déploiement, comptes, sauvegardes et exploitation |
 
 ## API et déploiement

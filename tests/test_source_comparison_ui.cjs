@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const appSource = fs.readFileSync(path.join(__dirname, '../price_monitor/static/app.js'), 'utf8');
+const appSource = fs.readFileSync(path.join(__dirname, '../src/price_monitor/static/app.js'), 'utf8');
 
 function dashboard() {
   const elements = new Map();

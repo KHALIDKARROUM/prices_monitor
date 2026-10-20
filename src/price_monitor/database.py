@@ -292,7 +292,8 @@ CREATE TABLE IF NOT EXISTS supplier_channels (
 
 
 PACKAGE_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = PACKAGE_DIR.parent
+SOURCE_ROOT = PACKAGE_DIR.parents[1]
+PROJECT_ROOT = SOURCE_ROOT if (SOURCE_ROOT / "pyproject.toml").exists() else PACKAGE_DIR.parent
 SQL_ROOT = Path(os.getenv("PRICE_MONITOR_SQL_DIR", PROJECT_ROOT / "sql"))
 if not (SQL_ROOT / "mysql_schema.sql").exists():
     SQL_ROOT = PACKAGE_DIR

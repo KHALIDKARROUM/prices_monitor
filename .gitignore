@@ -21,6 +21,7 @@ credentials.*
 backups/
 exports/
 uploads/
+var/
 *.db
 *.db-*
 *.sqlite

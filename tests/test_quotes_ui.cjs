@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const source = fs.readFileSync(path.join(__dirname, '../price_monitor/static/quotes.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../src/price_monitor/static/quotes.js'), 'utf8');
 function dashboard() {
   const elements = new Map();
   const $ = selector => {

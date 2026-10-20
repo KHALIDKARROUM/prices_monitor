@@ -11,7 +11,7 @@ def test_readme_paths_and_vendored_chart_integrity():
     module.check_source()
 
 def test_every_chart_has_a_named_accessible_text_summary():
-    template = (ROOT / 'price_monitor/templates/index.html').read_text(encoding='utf-8')
+    template = (ROOT / 'src/price_monitor/templates/index.html').read_text(encoding='utf-8')
     canvases = re.findall(r'<canvas\b([^>]+)>', template)
     assert len(canvases) == 4
     for attributes in canvases:

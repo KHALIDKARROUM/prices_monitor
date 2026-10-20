@@ -43,7 +43,11 @@ price-monitor-migrate = "price_monitor.migrate:main"
 price-monitor-users = "price_monitor.accounts:main"
 
 [tool.setuptools.packages.find]
+where = ["src"]
 include = ["price_monitor*"]
+
+[tool.setuptools.package-dir]
+"" = "src"
 
 [tool.setuptools.package-data]
 price_monitor = ["templates/*.html", "static/*", "migrations/*.sql", "mysql_schema.sql", "mysql_migrations/*.sql"]

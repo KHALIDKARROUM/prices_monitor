@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {attentionItems, attentionHtml} = require('../price_monitor/static/attention.js');
+const {attentionItems, attentionHtml} = require('../src/price_monitor/static/attention.js');
 
 test('attention links distinguish stale data, active alerts, weak forecasts and quota waits', () => {
   const items = attentionItems({dashboard:{metrics:{brent:{current:80,is_stale:true},gasoil:{current:null},bitume:{current:500,is_stale:false}},source_comparison:{mismatch_count:1}},

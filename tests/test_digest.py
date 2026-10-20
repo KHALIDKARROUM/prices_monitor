@@ -93,7 +93,7 @@ def test_digest_email_uses_configured_recipient_and_smtp(monkeypatch):
         def send_message(self, message):
             sent.append(message)
 
-    monkeypatch.setattr(digest_module, "DIGEST_EMAIL_TO", ("karroumkhalid13@gmail.com",))
+    monkeypatch.setattr(digest_module, "DIGEST_EMAIL_TO", ("recipient@example.com",))
     monkeypatch.setattr(digest_module, "ALERT_SMTP_HOST", "smtp.example.com")
     monkeypatch.setattr(digest_module, "ALERT_SMTP_USER", "sender@example.com")
     monkeypatch.setattr(digest_module, "ALERT_SMTP_PASSWORD", "app-password")
@@ -103,6 +103,6 @@ def test_digest_email_uses_configured_recipient_and_smtp(monkeypatch):
     digest_module.send_digest_email("Price Monitor report", "Collection summary")
 
     assert len(sent) == 1
-    assert sent[0]["To"] == "karroumkhalid13@gmail.com"
+    assert sent[0]["To"] == "recipient@example.com"
     assert sent[0]["Subject"] == "Price Monitor report"
     assert "Collection summary" in sent[0].get_content()

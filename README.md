@@ -17,26 +17,15 @@ Le projet fonctionne en local avec **Python 3.11+ et SQLite**, sans serveur de b
 
 ## Installation et démarrage
 
-### Windows — PowerShell
-
-Depuis la racine du projet :
+Depuis la racine du projet, lancez une seule commande :
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-.\.venv\Scripts\python.exe -m price_monitor.app
+python run.py
 ```
 
-Ouvrez ensuite [http://127.0.0.1:8080](http://127.0.0.1:8080). Aucune activation de l’environnement virtuel n’est nécessaire avec ces commandes. Pour les démarrages suivants, seule la dernière commande est requise.
+Le lanceur crée `.venv` et installe les dépendances de l’application si nécessaire, puis démarre le serveur. Sur Linux ou macOS, utilisez `python3 run.py`. Il suffit de relancer la même commande les fois suivantes.
 
-### Linux, macOS ou Git Bash
-
-```bash
-bash run.sh
-```
-
-Le script crée `.venv` si nécessaire, installe les dépendances manquantes et lance le serveur. Vous pouvez aussi installer le paquet avec `python -m pip install -e .`, puis lancer `python -m price_monitor.app` dans votre environnement virtuel.
+Ouvrez ensuite [http://127.0.0.1:8080](http://127.0.0.1:8080). Pour vérifier l’installation sans démarrer le serveur, exécutez `python run.py --check`.
 
 ### Premier lancement
 
